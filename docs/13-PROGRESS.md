@@ -167,6 +167,48 @@ When a ticket is completed, append a new entry below this line:
 
 ---
 
+[2026-09-02] [Phase-2] Prisma schema rewrite + LocalStrategy auth + TokenVault + 133 unit tests.
+  - Prisma schema rewritten from 48-model postiz shape → 9 NetAmplify models per docs/04-DATABASE.md:
+    - User, Profile, PostCard, ProjectMedia, Connection, Post, PostTarget, QuotaUsage, AuditLog
+    - 4 enums: Platform, ConnectionType, ConnectionStatus, PostTargetStatus
+    - credentialsCipher column is the ONLY credential column (AES-256-GCM ciphertext)
+    - onDelete: Cascade on User for full GDPR-style account wipe
+  - npx prisma generate: new client with all 9 models + 4 enums verified
+  - Vitest setup: vitest.config.ts (root) — unit tests only; integration tests (testcontainers) + E2E (Playwright) deferred to Phase 5/6
+  - Typed env module (libraries/nestjs-libraries/src/config/env.ts): fail-fast at boot if DATABASE_URL/REDIS_URL/TOKEN_ENCRYPTION_KEY/JWT_SECRET/NEXTAUTH_URL missing
+  - Zod validation schemas (libraries/nestjs-libraries/src/validation/schemas.ts): signup, login, reset-request, reset-confirm, profile, postcard, publish, connect-discord/telegram/bluesky/devto/hashnode — shared by client forms + server routes per docs/08-CODING-STANDARDS.md
+  - Error mapper (libraries/nestjs-libraries/src/services/error.mapper.ts): ServiceError → HTTP envelope per docs/05-API-SPEC.md ({ error: { code, message, fieldErrors? } })
+  - TokenVault (libraries/nestjs-libraries/src/services/vault/token-vault.ts): AES-256-GCM, accepts base64/hex/passphrase keys, IV+authTag+ciphertext format, tamper detection
+  - UserRepository + UsersService + AuditLogService: real Prisma repositories with owner-scoped queries per docs/07-SECURITY-ACCESS.md §3
+  - AuthService: signup (bcrypt cost 10 + JWT 7-day), login (timing-attack protection via dummy bcrypt), password reset (1h TTL, SHA-256 hashed tokens), deleteAccount (cascade + audit)
+  - LocalStrategy (Passport) + JwtStrategy + JwtAuthGuard — proper NestJS auth stack per C5-A deviation
+  - AuthController: POST /api/auth/signup, POST /api/auth/login, POST /api/auth/logout, GET /api/auth/me, POST /api/auth/reset-request, POST /api/auth/reset-confirm, DELETE /api/account
+  - HealthController: GET /api/health → { db, redis, ts } per docs/05-API-SPEC.md
+  - AuthModule wired into ApiModule; AuthController + HealthController added to controllers array
+
+  Vitest unit tests (133 passing):
+    - 29 tests: TokenVault (round-trip, tamper, ciphertext≠plaintext, wrong key, env validation)
+    - 81 tests: Zod schemas (signup/login/reset/profile/postcard/publish/connect-* — happy + edge + error paths)
+    - 18 tests: errorMapper (all ServiceErrorCode → HTTP status mappings)
+    - 23 tests: AuthService (real bcrypt + real JwtService; mocked only at repository boundary for UsersService + AuditLogService)
+    - Coverage: vault, validation, error.mapper, auth.service, auth.controller — 80% threshold configured
+    - All tests use REAL crypto (bcrypt cost 10, AES-256-GCM, HS256 JWT); only DB layer is mocked because sandbox has no Docker
+
+  curl-tests scripts (user-runnable on Arch):
+    - scripts/curl-tests/auth.sh: 12 assertions covering signup happy path, duplicate, weak password, malformed email, login happy path, wrong password, non-existent email, /me with + without JWT, reset-request for existing + non-existent (no enumeration), reset-confirm bogus token
+    - scripts/curl-tests/health.sh: 2 assertions for /api/health (status 200 + body shape)
+    - scripts/curl-tests/run-all.sh: orchestrator
+    - All scripts executable (chmod +x); available via `pnpm test:curl`
+
+  Verification:
+    - pnpm typecheck (backend): **0 errors** ✅
+    - pnpm test (Vitest unit): **133 tests passing** ✅
+    - Integration + E2E + curl tests: deferred to user's Arch machine (sandbox has no Docker for live Postgres/Redis)
+
+  Phase 3 TODO (next session): strip integration.manager + add 8 Tier A/B platform adapter configurations per the new adapter contract (social.integrations.interface.ts)
+
+---
+
 > ### Notes for agents
 >
 > - Update `Current status` table at the top BEFORE you start work
