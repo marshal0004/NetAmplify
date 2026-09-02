@@ -1,64 +1,80 @@
-import 'reflect-metadata';
+// /home/z/my-project/netamplify-app/libraries/nestjs-libraries/src/integrations/integration.manager.ts
+// NetAmplify — IntegrationManager (Phase 1 minimal).
+//
+// The 8 platform providers (reddit, x, linkedin, discord, dev.to, telegram,
+// bluesky, hashnode) have been moved to `_phase4-pending-providers/` because
+// they reference postiz's deep internal types (Temporal activity, full
+// SocialProvider interface with ~30 fields). Phase 4 will rewrite them per
+// the NetAmplify adapter contract defined in
+// `integrations/social/social.integrations.interface.ts` (already in place).
+//
+// In the meantime, this manager exposes the configured() method that the
+// Connect Checklist UI will use to render "Setup pending" cards for
+// Tier B platforms without env vars set.
 
 import { Injectable } from '@nestjs/common';
-import { XProvider } from '@netamplify/nestjs-libraries/integrations/social/x.provider';
-import { SocialProvider } from '@netamplify/nestjs-libraries/integrations/social/social.integrations.interface';
-import { LinkedinProvider } from '@netamplify/nestjs-libraries/integrations/social/linkedin.provider';
-import { RedditProvider } from '@netamplify/nestjs-libraries/integrations/social/reddit.provider';
-import { DevToProvider } from '@netamplify/nestjs-libraries/integrations/social/dev.to.provider';
-import { HashnodeProvider } from '@netamplify/nestjs-libraries/integrations/social/hashnode.provider';
-import { DiscordProvider } from '@netamplify/nestjs-libraries/integrations/social/discord.provider';
-import { BlueskyProvider } from '@netamplify/nestjs-libraries/integrations/social/bluesky.provider';
-import { TelegramProvider } from '@netamplify/nestjs-libraries/integrations/social/telegram.provider';
-import { SocialAbstract } from '@netamplify/nestjs-libraries/integrations/social.abstract';
 
 /**
- * NetAmplify keeps 8 platform providers (per docs/01-PRD.md §4):
- *   Tier A (MVP): Reddit, Discord, Dev.to, Telegram, Bluesky, Hashnode
- *   Tier B (bonus): X (Twitter), LinkedIn
- *
- * `configured()` (added per NetAmplify adapter contract) returns true when
- * the platform's required env vars are present; unconfigured Tier B
- * platforms render as "Setup pending" in the UI instead of erroring.
+ * NetAmplify platform identifiers (lowercase strings used as the canonical
+ * identifier across the codebase; the Prisma `Platform` enum will be added
+ * when the schema is rewritten in Phase 2 per docs/04-DATABASE.md).
  */
-export const socialIntegrationList: Array<SocialAbstract & SocialProvider> = [
-  new XProvider(),
-  new LinkedinProvider(),
-  new RedditProvider(),
-  new DiscordProvider(),
-  new DevToProvider(),
-  new HashnodeProvider(),
-  new BlueskyProvider(),
-  new TelegramProvider(),
+export const NETAMPLIFY_PLATFORMS = [
+  'REDDIT',
+  'DISCORD',
+  'DEVTO',
+  'TELEGRAM',
+  'BLUESKY',
+  'HASHNODE',
+  'TWITTER',
+  'LINKEDIN',
+] as const;
+
+export type NetAmplifyPlatform = (typeof NETAMPLIFY_PLATFORMS)[number];
+
+/**
+ * Tier A: platforms live in MVP (instant setup).
+ * Tier B: bonus attempts (work if env creds configured; "Setup pending" otherwise).
+ */
+export const TIER_A_PLATFORMS: ReadonlyArray<NetAmplifyPlatform> = [
+  'REDDIT',
+  'DISCORD',
+  'DEVTO',
+  'TELEGRAM',
+  'BLUESKY',
+  'HASHNODE',
+];
+
+export const TIER_B_PLATFORMS: ReadonlyArray<NetAmplifyPlatform> = [
+  'TWITTER',
+  'LINKEDIN',
 ];
 
 @Injectable()
 export class IntegrationManager {
   /**
-   * HIDDEN_PROVIDERS ("x,linkedin") hides providers from the add-channel screen
-   * without removing them from the registry. Env-driven so cloud and self-hosted
-   * instances can differ.
-   */
-  isHiddenProvider(identifier: string) {
-    return (process.env.HIDDEN_PROVIDERS || '')
-      .split(',')
-      .map((p) => p.trim())
-      .includes(identifier);
-  }
-
-  /**
-   * Returns true when the platform's required client credentials are present
-   * in env (used by Connect Checklist UI to render "Setup pending" for
-   * unconfigured Tier B platforms without erroring).
+   * Returns true when the platform's required env vars are present.
+   * Used by Connect Checklist UI to render "Setup pending" cards for
+   * unconfigured Tier B platforms without erroring.
+   *
+   * Tier A platforms (user-pasted credentials) are always "configured".
+   * Tier B platforms (OAuth via our developer app) need env vars.
    */
   configured(identifier: string): boolean {
     switch (identifier) {
       case 'reddit':
-        return Boolean(process.env.REDDIT_CLIENT_ID && process.env.REDDIT_CLIENT_SECRET);
+        return Boolean(
+          process.env.REDDIT_CLIENT_ID && process.env.REDDIT_CLIENT_SECRET
+        );
       case 'x':
-        return Boolean(process.env.TWITTER_CLIENT_ID && process.env.TWITTER_CLIENT_SECRET);
+      case 'twitter':
+        return Boolean(
+          process.env.TWITTER_CLIENT_ID && process.env.TWITTER_CLIENT_SECRET
+        );
       case 'linkedin':
-        return Boolean(process.env.LINKEDIN_CLIENT_ID && process.env.LINKEDIN_CLIENT_SECRET);
+        return Boolean(
+          process.env.LINKEDIN_CLIENT_ID && process.env.LINKEDIN_CLIENT_SECRET
+        );
       case 'discord':
       case 'devto':
       case 'hashnode':
@@ -70,69 +86,33 @@ export class IntegrationManager {
     }
   }
 
-  async getAllIntegrations() {
-    return {
-      social: await Promise.all(
-        socialIntegrationList
-          .filter((p) => !this.isHiddenProvider(p.identifier))
-          .map(async (p) => ({
-            name: p.name,
-            identifier: p.identifier,
-            toolTip: p.toolTip,
-            editor: p.editor,
-            isExternal: !!p.externalUrl,
-            isWeb3: !!p.isWeb3,
-            isChromeExtension: !!p.isChromeExtension,
-            configured: this.configured(p.identifier),
-            ...(p.extensionCookies
-              ? { extensionCookies: p.extensionCookies }
-              : {}),
-            ...(p.customFields ? { customFields: await p.customFields() } : {}),
-          }))
-      ),
-      article: [] as any[],
-    };
+  /**
+   * Returns the platform tier for the Connect Checklist UI.
+   * Tier A = always rendered with a Connect button.
+   * Tier B = rendered with "Setup pending" if !configured().
+   */
+  getTier(identifier: string): 'A' | 'B' {
+    const lower = identifier.toLowerCase();
+    return TIER_B_PLATFORMS.some((p) => p.toLowerCase() === lower)
+      ? 'B'
+      : 'A';
   }
 
-  getAllTools(): {
-    [key: string]: {
-      description: string;
-      dataSchema: any;
-      methodName: string;
-    }[];
-  } {
-    return socialIntegrationList.reduce(
-      (all, current) => ({
-        ...all,
-        [current.identifier]:
-          Reflect.getMetadata('custom:tool', current.constructor.prototype) ||
-          [],
-      }),
-      {}
-    );
+  /**
+   * List of all supported NetAmplify platform identifiers.
+   */
+  getAllowedSocialsIntegrations(): string[] {
+    return NETAMPLIFY_PLATFORMS.map((p) => p.toLowerCase());
   }
 
-  getAllRulesDescription(): {
-    [key: string]: string;
-  } {
-    return socialIntegrationList.reduce(
-      (all, current) => ({
-        ...all,
-        [current.identifier]:
-          Reflect.getMetadata(
-            'custom:rules:description',
-            current.constructor
-          ) || '',
-      }),
-      {}
-    );
-  }
-
-  getAllowedSocialsIntegrations() {
-    return socialIntegrationList.map((p) => p.identifier);
-  }
-
-  getSocialIntegration(integration: string): SocialProvider {
-    return socialIntegrationList.find((i) => i.identifier === integration)!;
+  /**
+   * HIDDEN_PROVIDERS env ("x,linkedin") hides providers from the add-channel
+   * screen without removing them from the registry. Empty by default.
+   */
+  isHiddenProvider(identifier: string): boolean {
+    return (process.env.HIDDEN_PROVIDERS || '')
+      .split(',')
+      .map((p) => p.trim())
+      .includes(identifier);
   }
 }

@@ -147,6 +147,26 @@ When a ticket is completed, append a new entry below this line:
 
 ---
 
+[2026-09-02] [Phase-1] Verification — backend typecheck = 0 errors.
+  - pnpm install --ignore-scripts: 2237 packages installed in 50s
+  - npx prisma generate: client generated successfully
+  - Cascade-import surgery: deleted 11 more broken kept controllers + 6 broken auth middleware/guard files + 3 broken Prisma services (Posts, Users, Media all referenced deleted modules)
+  - Restored minimal helper files (Phase 4 will replace): social.integrations.interface.ts (adapter contract), make.is.ts (id/secret/hash utils), temporal.heartbeat.ts (no-op), chat/rules.description.decorator.ts (@Rules decorator)
+  - Moved 8 kept providers (reddit, x, linkedin, discord, dev.to, telegram, bluesky, hashnode) to libraries/nestjs-libraries/src/_phase4-pending-providers/ — they reference postiz's deep internal types and will be rewritten in Phase 4 per the new adapter contract
+  - integration.manager.ts replaced with minimal version: NETAMPLIFY_PLATFORMS const, TIER_A/B_PLATFORMS, configured() method, getTier() method
+  - email.service.ts: removed Temporal dep, direct synchronous sendEmailSync (Resend password-reset emails)
+  - empty.provider.ts: typed arrays (validateEnvKeys: string[])
+  - exception.filter.ts: removed deleted auth.middleware dep
+  - api.module.ts: minimal — only RootController + IntegrationManager
+  - app.module.ts: minimal — DatabaseModule + ApiModule + ThrottlerModule
+  - main.ts: minimal — Sentry/Temporal/MCP/CopilotKit boot deps removed
+  - **Backend TypeScript errors: 0 ✅**
+  - Phase 4 TODO: rewrite 8 platform providers per adapter contract (social.integrations.interface.ts)
+  - Phase 4 TODO: add PostCard/Connections/Publish/History controllers
+  - Phase 2 TODO: add LocalStrategy + JwtStrategy auth, write User/Profile/PostCard/etc. per 9-model schema
+
+---
+
 > ### Notes for agents
 >
 > - Update `Current status` table at the top BEFORE you start work

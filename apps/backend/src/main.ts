@@ -9,20 +9,19 @@ import cookieParser from 'cookie-parser';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-
-import { PostValidationExceptionFilter } from '@netamplify/backend/api/routes/posts.validation.exception';
 import { HttpExceptionFilter } from '@netamplify/nestjs-libraries/services/exception.filter';
 import { ConfigurationChecker } from '@netamplify/helpers/configuration/configuration.checker';
 
 /**
- * NetAmplify Phase 1: stripped backend entry point.
+ * NetAmplify Phase 1 (minimal): backend entry point.
  *
- * Removed: Sentry init, Temporal Runtime.install, startMcp (CopilotKit),
- *   SubscriptionExceptionFilter (no billing), CopilotKit-specific CORS headers.
+ * Removed in Phase 1: Sentry init, Temporal Runtime.install,
+ *   startMcp (CopilotKit), SubscriptionExceptionFilter, PostValidationExceptionFilter,
+ *   CopilotKit-specific CORS headers.
  *
- * Phase 2 will add: LocalStrategy + JWT auth wiring, /api/health endpoint
- *   returning {db:"up", redis:"up"}.
- * Phase 4-5 will add: PostCard, Connections, Publish controllers.
+ * Phase 2 will add: Passport LocalStrategy + JwtStrategy wiring,
+ *   /api/health endpoint returning { db: "up", redis: "up" }.
+ * Phase 4-5 will add: PostCard, Connections, Publish controllers + their filters.
  */
 async function start() {
   const app = await NestFactory.create(AppModule, {
@@ -49,13 +48,8 @@ async function start() {
     })
   );
 
-  app.use(['/posts'], (req: any, res: any, next: any) => {
-    json({ limit: '50mb' })(req, res, next);
-  });
-
   app.use(cookieParser());
   app.use(compression());
-  app.useGlobalFilters(new PostValidationExceptionFilter());
   app.useGlobalFilters(new HttpExceptionFilter());
 
   loadSwagger(app);

@@ -1,15 +1,23 @@
+// /home/z/my-project/netamplify-app/libraries/nestjs-libraries/src/services/email.service.ts
+// NetAmplify EmailService — handles password-reset emails via Resend (MVP)
+// or Nodemailer (self-hosted). Replaces postiz's Temporal-based async email
+// queue with direct synchronous sending (Phase 1 cleanup; password-reset
+// emails don't need async queueing for a 4-week MVP).
+//
+// Phase 2 will wire this into AuthService.sendPasswordResetEmail().
+
 import { Injectable } from '@nestjs/common';
 import { EmailInterface } from '@netamplify/nestjs-libraries/emails/email.interface';
 import { ResendProvider } from '@netamplify/nestjs-libraries/emails/resend.provider';
 import { EmptyProvider } from '@netamplify/nestjs-libraries/emails/empty.provider';
 import { NodeMailerProvider } from '@netamplify/nestjs-libraries/emails/node.mailer.provider';
-import { TemporalService } from 'nestjs-temporal-core';
 import { timer } from '@netamplify/helpers/utils/timer';
 
 @Injectable()
 export class EmailService {
   emailService: EmailInterface;
-  constructor(private _temporalService: TemporalService) {
+
+  constructor() {
     this.emailService = this.selectProvider(process.env.EMAIL_PROVIDER!);
     console.log('Email service provider:', this.emailService.name);
     for (const key of this.emailService.validateEnvKeys) {
@@ -23,7 +31,7 @@ export class EmailService {
     return !(this.emailService instanceof EmptyProvider);
   }
 
-  selectProvider(provider: string) {
+  selectProvider(provider: string): EmailInterface {
     switch (provider) {
       case 'resend':
         return new ResendProvider();
@@ -34,31 +42,16 @@ export class EmailService {
     }
   }
 
-  async sendEmail(
-    to: string,
-    subject: string,
-    html: string,
-    addTo: 'top' | 'bottom',
-    replyTo?: string
-  ) {
-    return this._temporalService.client
-      .getRawClient()
-      ?.workflow.signalWithStart('sendEmailWorkflow', {
-        taskQueue: 'main',
-        workflowId: 'send_email',
-        signal: 'sendEmail',
-        args: [{ queue: [] }],
-        signalArgs: [{ to, subject, html, replyTo, addTo }],
-        workflowIdConflictPolicy: 'USE_EXISTING',
-      });
-  }
-
+  /**
+   * Synchronous email send — used for password-reset emails.
+   * 3 retries with 700ms backoff for transient failures.
+   */
   async sendEmailSync(
     to: string,
     subject: string,
     html: string,
     replyTo?: string
-  ) {
+  ): Promise<void> {
     if (to.indexOf('@') === -1) {
       return;
     }

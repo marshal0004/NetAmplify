@@ -2,19 +2,30 @@ import { Global, Module } from '@nestjs/common';
 import { DatabaseModule } from '@netamplify/nestjs-libraries/database/prisma/database.module';
 import { ApiModule } from '@netamplify/backend/api/api.module';
 import { APP_GUARD } from '@nestjs/core';
-import { PoliciesGuard } from '@netamplify/backend/services/auth/permissions/permissions.guard';
-import { PublicApiModule } from '@netamplify/backend/public-api/public.api.module';
 import { ThrottlerBehindProxyGuard } from '@netamplify/nestjs-libraries/throttler/throttler.provider';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
 import { ioRedis } from '@netamplify/nestjs-libraries/redis/redis.service';
 
+/**
+ * NetAmplify Phase 1 (minimal): AppModule.
+ *
+ * Imports: DatabaseModule (Prisma), ApiModule (RootController only),
+ *   ThrottlerModule (rate limiting).
+ *
+ * Removed in Phase 1: SentryModule, AgentModule, ThirdPartyModule,
+ *   VideoModule, ChatModule, getTemporalModule, InfiniteWorkflowRegisterModule,
+ *   PublicApiModule, PoliciesGuard (uses deleted PermissionsService — Phase 4
+ *   will add a NetAmplify-specific ownership guard per 07-SECURITY-ACCESS.md).
+ *
+ * Phase 2 will add: AuthService, Passport LocalStrategy + JwtStrategy module.
+ * Phase 4 will add: PostCard, Connections, Publish, History controllers + guards.
+ */
 @Global()
 @Module({
   imports: [
     DatabaseModule,
     ApiModule,
-    PublicApiModule,
     ThrottlerModule.forRoot({
       throttlers: [
         {
@@ -31,15 +42,10 @@ import { ioRedis } from '@netamplify/nestjs-libraries/redis/redis.service';
       provide: APP_GUARD,
       useClass: ThrottlerBehindProxyGuard,
     },
-    {
-      provide: APP_GUARD,
-      useClass: PoliciesGuard,
-    },
   ],
   exports: [
     DatabaseModule,
     ApiModule,
-    PublicApiModule,
     ThrottlerModule,
   ],
 })
