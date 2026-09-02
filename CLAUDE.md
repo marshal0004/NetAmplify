@@ -123,7 +123,7 @@ order. A red pipeline = the ticket is NOT done.
    Integration tests use the adapter interface as the seam; mock at that
    boundary, not at `fetch`.
 
-8. **License hygiene.** Do NOT copy code from Postiz or any AGPL/GPL project.
+8. **License hygiene.** Do NOT copy code from NetAmplify or any AGPL/GPL project.
    Read official platform API docs and write our own implementation. If you
    are unsure whether a snippet is "inspired by" or "copied from", STOP and
    ask. See `docs/16-OBSERVABILITY.md` §6 and the LICENSE section in the repo.
@@ -226,7 +226,7 @@ a written scope change. If a ticket seems to imply one, STOP and ask.
 | Trust model | OAuth 2.0 + PKCE / API keys / webhooks / bot tokens — **zero passwords ever**, encrypted vault, revocable |
 | Connection UX | One-time Connect Checklist (per-platform), then "compose → tick → Amplify" forever |
 | Payments | None in MVP; users post from own accounts = free for them & us; future freemium |
-| Postiz | Reference only — **no code copying (AGPL-3.0)** |
+| NetAmplify | Reference only — **no code copying (AGPL-3.0)** |
 | Post volume math | Student posts 2–3×/day → far under X free tier at MVP scale |
 | Stack | See §1 above; no swaps without approval |
 
