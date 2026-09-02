@@ -1,11 +1,7 @@
-import { initializeSentry } from '@netamplify/nestjs-libraries/sentry/initialize.sentry';
-initializeSentry('backend', true);
 import compression from 'compression';
 
 import { loadSwagger } from '@netamplify/helpers/swagger/load.swagger';
 import { json } from 'express';
-import { Runtime } from '@temporalio/worker';
-Runtime.install({ shutdownSignals: [] });
 
 process.env.TZ = 'UTC';
 
@@ -14,41 +10,38 @@ import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 
-import { SubscriptionExceptionFilter } from '@netamplify/backend/services/auth/permissions/subscription.exception';
 import { PostValidationExceptionFilter } from '@netamplify/backend/api/routes/posts.validation.exception';
 import { HttpExceptionFilter } from '@netamplify/nestjs-libraries/services/exception.filter';
 import { ConfigurationChecker } from '@netamplify/helpers/configuration/configuration.checker';
-import { startMcp } from '@netamplify/nestjs-libraries/chat/start.mcp';
 
+/**
+ * NetAmplify Phase 1: stripped backend entry point.
+ *
+ * Removed: Sentry init, Temporal Runtime.install, startMcp (CopilotKit),
+ *   SubscriptionExceptionFilter (no billing), CopilotKit-specific CORS headers.
+ *
+ * Phase 2 will add: LocalStrategy + JWT auth wiring, /api/health endpoint
+ *   returning {db:"up", redis:"up"}.
+ * Phase 4-5 will add: PostCard, Connections, Publish controllers.
+ */
 async function start() {
   const app = await NestFactory.create(AppModule, {
     rawBody: true,
     cors: {
       ...(!process.env.NOT_SECURED ? { credentials: true } : {}),
-      allowedHeaders: [
-        'Content-Type',
-        'Authorization',
-        'auth',
-        'showorg',
-        'impersonate',
-        'x-copilotkit-runtime-client-gql-version',
-      ],
+      allowedHeaders: ['Content-Type', 'Authorization', 'auth'],
       exposedHeaders: [
         'reload',
         'onboarding',
         'activate',
-        'x-copilotkit-runtime-client-gql-version',
-        ...(process.env.NOT_SECURED ? ['auth', 'showorg', 'impersonate'] : []),
+        ...(process.env.NOT_SECURED ? ['auth'] : []),
       ],
       origin: [
         process.env.FRONTEND_URL,
-        'http://localhost:6274',
         ...(process.env.MAIN_URL ? [process.env.MAIN_URL] : []),
       ],
     },
   });
-
-  await startMcp(app);
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -56,13 +49,12 @@ async function start() {
     })
   );
 
-  app.use(['/copilot/{*splat}', '/posts'], (req: any, res: any, next: any) => {
+  app.use(['/posts'], (req: any, res: any, next: any) => {
     json({ limit: '50mb' })(req, res, next);
   });
 
   app.use(cookieParser());
   app.use(compression());
-  app.useGlobalFilters(new SubscriptionExceptionFilter());
   app.useGlobalFilters(new PostValidationExceptionFilter());
   app.useGlobalFilters(new HttpExceptionFilter());
 
@@ -74,7 +66,7 @@ async function start() {
     await app.listen(port);
     console.log('Backend started successfully on port ' + port);
 
-    checkConfiguration(); // Do this last, so that users will see obvious issues at the end of the startup log without having to scroll up.
+    checkConfiguration();
 
     Logger.log(`🚀 Backend is running on: http://localhost:${port}`);
   } catch (e) {

@@ -8,22 +8,7 @@
   },
   "locale": {
     "source": "en",
-    "targets": [
-      "he",
-      "ru",
-      "zh",
-      "fr",
-      "bn",
-      "es",
-      "pt",
-      "de",
-      "it",
-      "ja",
-      "ko",
-      "ar",
-      "tr",
-      "vi"
-    ]
+    "targets": []
   },
   "buckets": {
     "json": {

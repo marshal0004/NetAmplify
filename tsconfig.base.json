@@ -31,9 +31,7 @@
       "@netamplify/helpers/*": ["libraries/helpers/src/*"],
       "@netamplify/nestjs-libraries/*": ["libraries/nestjs-libraries/src/*"],
       "@netamplify/react/*": ["libraries/react-shared-libraries/src/*"],
-      "@netamplify/plugins/*": ["libraries/plugins/src/*"],
-      "@netamplify/orchestrator/*": ["apps/orchestrator/src/*"],
-      "@netamplify/extension/*": ["apps/extension/src/*"]
+      "@netamplify/plugins/*": ["libraries/plugins/src/*"]
     }
   },
   "exclude": ["node_modules", "tmp"]
