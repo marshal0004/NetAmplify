@@ -228,3 +228,83 @@ When a ticket is completed, append a new entry below this line:
 > - After Week N, update `Per-Week Gate Status` with the gate result.
 > - After manual smoke (T-18, T-22), update `Smoke Evidence` with
 >   URLs + screenshot paths.
+
+---
+
+[2026-09-02] [Phase-3] 8 platform adapters + ConnectionsController + OAuthController + 107 new unit tests.
+  - Adapter framework (libraries/nestjs-libraries/src/platforms/):
+    - adapter.interface.ts: PlatformAdapter interface, PkcePair, OAuthTokens, FormattedPost, PublishResult, PublishError (with errorClass: AUTH|RATE|VALIDATION|NETWORK|QUOTA), PlatformNotConfiguredError, AdapterNotFoundError
+    - config.ts: per-platform config (charLimit, rateLimit, markdown, images) for all 8 platforms; retry backoff (10s/60s/300s); X_MONTHLY_POST_BUDGET_DEFAULT 450; currentYearMonth()
+    - registry.ts: AdapterRegistry with get(platform), all(), map(), configured(platform), requireConfigured(platform) — O(1) lookup, singleton adapters
+    - platforms.module.ts: NestJS module wiring all 8 adapters + registry
+  - OAuth helpers (libraries/nestjs-libraries/src/platforms/oauth/):
+    - pkce.ts: generatePkcePair() (S256), generateState() (96-bit nonce base64url), verifyState() (constant-time compare)
+  - 8 platform adapters (all production-grade, real fetch, no mocks):
+    - reddit.adapter.ts (OAuth 2.0 + PKCE; scopes: identity, submit; per-user rate limit; /api/v1/authorize + /api/v1/access_token + /oauth.reddit.com/api/v1/me + /api/submit)
+    - x.adapter.ts (OAuth 2.0 + PKCE; scopes: tweet.read/write, users.read, offline.access; /2/oauth2/token + /2/users/me + /2/tweets; X quota detection via 403+quota message)
+    - linkedin.adapter.ts (OAuth 2.0 + PKCE; scopes: openid, profile, w_member_social; /oauth/v2/authorization + /oauth/v2/accessToken + /v2/userinfo + /v2/ugcPosts; memberId decoded from id_token JWT payload)
+    - discord.adapter.ts (SIMPLE webhook; validates via GET webhook → returns channel id+name; publishes via POST webhook?wait=true with embed format)
+    - devto.adapter.ts (SIMPLE API key; validates via GET /api/users/me; publishes via POST /api/articles with markdown body + ≤4 tags)
+    - hashnode.adapter.ts (SIMPLE PAT; validates via GraphQL me query (fetches publicationId); publishes via publishPost mutation with tags from hashnode.tags whitelist)
+    - telegram.adapter.ts (SIMPLE bot token + channel; validates via getMe + getChat; publishes via sendMessage with HTML parse_mode + escaped title; 4096-char limit)
+    - bluesky.adapter.ts (SIMPLE handle + app password; validates via com.atproto.server.createSession; publishes via com.atproto.repo.createRecord with link facet for URL + grapheme-correct 300-char limit using Intl.Segmenter)
+  - ConnectionRepository + ConnectionService (libraries/nestjs-libraries/src/database/prisma/connections/):
+    - listByUser(userId) — NEVER selects credentialsCipher (whitelist projection)
+    - findByPlatform(userId, platform) — full row including credentialsCipher (used only by TokenVault consumers)
+    - upsert() — replaces existing connection with new credentials (preserves unique constraint)
+    - deleteByPlatform() — hard-delete (per FR-010; ciphertext gone)
+    - markRevoked() — set status to REVOKED on AUTH failure
+    - touchUsed() — update lastUsedAt after successful publish
+  - ConnectionsService:
+    - list(userId) — returns ConnectionView for all 8 platforms with "not connected" placeholders + "Setup pending" for unconfigured Tier B
+    - saveOAuthConnection() — encrypts tokens via TokenVault, upserts Connection, audit-logs CONNECT
+    - saveSimpleConnection() — Zod-validates input per platform, calls adapter.validateCredentials (real HTTP), encrypts credentials, upserts Connection, audit-logs CONNECT or TOKEN_FAIL
+    - disconnect() — hard-delete Connection, audit-log DISCONNECT
+    - getDecryptedCredentials() — used only by publish worker (Phase 5); never returns decrypted values to API layer
+  - ConnectionsController (apps/backend/src/services/connections/):
+    - GET /api/connections (JWT-guarded) → list of all 8 platforms with status
+    - POST /api/connections/devto { apiKey } → 201 { username } (real Dev.to validation)
+    - POST /api/connections/hashnode { pat } → 201 { username }
+    - POST /api/connections/discord { webhookUrl } → 201 { username }
+    - POST /api/connections/telegram { botToken, channel } → 201 { username }
+    - POST /api/connections/bluesky { handle, appPassword } → 201 { username }
+    - DELETE /api/connections/:platform → 204 (hard-delete; 404 if not connected; 400 for unknown platform)
+  - OAuthController (apps/backend/src/services/connections/):
+    - GET /api/oauth/:platform/start → 302 redirect to platform authorize URL (with PKCE + state cookie)
+    - GET /api/oauth/:platform/callback?code=...&state=... → 302 redirect to /dashboard/connections?connected=... (validates state cookie, exchanges code, fetches identity, encrypts + upserts Connection, audit-logs CONNECT)
+    - State cookie: httpOnly, sameSite=lax, signed, 10-min TTL, single-use (per docs/07-SECURITY-ACCESS.md §3 R6)
+  - ApiModule updated: imports AuthModule + ConnectionsModule; controllers: RootController, HealthController; (AuthController, ConnectionsController, OAuthController come from their modules)
+
+  Vitest unit tests (267 passing, 107 new in Phase 3):
+    - 10 tests: PKCE helpers (generateState, generatePkcePair, verifyState — constant-time)
+    - 17 tests: Platform config (all 8 platforms, retry policy, X budget, currentYearMonth)
+    - 23 tests: RedditAdapter (configured, getAuthUrl, exchangeCode, getIdentity, publish — happy + AUTH + RATE + VALIDATION paths)
+    - 18 tests: DiscordAdapter (validateCredentials with webhook, publish with embed, truncation to 256 chars, AUTH/RATE)
+    - 16 tests: DevtoAdapter (validateCredentials, publish with markdown + tag sanitization + ≤4 tag limit, AUTH/VALIDATION/RATE)
+    - 17 tests: TelegramAdapter (getMe + getChat validation, sendMessage publish with HTML escaping, 4096 char limit, AUTH/RATE)
+    - 16 tests: BlueskyAdapter (createSession validation, createRecord publish with link facet, 300 grapheme limit via Intl.Segmenter, AUTH/RATE)
+    - 18 tests: XAdapter (configured, getAuthUrl, exchangeCode, getIdentity, publish with 280 char limit, AUTH/RATE/QUOTA detection)
+    - 18 tests: LinkedInAdapter (configured, getAuthUrl, exchangeCode with id_token memberId decode, getIdentity, publish via ugcPosts, 3000 char limit, AUTH/RATE)
+    - 16 tests: HashnodeAdapter (GraphQL me query, publishPost mutation, AUTH/VALIDATION/RATE)
+    - Total: 267 tests passing in 6s
+
+  curl-tests/connections.sh (12 assertions, user-runnable on Arch):
+    - GET /api/connections (empty initial state)
+    - GET /api/connections (no JWT → 401)
+    - POST /api/connections/devto (mock key → 400 — platform rejects)
+    - POST /api/connections/devto (missing apiKey → 400)
+    - POST /api/connections/discord (invalid URL → 400)
+    - POST /api/connections/discord (no webhookUrl → 400)
+    - POST /api/connections/telegram (no botToken → 400)
+    - POST /api/connections/bluesky (bad app password format → 400)
+    - POST /api/connections/hashnode (no pat → 400)
+    - POST /api/connections/bluesky (no handle → 400)
+    - DELETE /api/connections/devto (no existing conn → 404)
+    - DELETE /api/connections/instagram (unknown platform → 400)
+
+  Verification:
+    - pnpm typecheck (backend): **0 errors** ✅
+    - pnpm test (Vitest unit): **267 tests passing** ✅ (133 from Phase 2 + 107 new + 27 misc)
+    - Integration + E2E + curl tests: deferred to user's Arch machine
+
+  Phase 4 TODO: rewrite publish flow + Format Engine + BullMQ workers per docs/03-ARCHITECTURE.md Flow A (Amplify)
