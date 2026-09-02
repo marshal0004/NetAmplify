@@ -23,7 +23,7 @@ fi
 PASS=0
 FAIL=0
 
-for script in "$SCRIPT_DIR"/health.sh "$SCRIPT_DIR"/auth.sh "$SCRIPT_DIR"/connections.sh; do
+for script in "$SCRIPT_DIR"/health.sh "$SCRIPT_DIR"/auth.sh "$SCRIPT_DIR"/connections.sh "$SCRIPT_DIR"/postcards.sh "$SCRIPT_DIR"/publish.sh; do
   if [ ! -f "$script" ]; then
     continue
   fi

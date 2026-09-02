@@ -308,3 +308,76 @@ When a ticket is completed, append a new entry below this line:
     - Integration + E2E + curl tests: deferred to user's Arch machine
 
   Phase 4 TODO: rewrite publish flow + Format Engine + BullMQ workers per docs/03-ARCHITECTURE.md Flow A (Amplify)
+
+---
+
+[2026-09-02] [Phase-4] Format Engine + PostCard CRUD + PublishService + BullMQ workers + 64 new unit tests + 2 curl-tests scripts.
+  - Format Engine (libraries/nestjs-libraries/src/format-engine/):
+    - types.ts: FormatEnginePostCard, FormatEngineProfile, FormatEngineOptions, FormattedPost, FormatResult, Formatter
+    - truncation.ts: truncateWithEllipsis (grapheme-aware), truncatePreservingUrl, stripMarkdown, toHashtags (pure utils)
+    - 8 per-platform formatters (pure functions, no DB/network/random):
+      - reddit.ts: title ≤300 + markdown body ≤40000 + tech stack + repo/live links + subreddit option
+      - x.ts: ≤280 chars + URL reserves 23 (t.co) + hashtags appended
+      - linkedin.ts: plain text ≤3000 + ≤3 hashtags + link on own line + markdown stripped
+      - discord.ts: embed {title ≤256, description ≤4096, fields: tech stack + links}
+      - devto.ts: markdown article with frontmatter (cover_image, published) + ≤4 tags
+      - hashnode.ts: markdown with canonical URL option + ≤5 tags
+      - telegram.ts: HTML message ≤4096 with bold title + escaped body + link + hashtags
+      - bluesky.ts: ≤300 graphemes + URL facet (UTF-8 byte offset) + markdown stripped
+    - index.ts: formatForPlatform() (pure), formatForAllPlatforms(), FormatEngine (NestJS injectable)
+  - PostCardRepository + PostCardService (libraries/nestjs-libraries/src/database/prisma/postcards/):
+    - listByUser (paginated), findById (owner-scoped), create, update, delete
+    - PostCardService: Zod-validated CRUD + preview (Format Engine integration)
+    - Returns PostCardView (safe — no internal fields)
+  - PostRepository + PostTargetRepository (libraries/nestjs-libraries/src/database/prisma/posts/):
+    - createWithTargets (atomic transaction), findByRequestId (idempotency), findById, listByUser (with platform/status filters)
+    - PostTargetRepository: updateStatus, markPublishing, markSuccess (with permalink)
+  - QuotaService (libraries/nestjs-libraries/src/database/prisma/quota/quota.service.ts):
+    - wouldExceedBudget (only X has budget in MVP), getUsed, increment, getRemaining
+    - Per-month counter via currentYearMonth(); env-overrideable budget
+  - PublishService (apps/backend/src/services/publish/publish.service.ts):
+    - publish(): validates ownership + connections + X quota; creates Post + PostTargets (transaction);
+      enqueues BullMQ jobs for non-skipped targets; idempotency via requestId
+    - retry(): re-enqueues FAILED target (max 3 attempts)
+    - list(), get() for /api/posts/* endpoints
+  - BullMQ queue setup (libraries/nestjs-libraries/src/queue/):
+    - queue.module.ts: BullModule.forRootAsync + registerQueue('publish'); defaultJobOptions (3 attempts, exponential backoff 10s)
+    - queue.worker.ts: Worker processes 'publish' jobs; loads PostTarget + decrypts Connection via TokenVault;
+      formats via Format Engine; calls adapter.publish(); classifies failures per docs/03-ARCHITECTURE.md
+      (AUTH → REVOKED+FAILED, RATE/NETWORK → retry, VALIDATION → FAILED, QUOTA → SKIPPED)
+  - Controllers:
+    - PostCardController (apps/backend/src/services/postcards/postcards.controller.ts):
+      - GET /api/postcards?page&pageSize (JWT-guarded)
+      - POST /api/postcards { title, summary, description, techStack[], repoUrl?, liveUrl? } → 201
+      - GET /api/postcards/:id → 200 | 403 | 404
+      - PATCH /api/postcards/:id (partial) → 200 | 400 | 403 | 404
+      - DELETE /api/postcards/:id → 204 | 403 | 404
+      - GET /api/postcards/:id/preview?platform=X&subreddit=Y → 200 (Format Engine live preview)
+    - PublishController (apps/backend/src/services/publish/publish.controller.ts):
+      - POST /api/postcards/:id/publish { platforms: [...], requestId? } → 201 { post: { id, targets: [...] } }
+      - GET /api/posts?page=1&platform=X&status=Y → 200 { items, total }
+      - GET /api/posts/:id → 200 { post + targets }
+      - POST /api/posts/:id/targets/:targetId/retry → 200 | 409
+  - ApiModule updated: imports AuthModule + ConnectionsModule + PostCardsModule + PublishModule + QueueModule
+
+  Vitest unit tests (331 passing, 64 new in Phase 4):
+    - 37 tests: Format Engine (8 per-platform golden tests + determinism + property test for random inputs)
+    - 14 tests: PostCardService (create happy/empty/long, get owner-scoped, list, update, delete, preview)
+    - 10 tests: QuotaService (wouldExceedBudget for non-X vs X, getUsed, increment, per-month tracking, getRemaining)
+    - 3 tests: integration (Format Engine index + formatForAllPlatforms)
+    - Total: 331 tests passing in 7s (was 267 from Phase 3; +64 new in Phase 4)
+
+  curl-tests scripts (user-runnable on Arch):
+    - scripts/curl-tests/postcards.sh: 14 assertions covering CRUD (create happy/empty/long, get 200/404, partial update, delete + post-deletion 404, preview REDDIT/TWITTER/unknown-platform)
+    - scripts/curl-tests/publish.sh: 9 assertions covering publish (no-connection 400, empty platforms 400, unknown platform 400, nonexistent postcard 404, GET /api/posts empty/no-JWT/404, retry nonexistent 404)
+    - Total curl-tests: 50 assertions across 5 scripts (auth: 12, health: 2, connections: 12, postcards: 14, publish: 9 + post-deletion check)
+
+  Verification:
+    - pnpm typecheck (backend): **0 errors** ✅
+    - pnpm test (Vitest unit): **331 tests passing** ✅
+    - Integration + E2E + curl tests: deferred to user's Arch machine
+
+  Backend status: COMPLETE for MVP per docs/05-API-SPEC.md
+  Phase 5 TODO: BullMQ worker integration tests (testcontainers Redis) + QuotaUsage FR-018 acceptance test
+  Phase 6 TODO: frontend (Vite + React + shadcn/ui)
+  Phase 7 TODO: GitHub Actions CI + README + demo script
