@@ -12,7 +12,7 @@
 // Connect Checklist UI will use to render "Setup pending" cards for
 // Tier B platforms without env vars set.
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 
 /**
  * NetAmplify platform identifiers (lowercase strings used as the canonical

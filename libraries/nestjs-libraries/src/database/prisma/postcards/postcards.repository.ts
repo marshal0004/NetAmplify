@@ -4,7 +4,7 @@
 // Per docs/07-SECURITY-ACCESS.md §3 R1: "Every Prisma read/write of user-owned
 // models includes userId from the SESSION (never from request body/params)."
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import type { PostCard, Prisma } from '@prisma/client';
 
@@ -17,7 +17,7 @@ export interface PostCardListResult {
 
 @Injectable()
 export class PostCardRepository {
-  constructor(private readonly _prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly _prisma: PrismaService) {}
 
   async listByUser(
     userId: string,

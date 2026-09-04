@@ -4,13 +4,13 @@
 // Per docs/02-SRS.md FR-012: "Creates Post + one PostTarget per platform,
 // enqueues one BullMQ job per target."
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import type { Post, PostTarget, Prisma, Platform } from '@prisma/client';
 
 @Injectable()
 export class PostRepository {
-  constructor(private readonly _prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly _prisma: PrismaService) {}
 
   /**
    * Create a Post + all PostTargets in a single transaction (atomic).
@@ -95,7 +95,7 @@ export class PostRepository {
 
 @Injectable()
 export class PostTargetRepository {
-  constructor(private readonly _prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly _prisma: PrismaService) {}
 
   async findById(postId: string, targetId: string): Promise<PostTarget | null> {
     return this._prisma.postTarget.findFirst({

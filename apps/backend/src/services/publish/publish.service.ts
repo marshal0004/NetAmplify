@@ -9,7 +9,7 @@
 //
 // Idempotency: if requestId matches existing Post, return it without re-publishing.
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { PostRepository, PostTargetRepository } from '@netamplify/nestjs-libraries/database/prisma/posts/posts.repository';
 import { PostCardRepository } from '@netamplify/nestjs-libraries/database/prisma/postcards/postcards.repository';
 import { ConnectionRepository } from '@netamplify/nestjs-libraries/database/prisma/connections/connections.repository';
@@ -35,6 +35,9 @@ export interface PublishResultView {
       platform: Platform;
       status: 'QUEUED' | 'PUBLISHING' | 'SUCCESS' | 'FAILED' | 'SKIPPED';
       error?: string | null;
+      platformPostUrl?: string | null;
+      attempts?: number;
+      publishedAt?: string | null;
     }>;
   };
 }
@@ -42,12 +45,12 @@ export interface PublishResultView {
 @Injectable()
 export class PublishService {
   constructor(
-    private readonly _posts: PostRepository,
-    private readonly _targets: PostTargetRepository,
-    private readonly _postcards: PostCardRepository,
-    private readonly _connections: ConnectionRepository,
-    private readonly _quota: QuotaService,
-    private readonly _audit: AuditLogService,
+    @Inject(PostRepository) private readonly _posts: PostRepository,
+    @Inject(PostTargetRepository) private readonly _targets: PostTargetRepository,
+    @Inject(PostCardRepository) private readonly _postcards: PostCardRepository,
+    @Inject(ConnectionRepository) private readonly _connections: ConnectionRepository,
+    @Inject(QuotaService) private readonly _quota: QuotaService,
+    @Inject(AuditLogService) private readonly _audit: AuditLogService,
     @InjectQueue('publish') private readonly _publishQueue: Queue,
   ) {}
 
@@ -175,6 +178,7 @@ export class PublishService {
         'publish',
         {
           postTargetId: target.id,
+          postId: post.id,
           userId,
           postCardId,
           platform: target.platform,
@@ -254,6 +258,7 @@ export class PublishService {
       'publish',
       {
         postTargetId: targetId,
+        postId: post.id,
         userId,
         postCardId: post.postCardId,
         platform: target.platform,
@@ -323,6 +328,9 @@ export class PublishService {
           platform: t.platform,
           status: t.status,
           error: t.error,
+          platformPostUrl: t.platformPostUrl,
+          attempts: t.attempts,
+          publishedAt: t.publishedAt?.toISOString() ?? null,
         })),
       },
     };

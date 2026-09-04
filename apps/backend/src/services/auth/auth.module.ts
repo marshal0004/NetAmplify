@@ -13,7 +13,7 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { UsersService } from '@netamplify/nestjs-libraries/database/prisma/users/users.service';
 import { UserRepository } from '@netamplify/nestjs-libraries/database/prisma/users/users.repository';
 import { AuditLogService } from '@netamplify/nestjs-libraries/database/prisma/audit/audit.service';
-import { AuthController } from '@netamplify/backend/api/routes/auth.controller';
+import { AuthController, AccountController } from '@netamplify/backend/api/routes/auth.controller';
 
 @Module({
   imports: [
@@ -26,7 +26,7 @@ import { AuthController } from '@netamplify/backend/api/routes/auth.controller';
       },
     }),
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, AccountController],
   providers: [
     AuthService,
     LocalStrategy,

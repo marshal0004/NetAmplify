@@ -1,7 +1,7 @@
 // /home/z/my-project/netamplify-app/libraries/nestjs-libraries/src/database/prisma/postcards/postcards.service.ts
 // NetAmplify — PostCardService (business logic for PostCard CRUD + preview).
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { PostCardRepository, type PostCardListResult } from './postcards.repository';
 import { ServiceError } from '@netamplify/nestjs-libraries/services/error.mapper';
 import {
@@ -65,7 +65,7 @@ export interface PostCardPreview {
 
 @Injectable()
 export class PostCardService {
-  constructor(private readonly _repo: PostCardRepository) {}
+  constructor(@Inject(PostCardRepository) private readonly _repo: PostCardRepository) {}
 
   async list(
     userId: string,

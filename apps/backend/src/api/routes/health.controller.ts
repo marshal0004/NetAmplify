@@ -10,7 +10,7 @@
 //   - curl-tests (scripts/curl-tests/health.sh)
 //   - Vercel/Railway readiness probe
 
-import { Controller, Get, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Get, HttpCode, HttpStatus , Inject } from '@nestjs/common';
 import { PrismaService } from '@netamplify/nestjs-libraries/database/prisma/prisma.service';
 import { ioRedis } from '@netamplify/nestjs-libraries/redis/redis.service';
 
@@ -22,7 +22,7 @@ interface HealthResponse {
 
 @Controller('api/health')
 export class HealthController {
-  constructor(private readonly _prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly _prisma: PrismaService) {}
 
   @Get()
   @HttpCode(200)

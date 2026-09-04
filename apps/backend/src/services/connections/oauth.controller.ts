@@ -19,8 +19,7 @@ import {
   Req,
   Res,
   HttpCode,
-  BadRequestException,
-} from '@nestjs/common';
+  BadRequestException, Inject } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { ConnectionsService } from '@netamplify/nestjs-libraries/database/prisma/connections/connections.service';
 import { AdapterRegistry } from '@netamplify/nestjs-libraries/platforms/registry';
@@ -54,7 +53,7 @@ interface OAuthCookiePayload {
 @Controller('api/oauth')
 export class OAuthController {
   constructor(
-    private readonly _adapters: AdapterRegistry,
+    @Inject(AdapterRegistry) private readonly _adapters: AdapterRegistry,
     private readonly _conn: ConnectionsService
   ) {}
 

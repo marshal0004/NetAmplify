@@ -20,7 +20,7 @@
 //   NETWORK/5xx → backoff retry
 //   QUOTA (X budget) → SKIPPED with explanation
 
-import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy, Logger, Inject } from '@nestjs/common';
 import { Worker, type Job } from 'bullmq';
 import { PrismaService } from '../database/prisma/prisma.service';
 import { PostTargetRepository } from '../database/prisma/posts/posts.repository';
@@ -37,6 +37,7 @@ import type { Platform } from '@prisma/client';
 
 interface PublishJobData {
   postTargetId: string;
+  postId: string;
   userId: string;
   postCardId: string;
   platform: Platform;
@@ -49,14 +50,14 @@ export class PublishWorker implements OnModuleInit, OnModuleDestroy {
   private worker: Worker | null = null;
 
   constructor(
-    private readonly _prisma: PrismaService,
-    private readonly _targets: PostTargetRepository,
-    private readonly _postcards: PostCardRepository,
-    private readonly _connections: ConnectionRepository,
-    private readonly _quota: QuotaService,
-    private readonly _audit: AuditLogService,
-    private readonly _vault: TokenVault,
-    private readonly _adapters: AdapterRegistry,
+    @Inject(PrismaService) private readonly _prisma: PrismaService,
+    @Inject(PostTargetRepository) private readonly _targets: PostTargetRepository,
+    @Inject(PostCardRepository) private readonly _postcards: PostCardRepository,
+    @Inject(ConnectionRepository) private readonly _connections: ConnectionRepository,
+    @Inject(QuotaService) private readonly _quota: QuotaService,
+    @Inject(AuditLogService) private readonly _audit: AuditLogService,
+    @Inject(TokenVault) private readonly _vault: TokenVault,
+    @Inject(AdapterRegistry) private readonly _adapters: AdapterRegistry,
   ) {}
 
   onModuleInit() {
@@ -95,10 +96,10 @@ export class PublishWorker implements OnModuleInit, OnModuleDestroy {
    * marks FAILED on permanent errors.
    */
   async processJob(job: Job<PublishJobData>): Promise<void> {
-    const { postTargetId, userId, postCardId, platform, connectionId } = job.data;
+    const { postTargetId, postId, userId, postCardId, platform, connectionId } = job.data;
 
     // 1. Load target (skip if already terminal)
-    const target = await this._targets.findById(postCardId, postTargetId);
+    const target = await this._targets.findById(postId, postTargetId);
     if (!target) {
       this.logger.warn(`Target ${postTargetId} not found — skipping job`);
       return;
@@ -181,7 +182,7 @@ export class PublishWorker implements OnModuleInit, OnModuleDestroy {
           case 'AUTH':
             await this._connections.markRevoked(userId, platform);
             await this._targets.updateStatus(postTargetId, 'FAILED', {
-              error: `${platform} connection revoked: ${e.message}`,
+              error: `${platform} connection revoked: ${e.message} — reconnect this platform`,
               errorClass: 'AUTH',
             });
             await this._audit.log({

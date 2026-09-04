@@ -105,8 +105,8 @@ export class AuthService {
   private readonly resetTokenSecret: string;
 
   constructor(
-    private readonly _users: UsersService,
-    private readonly _audit: AuditLogService,
+    @Inject(UsersService) private readonly _users: UsersService,
+    @Inject(AuditLogService) private readonly _audit: AuditLogService,
     @Inject(JwtService) private readonly _jwt: JwtService
   ) {
     this.resetStore = defaultResetStore;
@@ -142,7 +142,12 @@ export class AuthService {
   ): Promise<AuthResult> {
     const parsed = SIGNUP_SCHEMA.safeParse(rawInput);
     if (!parsed.success) {
-      throw new ServiceError('VALIDATION_ERROR', 'Invalid signup input');
+      const fieldErrors: Record<string, string> = {};
+      for (const issue of parsed.error.issues) {
+        const path = issue.path.join('.') || '_';
+        if (!fieldErrors[path]) fieldErrors[path] = issue.message;
+      }
+      throw new ServiceError('VALIDATION_ERROR', 'Invalid signup input', fieldErrors);
     }
     const input = parsed.data;
 
@@ -184,7 +189,12 @@ export class AuthService {
   ): Promise<AuthResult> {
     const parsed = LOGIN_SCHEMA.safeParse(rawInput);
     if (!parsed.success) {
-      throw new ServiceError('VALIDATION_ERROR', 'Invalid login input');
+      const fieldErrors: Record<string, string> = {};
+      for (const issue of parsed.error.issues) {
+        const path = issue.path.join('.') || '_';
+        if (!fieldErrors[path]) fieldErrors[path] = issue.message;
+      }
+      throw new ServiceError('VALIDATION_ERROR', 'Invalid login input', fieldErrors);
     }
     const input = parsed.data;
 
@@ -284,7 +294,12 @@ export class AuthService {
   ): Promise<string | null> {
     const parsed = RESET_REQUEST_SCHEMA.safeParse(rawInput);
     if (!parsed.success) {
-      throw new ServiceError('VALIDATION_ERROR', 'Invalid reset-request input');
+      const fieldErrors: Record<string, string> = {};
+      for (const issue of parsed.error.issues) {
+        const path = issue.path.join('.') || '_';
+        if (!fieldErrors[path]) fieldErrors[path] = issue.message;
+      }
+      throw new ServiceError('VALIDATION_ERROR', 'Invalid reset-request input', fieldErrors);
     }
     const input = parsed.data;
 
@@ -325,7 +340,12 @@ export class AuthService {
   ): Promise<{ userId: string }> {
     const parsed = RESET_CONFIRM_SCHEMA.safeParse(rawInput);
     if (!parsed.success) {
-      throw new ServiceError('VALIDATION_ERROR', 'Invalid reset-confirm input');
+      const fieldErrors: Record<string, string> = {};
+      for (const issue of parsed.error.issues) {
+        const path = issue.path.join('.') || '_';
+        if (!fieldErrors[path]) fieldErrors[path] = issue.message;
+      }
+      throw new ServiceError('VALIDATION_ERROR', 'Invalid reset-confirm input', fieldErrors);
     }
     const input = parsed.data;
 

@@ -20,13 +20,12 @@ export default defineConfig({
     include: [
       'libraries/**/*.test.ts',
       'apps/backend/**/*.test.ts',
+      'tests/**/*.test.ts',
     ],
     exclude: [
       'node_modules/**',
       'dist/**',
       'apps/frontend/**',
-      '**/*.integration.test.ts',
-      '**/*.e2e.test.ts',
     ],
     coverage: {
       provider: 'v8',
@@ -52,5 +51,6 @@ export default defineConfig({
     testTimeout: 10000,
     hookTimeout: 15000,
     restoreMocks: true,
+    setupFiles: ['./vitest.setup.ts'],
   },
 });

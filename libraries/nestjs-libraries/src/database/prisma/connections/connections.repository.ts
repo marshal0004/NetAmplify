@@ -8,13 +8,13 @@
 // All methods take userId as the FIRST argument and scope every query by
 // it. No unscoped reads of Connection.
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import type { Connection, Platform, Prisma } from '@prisma/client';
 
 @Injectable()
 export class ConnectionRepository {
-  constructor(private readonly _prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly _prisma: PrismaService) {}
 
   /**
    * Find all connections for a user. NEVER returns credentialsCipher —

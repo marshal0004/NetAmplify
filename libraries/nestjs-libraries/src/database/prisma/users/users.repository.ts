@@ -6,13 +6,13 @@
 // This repository is injected into AuthService; AuthService ALWAYS scopes
 // queries by userId before passing them here.
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import type { User, Prisma } from '@prisma/client';
 
 @Injectable()
 export class UserRepository {
-  constructor(private readonly _prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly _prisma: PrismaService) {}
 
   /**
    * Find a user by email (case-sensitive — emails are normalized to lowercase

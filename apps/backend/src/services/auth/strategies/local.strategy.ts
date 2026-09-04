@@ -9,7 +9,7 @@
 
 import { Strategy } from 'passport-local';
 import { PassportStrategy } from '@nestjs/passport';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { AuthService } from '../auth.service';
 
 interface LocalStrategyVerifyInput {
@@ -19,7 +19,7 @@ interface LocalStrategyVerifyInput {
 
 @Injectable()
 export class LocalStrategy extends PassportStrategy(Strategy, 'local') {
-  constructor(private readonly _auth: AuthService) {
+  constructor(@Inject(AuthService) private readonly _auth: AuthService) {
     super({
       usernameField: 'email',
       passwordField: 'password',

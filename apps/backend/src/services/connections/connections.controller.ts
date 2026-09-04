@@ -22,8 +22,7 @@ import {
   Param,
   Post,
   Req,
-  UseGuards,
-} from '@nestjs/common';
+  UseGuards, Inject } from '@nestjs/common';
 import type { Request } from 'express';
 import { ConnectionsService, type ConnectionView } from '@netamplify/nestjs-libraries/database/prisma/connections/connections.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -49,7 +48,7 @@ function getUserId(req: Request): string {
 @Controller('api/connections')
 @UseGuards(JwtAuthGuard)
 export class ConnectionsController {
-  constructor(private readonly _conn: ConnectionsService) {}
+  constructor(@Inject(ConnectionsService) private readonly _conn: ConnectionsService) {}
 
   /**
    * GET /api/connections

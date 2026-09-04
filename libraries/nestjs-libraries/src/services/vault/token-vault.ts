@@ -24,7 +24,7 @@ import {
   type CipherGCM,
   type DecipherGCM,
 } from 'crypto';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 
 /**
  * VaultKeyMissingError — thrown at inject-time if the env key is malformed.

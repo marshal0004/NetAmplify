@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get , Inject } from '@nestjs/common';
 
 /**
  * RootController — NetAmplify health-check endpoint.

@@ -22,7 +22,7 @@ export type {
   FormatResult,
 } from './types';
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import type { Platform } from '@prisma/client';
 import type {
   Formatter,

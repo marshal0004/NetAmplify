@@ -6,7 +6,7 @@
 //
 // Phase 2 will wire this into AuthService.sendPasswordResetEmail().
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { EmailInterface } from '@netamplify/nestjs-libraries/emails/email.interface';
 import { ResendProvider } from '@netamplify/nestjs-libraries/emails/resend.provider';
 import { EmptyProvider } from '@netamplify/nestjs-libraries/emails/empty.provider';

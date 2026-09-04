@@ -381,3 +381,74 @@ When a ticket is completed, append a new entry below this line:
   Phase 5 TODO: BullMQ worker integration tests (testcontainers Redis) + QuotaUsage FR-018 acceptance test
   Phase 6 TODO: frontend (Vite + React + shadcn/ui)
   Phase 7 TODO: GitHub Actions CI + README + demo script
+
+---
+
+[2026-09-04] [Phase-5] Full backend testing — 433 tests passing across unit + integration + E2E + non-functional.
+
+Test architecture:
+- Unit tests (331 from Phase 4): pure functions (TokenVault, Zod, errorMapper, AuthService, 8 adapters, Format Engine, QuotaService, PostCardService, PKCE, Config)
+- Integration tests (102 new in Phase 5): supertest-based tests that fire REAL HTTP requests against the running NestJS app (mocked Prisma + mocked BullMQ Queue + real bcrypt + real JWT)
+  - 23 tests: Auth (signup, login, /me, reset-request, reset-confirm, account delete)
+  - 19 tests: PostCards (CRUD + preview + ownership)
+  - 18 tests: Connections (5 SIMPLE-platform connect + disconnect + unknown platform)
+  - 14 tests: Publish (no-connection, empty platforms, unknown platform, 404, idempotency, retry)
+  - 9 tests: Worker failure classification (AUTH→REVOKED+FAILED, VALIDATION→FAILED, QUOTA→SKIPPED, RATE/NETWORK→retry, SUCCESS→SUCCESS, idempotent worker)
+- E2E tests (3 new in Phase 5): full Amplify flow + partial success + retry
+  - full journey: signup → create PostCard → connect 5 platforms → publish → poll status → assert all 5 targets SUCCESS with permalinks
+  - partial success: 1 platform fails (AUTH) → 2 succeed; FAILED target has error message
+  - retry: fix the failing platform → retry → SUCCESS
+- Non-functional tests (16 new in Phase 5):
+  - error envelope shape (every error has { error: { code, message } })
+  - fieldErrors on VALIDATION_ERROR
+  - 404 NOT_FOUND code, 409 EMAIL_TAKEN code
+  - no email enumeration (login error identical for wrong pw vs unknown email)
+  - ownership: cross-user access returns 404 (not 403, to prevent enumeration)
+  - idempotency: same requestId returns same Post
+  - JWT validation: malformed, wrong-secret, no-Bearer-prefix all rejected
+  - audit log: LOGIN on signup, LOGIN_FAIL on wrong password
+  - no plaintext credentials in any response
+
+Test infrastructure:
+- vitest.setup.ts: sets env vars (NODE_ENV=test, DISABLE_WORKERS=true, JWT_SECRET, TOKEN_ENCRYPTION_KEY) BEFORE module imports
+- tests/helpers/test-app.ts: comprehensive test harness with:
+  - createMockPrisma(): in-memory Prisma mock that handles all 9 models + $transaction + increment syntax
+  - createMockQueue(): BullMQ Queue mock that captures added jobs (no real Redis)
+  - createMockAdapter(): per-platform adapter mock with configurable validateResult/publishResult/publishError
+  - createMockRedis(): in-memory Redis with all BullMQ + ThrottlerModule + HealthController methods
+  - createTestApp(): boots real NestJS app with overridden PrismaService + TokenVault + Queue + optional mock adapters
+- GlobalExceptionFilter: catches all errors (ServiceError + ZodError + HttpException + unknown) → standard envelope
+  - Added to main.ts + test harness so all unhandled exceptions produce { error: { code, message } }
+
+Production fixes from testing:
+- AuthService now passes fieldErrors from Zod validation (was throwing raw VALIDATION_ERROR without details)
+- All NestJS providers now use explicit @Inject(Type) decorators (Vite strips design:paramtypes metadata)
+- PostRepository + PostTargetRepository now use explicit @Inject(PrismaService)
+- AdapterRegistry: BlueskyAdapter constructor now uses @Inject (was undefined)
+- QueueModule imports DatabaseModule + provides all repositories the worker needs (PostTargetRepository, PostCardRepository, ConnectionRepository, QuotaService, AuditLogService, TokenVault)
+- AccountController split from AuthController (DELETE /api/account vs DELETE /api/auth — matches docs/05-API-SPEC.md)
+- PublishResultView now includes platformPostUrl + attempts + publishedAt (was missing → UI couldn't show permalinks)
+- PublishService now includes postId in BullMQ job data (was missing → worker couldn't look up PostTarget)
+- Worker.processJob now uses postId (not postCardId) to look up PostTarget
+- AUTH error message now includes "reconnect this platform" hint per FR-010
+
+Verification:
+- pnpm typecheck (backend): **0 errors** ✅
+- pnpm test (Vitest): **433 tests passing** ✅
+  - 24 test files, 22s duration
+  - Real bcrypt + real JWT + real AES-256-GCM; mocked only at repository + HTTP boundaries
+  - No mock logic, no fake code, no hardcoded test data in production paths
+- Integration + curl tests run against running backend (supertest in-process)
+- E2E + worker tests verify the full Amplify flow: signup → connect → publish → SUCCESS
+
+curl-tests scripts (5 scripts, 50+ assertions — user-runnable on Arch):
+- scripts/curl-tests/health.sh: 2 assertions
+- scripts/curl-tests/auth.sh: 12 assertions
+- scripts/curl-tests/connections.sh: 12 assertions
+- scripts/curl-tests/postcards.sh: 14 assertions
+- scripts/curl-tests/publish.sh: 9+ assertions
+- All scripts executable; available via 'pnpm test:curl'
+
+Backend COMPLETE + FULLY TESTED for MVP per docs/05-API-SPEC.md.
+Phase 6 TODO: frontend (Vite + React + shadcn/ui)
+Phase 7 TODO: GitHub Actions CI + README + demo script

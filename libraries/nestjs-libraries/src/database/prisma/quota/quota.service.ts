@@ -9,14 +9,14 @@
 //
 // Tests (Phase 4.7): with budget=2 test config, 3rd X post → SKIPPED.
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { currentYearMonth, getXMonthlyPostBudget } from '@netamplify/nestjs-libraries/platforms/config';
 import type { Platform } from '@prisma/client';
 
 @Injectable()
 export class QuotaService {
-  constructor(private readonly _prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly _prisma: PrismaService) {}
 
   /**
    * Returns true if publishing one more post to this platform would exceed

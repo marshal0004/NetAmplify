@@ -8,8 +8,7 @@ import {
   ExceptionFilter,
   Catch,
   ArgumentsHost,
-  HttpException,
-} from '@nestjs/common';
+  HttpException, Inject } from '@nestjs/common';
 import { Response } from 'express';
 
 export class HttpForbiddenException extends HttpException {

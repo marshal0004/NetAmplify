@@ -9,7 +9,7 @@
 // platform tokens, passwords, or PII before passing it. Use the helper
 // `sanitizeMetadata()` below.
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import type { Prisma } from '@prisma/client';
 
@@ -67,7 +67,7 @@ export function sanitizeMetadata(input: unknown): Prisma.InputJsonValue {
 
 @Injectable()
 export class AuditLogService {
-  constructor(private readonly _prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly _prisma: PrismaService) {}
 
   /**
    * Write one audit row. Throws if DB write fails (fail-closed: better

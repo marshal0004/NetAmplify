@@ -14,7 +14,7 @@
 //   POST /api/connections/hashnode   { pat } → 201
 //   DELETE /api/connections/:platform → 204
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import type { Platform } from '@prisma/client';
 import { ConnectionRepository } from './connections.repository';
 import { AuditLogService } from '../audit/audit.service';
@@ -65,10 +65,10 @@ export interface ConnectionView {
 @Injectable()
 export class ConnectionsService {
   constructor(
-    private readonly _repo: ConnectionRepository,
-    private readonly _audit: AuditLogService,
-    private readonly _vault: TokenVault,
-    private readonly _adapters: AdapterRegistry
+    @Inject(ConnectionRepository) private readonly _repo: ConnectionRepository,
+    @Inject(AuditLogService) private readonly _audit: AuditLogService,
+    @Inject(TokenVault) private readonly _vault: TokenVault,
+    @Inject(AdapterRegistry) private readonly _adapters: AdapterRegistry
   ) {}
 
   /**

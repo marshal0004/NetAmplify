@@ -4,13 +4,13 @@
 // AuthService calls this for user CRUD. Owns transaction boundaries; the
 // AuthService owns auth-specific logic (password hashing, token gen).
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { UserRepository } from './users.repository';
 import type { User, Prisma } from '@prisma/client';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly _userRepo: UserRepository) {}
+  constructor(@Inject(UserRepository) private readonly _userRepo: UserRepository) {}
 
   findByEmail(email: string): Promise<User | null> {
     return this._userRepo.findByEmail(email);

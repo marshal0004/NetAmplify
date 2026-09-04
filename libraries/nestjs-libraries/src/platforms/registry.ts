@@ -10,7 +10,7 @@
 // Telegram, Bluesky, Hashnode). Phase 4 will use the registry to dispatch
 // publish calls + connect flows.
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import type { PlatformAdapter } from './adapter.interface';
 import { AdapterNotFoundError, PlatformNotConfiguredError } from './adapter.interface';
 import type { Platform } from '@prisma/client';
@@ -36,14 +36,14 @@ export class AdapterRegistry {
   private readonly adapters: Map<Platform, PlatformAdapter>;
 
   constructor(
-    private readonly _reddit: RedditAdapter,
-    private readonly _x: XAdapter,
-    private readonly _linkedin: LinkedInAdapter,
-    private readonly _discord: DiscordAdapter,
-    private readonly _devto: DevtoAdapter,
-    private readonly _hashnode: HashnodeAdapter,
-    private readonly _telegram: TelegramAdapter,
-    private readonly _bluesky: BlueskyAdapter
+    @Inject(RedditAdapter) private readonly _reddit: RedditAdapter,
+    @Inject(XAdapter) private readonly _x: XAdapter,
+    @Inject(LinkedInAdapter) private readonly _linkedin: LinkedInAdapter,
+    @Inject(DiscordAdapter) private readonly _discord: DiscordAdapter,
+    @Inject(DevtoAdapter) private readonly _devto: DevtoAdapter,
+    @Inject(HashnodeAdapter) private readonly _hashnode: HashnodeAdapter,
+    @Inject(TelegramAdapter) private readonly _telegram: TelegramAdapter,
+    @Inject(BlueskyAdapter) private readonly _bluesky: BlueskyAdapter
   ) {
     this.adapters = new Map<Platform, PlatformAdapter>([
       ['REDDIT', this._reddit],

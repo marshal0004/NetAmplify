@@ -10,6 +10,7 @@ import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from '@netamplify/nestjs-libraries/services/exception.filter';
+import { GlobalExceptionFilter } from '@netamplify/backend/services/error.filter';
 import { ConfigurationChecker } from '@netamplify/helpers/configuration/configuration.checker';
 
 /**
@@ -50,6 +51,7 @@ async function start() {
 
   app.use(cookieParser());
   app.use(compression());
+  app.useGlobalFilters(new GlobalExceptionFilter());
   app.useGlobalFilters(new HttpExceptionFilter());
 
   loadSwagger(app);

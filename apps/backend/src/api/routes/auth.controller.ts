@@ -21,8 +21,7 @@ import {
   HttpCode,
   Post,
   Req,
-  UseGuards,
-} from '@nestjs/common';
+  UseGuards, Inject } from '@nestjs/common';
 import type { Request } from 'express';
 import { AuthService, type AuditContext, type AuthResult } from '@netamplify/backend/services/auth/auth.service';
 import { JwtAuthGuard } from '@netamplify/backend/services/auth/guards/jwt-auth.guard';
@@ -51,7 +50,7 @@ function getUserId(req: Request): string {
 
 @Controller('api/auth')
 export class AuthController {
-  constructor(private readonly _auth: AuthService) {}
+  constructor(@Inject(AuthService) private readonly _auth: AuthService) {}
 
   /**
    * POST /api/auth/signup
@@ -161,14 +160,18 @@ export class AuthController {
       throw errorMapper(e);
     }
   }
+}
 
-  /**
-   * DELETE /api/account
-   * JWT-required. Returns 204. Cascades to Profile, PostCard, Connection,
-   * Post, PostTarget; AuditLog.userId is set to null (retained for audit trail).
-   */
-  @Delete('')
-  @UseGuards(JwtAuthGuard)
+/**
+ * AccountController — separate controller for DELETE /api/account.
+ * Per docs/05-API-SPEC.md: DELETE /api/account cascades user data.
+ */
+@Controller('api/account')
+@UseGuards(JwtAuthGuard)
+export class AccountController {
+  constructor(@Inject(AuthService) private readonly _auth: AuthService) {}
+
+  @Delete()
   @HttpCode(204)
   async deleteAccount(@Req() req: Request): Promise<void> {
     try {

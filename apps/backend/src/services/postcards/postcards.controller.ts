@@ -10,8 +10,7 @@
 //   GET    /api/postcards/:id/preview?platform=X&subreddit= → 200
 
 import {
-  Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query, Req, UseGuards,
-} from '@nestjs/common';
+  Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query, Req, UseGuards, Inject } from '@nestjs/common';
 import type { Request } from 'express';
 import { PostCardService, type PostCardView } from '@netamplify/nestjs-libraries/database/prisma/postcards/postcards.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -30,7 +29,7 @@ function getUserId(req: Request): string {
 @Controller('api/postcards')
 @UseGuards(JwtAuthGuard)
 export class PostCardController {
-  constructor(private readonly _postcards: PostCardService) {}
+  constructor(@Inject(PostCardService) private readonly _postcards: PostCardService) {}
 
   @Get()
   @HttpCode(200)

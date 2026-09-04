@@ -8,8 +8,7 @@
 //   POST /api/posts/:id/targets/:targetId/retry → 200 | 409
 
 import {
-  Body, Controller, Get, HttpCode, Param, Post, Query, Req, UseGuards,
-} from '@nestjs/common';
+  Body, Controller, Get, HttpCode, Param, Post, Query, Req, UseGuards, Inject } from '@nestjs/common';
 import type { Request } from 'express';
 import { PublishService, type PublishResultView } from './publish.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -33,7 +32,7 @@ function getAudit(req: Request) {
 @Controller()
 @UseGuards(JwtAuthGuard)
 export class PublishController {
-  constructor(private readonly _publish: PublishService) {}
+  constructor(@Inject(PublishService) private readonly _publish: PublishService) {}
 
   /**
    * POST /api/postcards/:id/publish
