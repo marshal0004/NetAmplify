@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* /home/z/my-project/netamplify-app/apps/frontend/src/index.css
+   NetAmplify — Global CSS per docs/06-FRONTEND-SPEC.md design system. */
+
+@layer base {
+  :root {
+    --background: 220 14% 96%;           /* #F9FAFB */
+    --foreground: 222 47% 11%;           /* #111827 */
+    --card: 0 0% 100%;                   /* #FFFFFF */
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 239 84% 67%;              /* #4F46E5 indigo-600 */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;      /* #6B7280 */
+    --accent: 239 84% 95%;               /* #EEF2FF indigo-50 */
+    --accent-foreground: 239 84% 40%;
+    --destructive: 0 72% 51%;            /* #DC2626 */
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 13% 91%;               /* #E5E7EB */
+    --input: 220 13% 91%;
+    --ring: 239 84% 67%;
+    --radius: 0.5rem;                    /* 8px */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+/* Status chip colors per docs/06-FRONTEND-SPEC.md:
+   QUEUED gray, PUBLISHING blue pulse, SUCCESS green, FAILED red, SKIPPED gray */
+.chip-queued    { @apply bg-gray-100 text-gray-600; }
+.chip-publishing { @apply bg-blue-100 text-blue-700 animate-pulse; }
+.chip-success   { @apply bg-green-100 text-green-700; }
+.chip-failed    { @apply bg-red-100 text-red-700; }
+.chip-skipped   { @apply bg-gray-100 text-gray-500; }

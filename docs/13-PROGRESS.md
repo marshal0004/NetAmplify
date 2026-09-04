@@ -452,3 +452,51 @@ curl-tests scripts (5 scripts, 50+ assertions — user-runnable on Arch):
 Backend COMPLETE + FULLY TESTED for MVP per docs/05-API-SPEC.md.
 Phase 6 TODO: frontend (Vite + React + shadcn/ui)
 Phase 7 TODO: GitHub Actions CI + README + demo script
+
+---
+
+[2026-09-04] [Phase-6] Frontend — Vite + React + Tailwind + shadcn/ui (8 screens).
+
+Tech stack (per docs/06-FRONTEND-SPEC.md + C4-A deviation):
+- Vite 5 + React 18 + TypeScript strict
+- Tailwind CSS 3.4 with design tokens from 06-FRONTEND-SPEC.md (indigo-600 primary, 8px radius, Inter font)
+- shadcn/ui components (Button, Input, Textarea, Card, Badge, Label, StatusBadge) — built from Radix primitives, no external shadcn package
+- React Router 6 for routing
+- TanStack Query 5 for data fetching + caching
+- Zod for response validation (API client validates every response)
+
+Files created:
+- apps/frontend/package.json, tsconfig.json, vite.config.ts, tailwind.config.cjs, postcss.config.cjs, index.html
+- apps/frontend/src/index.css — global styles with CSS variables per design system
+- apps/frontend/src/main.tsx — entry point (BrowserRouter + QueryClientProvider + AuthProvider)
+- apps/frontend/src/App.tsx — router with RequireAuth guard
+- apps/frontend/src/lib/api.ts — typed API client (authApi, postcardApi, connectionsApi, publishApi, healthApi) with Zod response validation + JWT token management + error envelope parsing
+- apps/frontend/src/lib/auth.tsx — AuthProvider context (login, signup, logout, useAuth hook, token validation on mount)
+- apps/frontend/src/lib/utils.ts — cn() Tailwind class merger
+- apps/frontend/src/components/ui/ — 7 shadcn/ui base components (Button, Input, Textarea, Card, Badge, Label, StatusBadge)
+- apps/frontend/src/pages/ — 8 screens:
+  - Landing.tsx — hero "Post once. Get seen everywhere." + 3-step how-it-works + platform logos + security blurb + CTA
+  - Login.tsx — centered card, inline errors, redirect after login
+  - Signup.tsx — centered card, field-level errors from server, password complexity hint
+  - ResetRequest.tsx — always shows "sent" message (no email enumeration)
+  - DashboardLayout.tsx — sidebar navigation with 5 items + user info + logout
+  - Dashboard.tsx — onboarding strip (3 steps) + stats strip + PostCard grid + empty state
+  - ConnectChecklist.tsx — 8 platform cards with Connect/Disconnect + "Why is this safe?" expanders (trust copy from 12-TRUST-COPY.md) + "Setup pending" for unconfigured Tier B + per-platform connect forms (Discord webhook, Dev.to API key, Telegram bot token, Bluesky handle+password, Hashnode PAT) + OAuth redirect for Reddit/X/LinkedIn
+  - PostCardComposer.tsx — Basics section (title + summary with char counters) + Story section (markdown editor with preview toggle) + Tech tags (chip input with Enter to add, max 10) + Links section (repo + live URL)
+  - PostCardView.tsx — view PostCard + Amplify button + Delete with confirm
+  - PublishPage.tsx — platform checklist (only connected platforms) + Reddit subreddit input + per-platform live preview (fetches from /api/postcards/:id/preview) + Amplify button + status board with 3-second polling + retry buttons for FAILED targets + permalink links
+  - History.tsx — table of publishes with per-target status chips + platform/status filters + permalink links
+  - Settings.tsx — profile (read-only in MVP) + Trust & Security panel (5 bullet points from 12-TRUST-COPY.md §2) + danger zone with account deletion (typed "DELETE" confirmation + cascade)
+
+Old postiz Next.js frontend preserved at apps/frontend-postiz-bak/ (in git history for reference).
+
+Verification:
+- Frontend typecheck: 0 errors ✅
+- Frontend build (vite build): 121 modules, 381KB JS (112KB gzipped), 19KB CSS (4KB gzipped) ✅
+- Backend tests: 433/433 still pass ✅ (vitest.config.ts fixed to use explicit path aliases instead of vite-tsconfig-paths)
+- Total project: typecheck 0 errors, 433 tests pass, frontend builds
+
+Frontend TODO before demo:
+- Copy public assets (netamplify.svg, netamplify-fav.png from old frontend)
+- Test end-to-end against running backend (pnpm dev:backend + pnpm dev:frontend)
+- Responsive pass (mobile-first; dashboard tabs collapse to bottom bar <768px)
