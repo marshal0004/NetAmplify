@@ -14,15 +14,20 @@ echo -e "${YELLOW}=== NetAmplify — running all curl-tests ===${NC}"
 echo ""
 
 # Sanity check: is the dev server up?
+BASE_URL="${BASE_URL:-http://localhost:3000}"
 if ! curl -s -o /dev/null -w "%{http_code}" "$BASE_URL" --max-time 5 | grep -qE "^(200|302|404|503)$"; then
-  echo -e "${RED}ERROR:${NC} Dev server not responding at \${BASE_URL:-http://localhost:3000}."
+  echo -e "${RED}ERROR:${NC} Dev server not responding at ${BASE_URL}."
   echo "Start it first: pnpm dev:backend"
-  exit 1
+  echo ""
+  echo "Running live platform tests instead (no backend needed)..."
+  bash "$SCRIPT_DIR/platforms-live.sh"
+  exit $?
 fi
 
 PASS=0
 FAIL=0
 
+# Backend API tests (require running backend)
 for script in "$SCRIPT_DIR"/health.sh "$SCRIPT_DIR"/auth.sh "$SCRIPT_DIR"/connections.sh "$SCRIPT_DIR"/postcards.sh "$SCRIPT_DIR"/publish.sh; do
   if [ ! -f "$script" ]; then
     continue
@@ -35,6 +40,15 @@ for script in "$SCRIPT_DIR"/health.sh "$SCRIPT_DIR"/auth.sh "$SCRIPT_DIR"/connec
   fi
   echo ""
 done
+
+# Live platform tests (post real content to Discord, Dev.to, Telegram, LinkedIn)
+echo -e "${YELLOW}--- Running platforms-live.sh ---${NC}"
+if bash "$SCRIPT_DIR/platforms-live.sh"; then
+  PASS=$((PASS+1))
+else
+  FAIL=$((FAIL+1))
+fi
+echo ""
 
 echo -e "${YELLOW}=== run-all Summary ===${NC}"
 echo -e "  ${GREEN}Scripts passed:${NC} $PASS"
