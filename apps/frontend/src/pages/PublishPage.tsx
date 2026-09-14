@@ -1,22 +1,30 @@
-// /home/z/my-project/netamplify-app/apps/frontend/src/pages/PublishPage.tsx
-// NetAmplify — Publish page (the core UX).
-// Per docs/06-FRONTEND-SPEC.md Screen 6: platform checklist + per-platform
-// live preview + Amplify button + status board with polling.
-
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from '@tanstack/react-query';
+import { motion, AnimatePresence } from 'framer-motion';
 import { postcardApi, connectionsApi, publishApi, type Post, type Preview } from '@/lib/api';
 import { getErrorMessage } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { StatusBadge } from '@/components/ui/status-badge';
+
+const statusConfig: Record<string, { color: string; bg: string; label: string; icon: string }> = {
+  QUEUED: { color: 'text-gray-400', bg: 'bg-gray-500/10', label: 'Queued', icon: '⏳' },
+  PUBLISHING: { color: 'text-blue-400', bg: 'bg-blue-500/10', label: 'Publishing', icon: '🔄' },
+  SUCCESS: { color: 'text-green-400', bg: 'bg-green-500/10', label: 'Success', icon: '✅' },
+  FAILED: { color: 'text-red-400', bg: 'bg-red-500/10', label: 'Failed', icon: '❌' },
+  SKIPPED: { color: 'text-gray-400', bg: 'bg-gray-500/10', label: 'Skipped', icon: '⏭️' },
+};
 
 export function PublishPage() {
   const { id } = useParams<{ id: string }>();
-  
+  const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(new Set());
+  const [subreddit, setSubreddit] = useState('test');
+  const [post, setPost] = useState<Post | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [previews, setPreviews] = useState<Record<string, Preview>>({});
 
   const { data: card } = useQuery({
     queryKey: ['postcard', id],
@@ -31,29 +39,15 @@ export function PublishPage() {
 
   const connectedPlatforms = connections?.filter((c) => c.platformUsername !== null && c.configured) ?? [];
 
-  const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(new Set());
-  const [subreddit, setSubreddit] = useState('test');
-  const [post, setPost] = useState<Post | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  // Per-platform live preview (fetched when a platform is selected)
-  const [previews, setPreviews] = useState<Record<string, Preview>>({});
-
-  // Toggle platform selection
   function togglePlatform(platform: string) {
     setSelectedPlatforms((prev) => {
       const next = new Set(prev);
-      if (next.has(platform)) {
-        next.delete(platform);
-      } else {
-        next.add(platform);
-      }
+      if (next.has(platform)) next.delete(platform);
+      else next.add(platform);
       return next;
     });
   }
 
-  // Fetch preview when platform selection changes
   useEffect(() => {
     if (!id || !card) return;
     for (const platform of selectedPlatforms) {
@@ -66,21 +60,17 @@ export function PublishPage() {
     }
   }, [selectedPlatforms, id, card, subreddit, previews]);
 
-  // Poll for status after publish
   useEffect(() => {
     if (!post) return;
     const interval = setInterval(async () => {
       try {
         const updated = await publishApi.get(post.post.id);
         setPost(updated);
-        // Stop polling when all targets reach terminal state
         const allTerminal = updated.post.targets.every(
           (t) => t.status === 'SUCCESS' || t.status === 'FAILED' || t.status === 'SKIPPED'
         );
         if (allTerminal) clearInterval(interval);
-      } catch {
-        // ignore polling errors
-      }
+      } catch { /* ignore */ }
     }, 3000);
     return () => clearInterval(interval);
   }, [post]);
@@ -104,215 +94,310 @@ export function PublishPage() {
     }
   }
 
-  if (!card) return <div>Loading…</div>;
+  if (!card) return <div className="text-white/50">Loading…</div>;
 
   return (
-    <div className="max-w-4xl space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="max-w-4xl space-y-8">
+      {/* Header */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="flex items-center justify-between"
+      >
         <Link to={`/dashboard/postcards/${card.id}`}>
-          <Button variant="ghost" size="sm">← Back to Post Card</Button>
+          <Button variant="ghost" size="sm" className="text-white/50 hover:text-white">← Back to Post Card</Button>
         </Link>
+      </motion.div>
+
+      <div>
+        <h1 className="text-3xl font-bold text-white">
+          Amplify <span className="bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">"{card.title}"</span>
+        </h1>
       </div>
 
-      <h1 className="text-2xl font-bold">Amplify "{card.title}"</h1>
-
-      {/* Left: Post Card summary */}
-      <Card>
-        <CardContent className="pt-6">
-          <p className="text-gray-600">{card.summary}</p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {card.techStack.map((tag) => (
-              <span key={tag} className="rounded-md bg-gray-100 px-2 py-1 font-mono text-xs">{tag}</span>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Right: Platform checklist */}
-      {connectedPlatforms.length === 0 ? (
-        <Card className="border-amber-200 bg-amber-50">
+      {/* Post Card summary */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.1 }}
+      >
+        <Card className="border-white/10 bg-white/[0.03] backdrop-blur-xl">
           <CardContent className="pt-6">
-            <p className="mb-4 text-amber-700">You haven't connected any platforms yet.</p>
+            <p className="text-white/60">{card.summary}</p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {card.techStack.map((tag) => (
+                <span key={tag} className="rounded-md bg-indigo-500/10 px-2 py-1 font-mono text-xs text-indigo-300">{tag}</span>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* Platform checklist */}
+      {connectedPlatforms.length === 0 ? (
+        <Card className="border-amber-500/30 bg-amber-500/10 backdrop-blur-xl">
+          <CardContent className="pt-6">
+            <p className="mb-4 text-amber-400">You haven't connected any platforms yet.</p>
             <Link to="/dashboard/connections">
-              <Button>Connect platforms →</Button>
+              <Button className="bg-gradient-to-r from-indigo-500 to-purple-500 border-0">Connect platforms →</Button>
             </Link>
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold">Select platforms ({selectedPlatforms.size} selected)</h2>
+        <div className="space-y-6">
+          <h2 className="text-lg font-semibold text-white">Select platforms ({selectedPlatforms.size} selected)</h2>
+
           <div className="grid gap-3 md:grid-cols-2">
-            {connectedPlatforms.map((conn) => (
-              <Card
+            {connectedPlatforms.map((conn, i) => (
+              <motion.div
                 key={conn.platform}
-                className={`cursor-pointer transition-all ${
-                  selectedPlatforms.has(conn.platform) ? 'border-indigo-500 ring-2 ring-indigo-500' : ''
-                }`}
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.3, delay: i * 0.05 }}
+                whileHover={{ scale: 1.02 }}
                 onClick={() => togglePlatform(conn.platform)}
               >
-                <CardContent className="flex items-center justify-between pt-6">
-                  <div>
-                    <p className="font-medium">{platformName(conn.platform)}</p>
-                    <p className="text-xs text-gray-500">Connected as {conn.platformUsername}</p>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={selectedPlatforms.has(conn.platform)}
-                    onChange={() => togglePlatform(conn.platform)}
-                    className="h-5 w-5"
-                  />
-                </CardContent>
-              </Card>
+                <Card
+                  className={`cursor-pointer overflow-hidden border-white/10 bg-white/[0.03] backdrop-blur-xl transition-all ${
+                    selectedPlatforms.has(conn.platform)
+                      ? 'border-indigo-500/50 ring-2 ring-indigo-500/30'
+                      : 'hover:border-white/20'
+                  }`}
+                >
+                  <CardContent className="flex items-center justify-between pt-6">
+                    <div>
+                      <p className="font-medium text-white">{platformName(conn.platform)}</p>
+                      <p className="text-xs text-white/40">Connected as {conn.platformUsername}</p>
+                    </div>
+                    <motion.div
+                      animate={{ scale: selectedPlatforms.has(conn.platform) ? 1 : 0.8 }}
+                      className={`flex h-6 w-6 items-center justify-center rounded-md border-2 transition-all ${
+                        selectedPlatforms.has(conn.platform)
+                          ? 'border-indigo-500 bg-indigo-500 text-white'
+                          : 'border-white/20 bg-transparent'
+                      }`}
+                    >
+                      {selectedPlatforms.has(conn.platform) && '✓'}
+                    </motion.div>
+                  </CardContent>
+                </Card>
+              </motion.div>
             ))}
           </div>
 
           {/* Reddit subreddit input */}
           {selectedPlatforms.has('REDDIT') && (
-            <div className="space-y-2">
-              <Label htmlFor="subreddit">Subreddit for Reddit</Label>
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              className="space-y-2"
+            >
+              <Label htmlFor="subreddit" className="text-white/50">Subreddit for Reddit</Label>
               <Input
                 id="subreddit"
                 value={subreddit}
                 onChange={(e) => setSubreddit(e.target.value)}
                 placeholder="sideproject"
-                className="max-w-xs"
+                className="max-w-xs border-white/10 bg-white/5 text-white placeholder:text-white/20"
               />
-            </div>
+            </motion.div>
           )}
 
-          {/* Per-platform live preview */}
+          {/* Live preview */}
           {selectedPlatforms.size > 0 && (
             <div className="space-y-4">
-              <h3 className="font-semibold">Live Preview</h3>
-              {Array.from(selectedPlatforms).map((platform) => {
+              <h3 className="font-semibold text-white">Live Preview</h3>
+              {Array.from(selectedPlatforms).map((platform, i) => {
                 const preview = previews[platform];
                 return (
-                  <Card key={platform}>
-                    <CardContent className="pt-6">
-                      <div className="mb-2 flex items-center justify-between">
-                        <h4 className="font-medium">{platformName(platform)}</h4>
-                        {preview && (
-                          <span className="font-mono text-xs text-gray-500">
-                            {preview.formatted.charCount}/{preview.formatted.limit}
-                          </span>
-                        )}
-                      </div>
-                      {preview ? (
-                        <div className="rounded-md bg-gray-50 p-3 text-sm">
-                          {preview.formatted.title && (
-                            <p className="mb-2 font-semibold">{preview.formatted.title}</p>
-                          )}
-                          <p className="whitespace-pre-wrap text-gray-700">
-                            {preview.formatted.body?.slice(0, 500)}
-                            {(preview.formatted.body?.length ?? 0) > 500 ? '…' : ''}
-                          </p>
-                          {preview.formatted.url && (
-                            <p className="mt-2 text-indigo-600">{preview.formatted.url}</p>
-                          )}
-                          {preview.formatted.hashtags && preview.formatted.hashtags.length > 0 && (
-                            <p className="mt-2 text-xs text-gray-500">
-                              {preview.formatted.hashtags.map((t) => `#${t}`).join(' ')}
-                            </p>
+                  <motion.div
+                    key={platform}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.3, delay: i * 0.1 }}
+                  >
+                    <Card className="border-white/10 bg-white/[0.03] backdrop-blur-xl">
+                      <CardContent className="pt-6">
+                        <div className="mb-2 flex items-center justify-between">
+                          <h4 className="font-medium text-white">{platformName(platform)}</h4>
+                          {preview && (
+                            <span className={`font-mono text-xs ${preview.formatted.charCount > preview.formatted.limit ? 'text-red-400' : 'text-white/40'}`}>
+                              {preview.formatted.charCount}/{preview.formatted.limit}
+                            </span>
                           )}
                         </div>
-                      ) : (
-                        <p className="text-sm text-gray-400">Loading preview…</p>
-                      )}
-                    </CardContent>
-                  </Card>
+                        {preview ? (
+                          <div className="rounded-lg border border-white/5 bg-black/30 p-3 text-sm">
+                            {preview.formatted.title && (
+                              <p className="mb-2 font-semibold text-white">{preview.formatted.title}</p>
+                            )}
+                            <p className="whitespace-pre-wrap text-white/60">
+                              {preview.formatted.body?.slice(0, 500)}
+                              {(preview.formatted.body?.length ?? 0) > 500 ? '…' : ''}
+                            </p>
+                            {preview.formatted.url && (
+                              <p className="mt-2 text-indigo-400">{preview.formatted.url}</p>
+                            )}
+                            {preview.formatted.hashtags && preview.formatted.hashtags.length > 0 && (
+                              <p className="mt-2 text-xs text-white/40">
+                                {preview.formatted.hashtags.map((t) => `#${t}`).join(' ')}
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 text-sm text-white/30">
+                            <div className="h-3 w-3 animate-spin rounded-full border border-white/20 border-t-indigo-400" />
+                            Loading preview…
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </motion.div>
                 );
               })}
             </div>
           )}
 
           {/* Amplify button */}
-          <Button
-            size="lg"
-            onClick={handlePublish}
-            disabled={loading || selectedPlatforms.size === 0}
-            className="w-full"
-          >
-            {loading ? 'Publishing…' : `🚀 Amplify to ${selectedPlatforms.size} platform${selectedPlatforms.size === 1 ? '' : 's'}`}
-          </Button>
+          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+            <Button
+              size="lg"
+              onClick={handlePublish}
+              disabled={loading || selectedPlatforms.size === 0}
+              className="w-full bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 border-0 text-base"
+            >
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                  Publishing…
+                </span>
+              ) : (
+                `🚀 Amplify to ${selectedPlatforms.size} platform${selectedPlatforms.size === 1 ? '' : 's'}`
+              )}
+            </Button>
+          </motion.div>
         </div>
       )}
 
-      {error && <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+      {/* Error */}
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-400"
+          >
+            {error}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* Status board (appears after publish) */}
-      {post && (
-        <Card>
-          <CardContent className="pt-6">
-            <h2 className="mb-4 text-lg font-semibold">Publish Status</h2>
-            <div className="space-y-3">
-              {post.post.targets.map((target) => (
-                <div key={target.id} className="flex items-center justify-between rounded-md border p-3">
-                  <div className="flex items-center gap-3">
-                    <StatusBadge status={target.status} />
-                    <span className="font-medium">{platformName(target.platform)}</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    {target.error && (
-                      <span className="text-sm text-red-600">{target.error}</span>
-                    )}
-                    {target.platformPostUrl && target.status === 'SUCCESS' && (
-                      <a
-                        href={target.platformPostUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-sm text-indigo-600 hover:underline"
+      {/* Status board */}
+      <AnimatePresence>
+        {post && (
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <Card className="border-white/10 bg-white/[0.03] backdrop-blur-xl">
+              <CardContent className="pt-6">
+                <h2 className="mb-4 text-lg font-semibold text-white">Publish Status</h2>
+                <div className="space-y-3">
+                  {post.post.targets.map((target, i) => {
+                    const cfg = statusConfig[target.status] ?? statusConfig.QUEUED;
+                    return (
+                      <motion.div
+                        key={target.id}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.3, delay: i * 0.1 }}
+                        className={`flex items-center justify-between rounded-xl border border-white/10 ${cfg.bg} p-4`}
                       >
-                        View post →
-                      </a>
-                    )}
-                    {target.status === 'FAILED' && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={async () => {
-                          try {
-                            await publishApi.retry(post.post.id, target.id);
-                            // Trigger re-poll
-                            const updated = await publishApi.get(post.post.id);
-                            setPost(updated);
-                          } catch (err) {
-                            setError(getErrorMessage(err));
-                          }
-                        }}
-                      >
-                        Retry
-                      </Button>
-                    )}
-                  </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xl" style={{
+                            animation: target.status === 'PUBLISHING' ? 'spin 1s linear infinite' : 'none',
+                            display: 'inline-block',
+                          }}>
+                            {cfg.icon}
+                          </span>
+                          <div>
+                            <p className="font-medium text-white">{platformName(target.platform)}</p>
+                            <p className={`text-xs ${cfg.color}`}>{cfg.label}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          {target.error && (
+                            <span className="max-w-xs truncate text-xs text-red-400" title={target.error}>
+                              {target.error}
+                            </span>
+                          )}
+                          {target.platformPostUrl && target.status === 'SUCCESS' && (
+                            <motion.a
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              href={target.platformPostUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-sm text-indigo-400 hover:text-indigo-300 hover:underline"
+                            >
+                              View post →
+                            </motion.a>
+                          )}
+                          {target.status === 'FAILED' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-white/10 bg-white/5 text-white/60 hover:bg-indigo-500/10 hover:text-indigo-400"
+                              onClick={async () => {
+                                try {
+                                  await publishApi.retry(post.post.id, target.id);
+                                  const updated = await publishApi.get(post.post.id);
+                                  setPost(updated);
+                                } catch (err) {
+                                  setError(getErrorMessage(err));
+                                }
+                              }}
+                            >
+                              Retry
+                            </Button>
+                          )}
+                        </div>
+                      </motion.div>
+                    );
+                  })}
                 </div>
-              ))}
-            </div>
-            {post.post.targets.every(
-              (t) => t.status === 'SUCCESS' || t.status === 'FAILED' || t.status === 'SKIPPED'
-            ) && (
-              <div className="mt-4">
-                <Link to="/dashboard/history">
-                  <Button variant="outline" size="sm">View in History →</Button>
-                </Link>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+                {post.post.targets.every(
+                  (t) => t.status === 'SUCCESS' || t.status === 'FAILED' || t.status === 'SKIPPED'
+                ) && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.5 }}
+                    className="mt-4"
+                  >
+                    <Link to="/dashboard/history">
+                      <Button variant="outline" size="sm" className="border-white/10 bg-white/5 text-white/60 hover:bg-white/10">
+                        View in History →
+                      </Button>
+                    </Link>
+                  </motion.div>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
 function platformName(platform: string): string {
   const names: Record<string, string> = {
-    REDDIT: 'Reddit',
-    DISCORD: 'Discord',
-    DEVTO: 'Dev.to',
-    TELEGRAM: 'Telegram',
-    BLUESKY: 'Bluesky',
-    HASHNODE: 'Hashnode',
-    TWITTER: 'X (Twitter)',
-    LINKEDIN: 'LinkedIn',
+    REDDIT: 'Reddit', DISCORD: 'Discord', DEVTO: 'Dev.to', TELEGRAM: 'Telegram',
+    BLUESKY: 'Bluesky', HASHNODE: 'Hashnode', TWITTER: 'X (Twitter)', LINKEDIN: 'LinkedIn',
   };
   return names[platform] ?? platform;
 }

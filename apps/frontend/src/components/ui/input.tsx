@@ -1,4 +1,3 @@
-// /home/z/my-project/netamplify-app/apps/frontend/src/components/ui/input.tsx
 // NetAmplify — shadcn/ui Input component.
 
 import * as React from 'react';

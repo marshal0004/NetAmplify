@@ -1,4 +1,3 @@
-// /home/z/my-project/netamplify-app/apps/frontend/src/components/ui/textarea.tsx
 // NetAmplify — shadcn/ui Textarea component.
 
 import * as React from 'react';

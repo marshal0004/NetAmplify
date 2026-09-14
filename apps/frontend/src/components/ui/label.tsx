@@ -1,4 +1,3 @@
-// /home/z/my-project/netamplify-app/apps/frontend/src/components/ui/label.tsx
 // NetAmplify — shadcn/ui Label component (built on Radix Label).
 
 import * as React from 'react';

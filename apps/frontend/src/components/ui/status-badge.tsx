@@ -1,4 +1,3 @@
-// /home/z/my-project/netamplify-app/apps/frontend/src/components/ui/status-badge.tsx
 // NetAmplify — Status badge for PostTarget status display.
 // Per docs/06-FRONTEND-SPEC.md: QUEUED gray, PUBLISHING blue pulse,
 // SUCCESS green, FAILED red, SKIPPED gray.

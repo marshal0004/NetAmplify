@@ -97,7 +97,6 @@ export class LinkedInAdapter implements PlatformAdapter {
       redirect_uri: redirectUri,
       client_id: process.env.LINKEDIN_CLIENT_ID!,
       client_secret: process.env.LINKEDIN_CLIENT_SECRET!,
-      code_verifier: pkce.code_verifier,
     });
 
     const resp = await fetch(LINKEDIN_TOKEN_URL, {

@@ -1,4 +1,3 @@
-// /home/z/my-project/netamplify-app/apps/frontend/src/components/ui/button.tsx
 // NetAmplify — shadcn/ui Button component.
 // Built on Radix Slot + CVA + Tailwind, no external shadcn package needed.
 

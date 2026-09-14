@@ -1,4 +1,3 @@
-// /home/z/my-project/netamplify-app/apps/frontend/src/App.tsx
 // NetAmplify — Root router + auth guard.
 //
 // Routes:
