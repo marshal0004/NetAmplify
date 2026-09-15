@@ -1,11 +1,6 @@
-// /home/z/my-project/netamplify-app/apps/frontend/src/pages/ConnectChecklist.tsx
-// NetAmplify — Connect Checklist screen.
-// Per docs/06-FRONTEND-SPEC.md Screen 4: grid of platform cards with
-// Connect/Disconnect + "Why is this safe?" expanders + "Setup pending"
-// for unconfigured Tier B platforms.
-
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { motion, AnimatePresence } from 'framer-motion';
 import { connectionsApi, ApiError } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -13,7 +8,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 
-// Trust copy per docs/12-TRUST-COPY.md §1
 const trustCopy: Record<string, string> = {
   REDDIT: 'You\'ll log in on Reddit\'s official page — NetAmplify never sees your password. We receive only a limited permission to submit posts, and you can revoke it anytime in your Reddit settings.',
   DISCORD: 'A webhook can only post to ONE channel in your server. Even in a worst case, it can\'t read messages, DMs, or touch your account. Delete the webhook in your server settings anytime and it\'s dead instantly.',
@@ -25,19 +19,90 @@ const trustCopy: Record<string, string> = {
   LINKEDIN: 'You\'ll log in on LinkedIn\'s official page — NetAmplify never sees your password. We receive only a limited permission to post on your behalf, and you can revoke it anytime in your LinkedIn settings.',
 };
 
-// Per-platform connect form fields
-const platformFields: Record<string, Array<{ key: string; label: string; placeholder: string; type?: string }>> = {
-  DISCORD: [{ key: 'webhookUrl', label: 'Webhook URL', placeholder: 'https://discord.com/api/webhooks/...' }],
-  DEVTO: [{ key: 'apiKey', label: 'API Key', placeholder: 'Your Dev.to API key' }],
-  HASHNODE: [{ key: 'pat', label: 'Personal Access Token', placeholder: 'Your Hashnode PAT' }],
-  TELEGRAM: [
-    { key: 'botToken', label: 'Bot Token', placeholder: '1234567890:AAH...' },
-    { key: 'channel', label: 'Channel @username', placeholder: '@mychannel' },
-  ],
-  BLUESKY: [
-    { key: 'handle', label: 'Handle', placeholder: 'jane.bsky.social' },
-    { key: 'appPassword', label: 'App Password', placeholder: 'abcd-efgh-ijkl-mnop' },
-  ],
+interface FieldConfig {
+  key: string;
+  label: string;
+  placeholder: string;
+  type?: string;
+}
+
+interface PlatformConfig {
+  fields?: FieldConfig[];
+  steps: { text: string; link?: string; linkText?: string }[];
+  docsLink?: string;
+}
+
+const platformConfig: Record<string, PlatformConfig> = {
+  DISCORD: {
+    fields: [{ key: 'webhookUrl', label: 'Webhook URL', placeholder: 'https://discord.com/api/webhooks/...' }],
+    steps: [
+      { text: 'Open your Discord server' },
+      { text: 'Click the ⚙️ gear icon next to any channel (e.g., #general)' },
+      { text: 'Click "Integrations" → "Webhooks"' },
+      { text: 'Click "New Webhook" → "Copy Webhook URL"' },
+      { text: 'Paste the URL above and click Connect' },
+    ],
+    docsLink: 'https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks',
+  },
+  DEVTO: {
+    fields: [{ key: 'apiKey', label: 'API Key', placeholder: 'Your Dev.to API key' }],
+    steps: [
+      { text: 'Open Dev.to settings (opens in new tab)', link: 'https://dev.to/settings/extensions', linkText: 'Open Dev.to Settings' },
+      { text: 'Scroll down to "DEV Community API Keys"' },
+      { text: 'Click "Generate API Key"' },
+      { text: 'Copy the key and paste it above' },
+    ],
+    docsLink: 'https://developers.forem.com/api/v1#section/Authentication',
+  },
+  HASHNODE: {
+    fields: [{ key: 'pat', label: 'Personal Access Token', placeholder: 'Your Hashnode PAT' }],
+    steps: [
+      { text: 'Open Hashnode developer settings (opens in new tab)', link: 'https://hashnode.com/settings/developer', linkText: 'Open Hashnode Settings' },
+      { text: 'Scroll down to "Personal Access Tokens"' },
+      { text: 'Click "Generate a new token"' },
+      { text: 'Copy the PAT and paste it above' },
+    ],
+    docsLink: 'https://apidocs.hashnode.com',
+  },
+  TELEGRAM: {
+    fields: [
+      { key: 'botToken', label: 'Bot Token', placeholder: '1234567890:AAH...' },
+      { key: 'channel', label: 'Channel @username', placeholder: '@mychannel' },
+    ],
+    steps: [
+      { text: 'Open Telegram and search for @BotFather (opens in new tab)', link: 'https://t.me/BotFather', linkText: 'Open @BotFather' },
+      { text: 'Send /newbot and follow the prompts to name it' },
+      { text: 'Copy the Bot Token provided and paste it above' },
+      { text: 'Create a Telegram channel (or use existing)' },
+      { text: 'Go to channel settings → Administrators → Add your bot as admin' },
+      { text: 'Enter your channel @username above (e.g., @mychannel)' },
+    ],
+    docsLink: 'https://core.telegram.org/bots/api',
+  },
+  BLUESKY: {
+    fields: [
+      { key: 'handle', label: 'Handle', placeholder: 'jane.bsky.social' },
+      { key: 'appPassword', label: 'App Password', placeholder: 'abcd-efgh-ijkl-mnop' },
+    ],
+    steps: [
+      { text: 'Open Bluesky settings (opens in new tab)', link: 'https://bsky.app/settings/app-passwords', linkText: 'Open Bluesky Settings' },
+      { text: 'Click "Add App Password"' },
+      { text: 'Name it "NetAmplify" and click "Create"' },
+      { text: 'Copy the app password (format: xxxx-xxxx-xxxx-xxxx)' },
+      { text: 'Enter your Bluesky handle (e.g., jane.bsky.social) above' },
+      { text: 'Paste the app password above' },
+    ],
+    docsLink: 'https://atproto.com/specs/xrpc#app-password',
+  },
+  REDDIT: {
+    steps: [{ text: 'Click "Connect via OAuth" to log in on Reddit\'s official page.' }],
+  },
+  TWITTER: {
+    steps: [{ text: 'Click "Connect via OAuth" to log in on X\'s official page.' }],
+  },
+  LINKEDIN: {
+    steps: [{ text: 'Click "Connect via OAuth" to log in on LinkedIn\'s official page.' }],
+  },
 };
 
 export function ConnectChecklist() {
@@ -73,10 +138,9 @@ export function ConnectChecklist() {
   });
 
   function handleConnect(platform: string) {
-    const fields = platformFields[platform];
-    if (!fields) {
-      // OAuth platform — redirect
-      window.location.href = connectionsApi.oauthStart(platform);
+    const config = platformConfig[platform];
+    if (!config?.fields) {
+      window.location.href = `/api/oauth/${platform}/start?token=${localStorage.getItem('netamplify_token')}`;
       return;
     }
     const values = formValues[platform] ?? {};
@@ -89,116 +153,200 @@ export function ConnectChecklist() {
     }
   }
 
-  if (isLoading) return <div>Loading connections…</div>;
+  if (isLoading) return <div className="text-white/50">Loading connections…</div>;
 
   const connectedCount = connections?.filter((c) => c.platformUsername !== null).length ?? 0;
+  const totalCount = connections?.length ?? 8;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Connect your platforms</h1>
-        <p className="mt-1 text-sm text-gray-600">
+    <div className="space-y-8">
+      {/* Header */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <h1 className="text-3xl font-bold text-white">Connect your platforms</h1>
+        <p className="mt-2 text-white/50">
           Connect each platform once. After that, you can publish to all of them with one click.
-          Progress: {connectedCount}/{connections?.length ?? 8} connected
         </p>
-      </div>
+        {/* Progress bar */}
+        <div className="mt-4 flex items-center gap-4">
+          <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/10">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${(connectedCount / totalCount) * 100}%` }}
+              transition={{ duration: 0.8, ease: 'easeOut' }}
+              className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-500"
+            />
+          </div>
+          <span className="text-sm font-medium text-white/70">{connectedCount}/{totalCount} connected</span>
+        </div>
+      </motion.div>
 
-      {errors.global && (
-        <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">{errors.global}</div>
-      )}
+      {/* Error banner */}
+      <AnimatePresence>
+        {errors.global && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-400"
+          >
+            {errors.global}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
+      {/* Platform cards grid */}
       <div className="grid gap-4 md:grid-cols-2">
-        {connections?.map((conn) => {
+        {connections?.map((conn, i) => {
           const isConnected = conn.platformUsername !== null;
           const isTierB = conn.tier === 'B';
           const isConfigured = conn.configured;
-          const fields = platformFields[conn.platform];
-          
+          const config = platformConfig[conn.platform];
+          const fields = config?.fields;
           const isExpanded = expandedPlatform === conn.platform;
           const formValuesForPlatform = formValues[conn.platform] ?? {};
 
           return (
-            <Card key={conn.platform}>
-              <CardContent className="pt-6">
-                <div className="mb-4 flex items-start justify-between">
-                  <div>
-                    <h3 className="font-semibold">{platformName(conn.platform)}</h3>
+            <motion.div
+              key={conn.platform}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: i * 0.05 }}
+              whileHover={{ y: -3 }}
+            >
+              <Card className={`relative overflow-hidden border-white/10 bg-white/[0.03] backdrop-blur-xl transition-all ${
+                isConnected ? 'border-green-500/20' : isTierB && !isConfigured ? 'border-amber-500/20' : ''
+              }`}>
+                {/* Glow effect */}
+                {isConnected && (
+                  <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-emerald-500/5" />
+                )}
+
+                <CardContent className="relative pt-6">
+                  <div className="mb-4 flex items-start justify-between">
+                    <div>
+                      <h3 className="font-semibold text-white">{platformName(conn.platform)}</h3>
+                      {isConnected ? (
+                        <motion.div
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          transition={{ type: 'spring', stiffness: 500, delay: 0.2 }}
+                          className="mt-1 flex items-center gap-1.5"
+                        >
+                          <span className="flex h-4 w-4 items-center justify-center rounded-full bg-green-500 text-[10px] text-white">✓</span>
+                          <span className="text-sm text-green-400">Connected as {conn.platformUsername}</span>
+                        </motion.div>
+                      ) : isTierB && !isConfigured ? (
+                        <Badge variant="outline" className="mt-1 border-amber-500/30 bg-amber-500/10 text-amber-400">Setup pending</Badge>
+                      ) : (
+                        <span className="mt-1 block text-sm text-white/30">Not connected</span>
+                      )}
+                    </div>
                     {isConnected ? (
-                      <Badge variant="secondary" className="mt-1">
-                        Connected as {conn.platformUsername}
-                      </Badge>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDisconnect(conn.platform)}
+                        disabled={disconnectMutation.isPending}
+                        className="border-white/10 bg-white/5 text-white/60 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30"
+                      >
+                        Disconnect
+                      </Button>
                     ) : isTierB && !isConfigured ? (
-                      <Badge variant="outline" className="mt-1 text-amber-600">Setup pending</Badge>
+                      <Button variant="outline" size="sm" disabled className="border-white/5 text-white/20">Coming soon</Button>
                     ) : (
-                      <span className="mt-1 block text-sm text-gray-400">Not connected</span>
+                      <Button
+                        size="sm"
+                        onClick={() => handleConnect(conn.platform)}
+                        disabled={connectMutation.isPending}
+                        className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 border-0"
+                      >
+                        {fields ? 'Connect' : 'Connect via OAuth'}
+                      </Button>
                     )}
                   </div>
-                  {isConnected ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDisconnect(conn.platform)}
-                      disabled={disconnectMutation.isPending}
-                    >
-                      Disconnect
-                    </Button>
-                  ) : isTierB && !isConfigured ? (
-                    <Button variant="outline" size="sm" disabled>Coming soon</Button>
-                  ) : fields ? (
-                    <Button
-                      size="sm"
-                      onClick={() => handleConnect(conn.platform)}
-                      disabled={connectMutation.isPending}
-                    >
-                      Connect
-                    </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      onClick={() => handleConnect(conn.platform)}
-                      disabled={connectMutation.isPending}
-                    >
-                      Connect via OAuth
-                    </Button>
-                  )}
-                </div>
 
-                {/* Connect form (SIMPLE platforms only) */}
-                {!isConnected && fields && isConfigured && (
-                  <div className="space-y-3">
-                    {fields.map((f) => (
-                      <div key={f.key}>
-                        <Label htmlFor={`${conn.platform}-${f.key}`} className="text-xs">{f.label}</Label>
-                        <Input
-                          id={`${conn.platform}-${f.key}`}
-                          type={f.type ?? 'text'}
-                          placeholder={f.placeholder}
-                          value={formValuesForPlatform[f.key] ?? ''}
-                          onChange={(e) =>
-                            setFormValues((prev) => ({
-                              ...prev,
-                              [conn.platform]: { ...prev[conn.platform], [f.key]: e.target.value },
-                            }))
-                          }
-                          className="mt-1"
-                        />
+                  {/* Connect form (SIMPLE platforms only) */}
+                  {!isConnected && fields && isConfigured && (
+                    <div className="space-y-3">
+                      {fields.map((f) => (
+                        <div key={f.key}>
+                          <Label htmlFor={`${conn.platform}-${f.key}`} className="text-xs text-white/40">{f.label}</Label>
+                          <Input
+                            id={`${conn.platform}-${f.key}`}
+                            type={f.type ?? 'text'}
+                            placeholder={f.placeholder}
+                            value={formValuesForPlatform[f.key] ?? ''}
+                            onChange={(e) =>
+                              setFormValues((prev) => ({
+                                ...prev,
+                                [conn.platform]: { ...prev[conn.platform], [f.key]: e.target.value },
+                              }))
+                            }
+                            className="mt-1 border-white/10 bg-white/5 text-white placeholder:text-white/20 focus:border-indigo-500/50"
+                          />
+                        </div>
+                      ))}
+
+                      {/* Step-by-step instructions */}
+                      <div className="rounded-lg border border-white/5 bg-black/20 p-3">
+                        <p className="mb-2 text-xs font-medium text-indigo-300">📋 How to connect:</p>
+                        <ol className="space-y-1.5">
+                          {config.steps.map((step, idx) => (
+                            <li key={idx} className="flex gap-2 text-xs text-white/50">
+                              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-white/10 text-[10px]">{idx + 1}</span>
+                              <span>
+                                {step.text}
+                                {step.link && (
+                                  <a href={step.link} target="_blank" rel="noreferrer" className="ml-1 text-indigo-400 hover:underline">
+                                    {step.linkText ?? 'Open →'}
+                                  </a>
+                                )}
+                              </span>
+                            </li>
+                          ))}
+                        </ol>
+                        {config.docsLink && (
+                          <a href={config.docsLink} target="_blank" rel="noreferrer" className="mt-2 block text-xs text-white/30 hover:text-white/50">
+                            📖 Read official docs
+                          </a>
+                        )}
                       </div>
-                    ))}
-                  </div>
-                )}
+                    </div>
+                  )}
 
-                {/* "Why is this safe?" expander */}
-                <button
-                  onClick={() => setExpandedPlatform(isExpanded ? null : conn.platform)}
-                  className="mt-4 text-xs font-medium text-indigo-600 hover:underline"
-                >
-                  {isExpanded ? 'Hide' : 'Why is this safe?'}
-                </button>
-                {isExpanded && (
-                  <p className="mt-2 text-sm text-gray-600">{trustCopy[conn.platform]}</p>
-                )}
-              </CardContent>
-            </Card>
+                  {/* OAuth instructions */}
+                  {!isConnected && !fields && isConfigured && config?.steps && (
+                    <div className="rounded-lg border border-white/5 bg-black/20 p-3">
+                      <p className="text-xs text-white/50">{config.steps[0].text}</p>
+                    </div>
+                  )}
+
+                  {/* "Why is this safe?" expander */}
+                  <button
+                    onClick={() => setExpandedPlatform(isExpanded ? null : conn.platform)}
+                    className="mt-4 flex items-center gap-1 text-xs font-medium text-indigo-400 hover:text-indigo-300 transition-colors"
+                  >
+                    {isExpanded ? '− Hide' : '+ Why is this safe?'}
+                  </button>
+                  <AnimatePresence>
+                    {isExpanded && (
+                      <motion.p
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="mt-2 text-sm leading-relaxed text-white/50"
+                      >
+                        {trustCopy[conn.platform]}
+                      </motion.p>
+                    )}
+                  </AnimatePresence>
+                </CardContent>
+              </Card>
+            </motion.div>
           );
         })}
       </div>
