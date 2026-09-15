@@ -1,4 +1,3 @@
-// /home/z/my-project/netamplify-app/apps/frontend/src/lib/auth.tsx
 // NetAmplify — Auth context provider.
 //
 // Per docs/02-SRS.md FR-001: JWT-based auth, 7-day expiry.

@@ -1,4 +1,3 @@
-// /home/z/my-project/netamplify-app/apps/frontend/src/main.tsx
 // NetAmplify — Frontend entry point.
 
 import React from 'react';

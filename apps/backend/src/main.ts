@@ -49,7 +49,7 @@ async function start() {
     })
   );
 
-  app.use(cookieParser());
+  app.use(cookieParser(process.env.JWT_SECRET || 'netamplify-cookie-secret'));
   app.use(compression());
   app.useGlobalFilters(new GlobalExceptionFilter());
   app.useGlobalFilters(new HttpExceptionFilter());

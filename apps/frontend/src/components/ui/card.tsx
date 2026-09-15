@@ -1,4 +1,3 @@
-// /home/z/my-project/netamplify-app/apps/frontend/src/components/ui/card.tsx
 // NetAmplify — shadcn/ui Card component.
 
 import * as React from 'react';

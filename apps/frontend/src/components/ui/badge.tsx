@@ -1,4 +1,3 @@
-// /home/z/my-project/netamplify-app/apps/frontend/src/components/ui/badge.tsx
 // NetAmplify — shadcn/ui Badge component.
 
 import * as React from 'react';
