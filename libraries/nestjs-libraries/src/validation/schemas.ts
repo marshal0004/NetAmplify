@@ -130,6 +130,10 @@ export const PLATFORM_SCHEMA = z.enum([
   'HASHNODE',
   'TWITTER',
   'LINKEDIN',
+  'MASTODON',
+  'WORDPRESS',
+  'TWITTER_COOKIE',
+  'REDDIT_COOKIE',
 ]);
 
 export const PUBLISH_SCHEMA = z.object({
@@ -203,6 +207,85 @@ export const CONNECT_BLUESKY_SCHEMA = z.object({
 });
 
 // ============================================================================
+// Cookie-based platforms (X + Reddit — Option A)
+// ============================================================================
+//
+// Per docs/01-PRD.md §6: cookie bypass for paywalled platforms. The user
+// pastes their session cookies (extracted via a browser extension like
+// Cookie-Editor) instead of using OAuth.
+
+export const CONNECT_TWITTER_COOKIE_SCHEMA = z.object({
+  authToken: z
+    .string()
+    .min(40, 'auth_token must be a 40-char hex string')
+    .max(40, 'auth_token must be a 40-char hex string')
+    .regex(/^[a-f0-9]{40}$/i, 'auth_token must be 40 hex chars (0-9, a-f)'),
+  ct0: z
+    .string()
+    .min(32, 'ct0 must be a 32-char hex string')
+    .max(32, 'ct0 must be a 32-char hex string')
+    .regex(/^[a-f0-9]{32}$/i, 'ct0 must be 32 hex chars (0-9, a-f)'),
+});
+
+export const CONNECT_REDDIT_COOKIE_SCHEMA = z.object({
+  redditSession: z
+    .string()
+    .min(50, 'reddit_session cookie looks too short — copy the full value')
+    .max(2000, 'reddit_session cookie is too long (max 2000 chars)')
+    // reddit_session is a URL-encoded JSON-like string with %7C separators
+    .regex(/^[A-Za-z0-9%._\-]+$/, 'reddit_session contains invalid characters'),
+  token: z
+    .string()
+    .min(16, 'token cookie looks too short — copy the full value')
+    .max(500, 'token cookie is too long')
+    .regex(/^[A-Za-z0-9%._\-]+$/, 'token cookie contains invalid characters'),
+});
+
+// ============================================================================
+// New OAuth / API-key platforms (Mastodon + WordPress)
+// ============================================================================
+
+export const CONNECT_MASTODON_SCHEMA = z.object({
+  instance: z
+    .string()
+    .min(3, 'Instance URL is required (e.g., "mastodon.social")')
+    .max(200, 'Instance URL is too long')
+    // Allow with-or-without protocol; the adapter normalizes
+    .regex(
+      /^(https?:\/\/)?[a-z0-9.-]+\.[a-z]{2,}(?::\d+)?$/i,
+      'Instance must be a domain like "mastodon.social" or "https://mastodon.social"'
+    ),
+  accessToken: z
+    .string()
+    .min(20, 'Access token looks too short — copy the full token')
+    .max(500, 'Access token is too long')
+    // Mastodon access tokens are typically alphanumeric + dashes/underscores
+    .regex(/^[A-Za-z0-9_-]+$/, 'Access token contains invalid characters'),
+});
+
+export const CONNECT_WORDPRESS_SCHEMA = z.object({
+  siteUrl: z
+    .string()
+    .min(7, 'Site URL is required (e.g., "https://blog.example.com")')
+    .max(200, 'Site URL is too long')
+    .regex(
+      /^(https?:\/\/)?[a-z0-9.-]+\.[a-z]{2,}(?::\d+)?$/i,
+      'Site URL must be a domain like "blog.example.com" or "https://blog.example.com"'
+    ),
+  username: z
+    .string()
+    .min(1, 'WordPress username is required')
+    .max(100, 'WordPress username is too long')
+    .regex(/^[\w.@-]+$/, 'Username contains invalid characters'),
+  appPassword: z
+    .string()
+    .min(16, 'App password looks too short — copy the full password')
+    .max(200, 'App password is too long')
+    // WordPress app passwords are 24 chars (with optional spaces) — alphanumeric
+    .regex(/^[A-Za-z0-9 ]+$/, 'App password must be alphanumeric (spaces allowed)'),
+});
+
+// ============================================================================
 // Type exports (for use in controllers + services)
 // ============================================================================
 
@@ -219,3 +302,7 @@ export type ConnectHashnodeInput = z.infer<typeof CONNECT_HASHNODE_SCHEMA>;
 export type ConnectDiscordInput = z.infer<typeof CONNECT_DISCORD_SCHEMA>;
 export type ConnectTelegramInput = z.infer<typeof CONNECT_TELEGRAM_SCHEMA>;
 export type ConnectBlueskyInput = z.infer<typeof CONNECT_BLUESKY_SCHEMA>;
+export type ConnectTwitterCookieInput = z.infer<typeof CONNECT_TWITTER_COOKIE_SCHEMA>;
+export type ConnectRedditCookieInput = z.infer<typeof CONNECT_REDDIT_COOKIE_SCHEMA>;
+export type ConnectMastodonInput = z.infer<typeof CONNECT_MASTODON_SCHEMA>;
+export type ConnectWordPressInput = z.infer<typeof CONNECT_WORDPRESS_SCHEMA>;

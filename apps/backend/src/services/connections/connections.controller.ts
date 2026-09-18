@@ -151,6 +151,90 @@ export class ConnectionsController {
     }
   }
 
+  // ==========================================================================
+  // Cookie-based platforms (Option A — bypass X/Reddit paywalls)
+  // ==========================================================================
+
+  /**
+   * POST /api/connections/twitter-cookie  { authToken, ct0 }
+   * Per docs/01-PRD.md §6: cookie bypass for X's $100/mo API paywall.
+   */
+  @Post('twitter-cookie')
+  @HttpCode(201)
+  async connectTwitterCookie(@Body() body: unknown, @Req() req: Request): Promise<{ id: string; username: string }> {
+    try {
+      return await this._conn.saveSimpleConnection(
+        getUserId(req),
+        'TWITTER_COOKIE',
+        body,
+        getAuditContext(req)
+      );
+    } catch (e) {
+      throw errorMapper(e);
+    }
+  }
+
+  /**
+   * POST /api/connections/reddit-cookie  { redditSession, token }
+   * Per docs/01-PRD.md §6: cookie bypass for Reddit's manual review.
+   */
+  @Post('reddit-cookie')
+  @HttpCode(201)
+  async connectRedditCookie(@Body() body: unknown, @Req() req: Request): Promise<{ id: string; username: string }> {
+    try {
+      return await this._conn.saveSimpleConnection(
+        getUserId(req),
+        'REDDIT_COOKIE',
+        body,
+        getAuditContext(req)
+      );
+    } catch (e) {
+      throw errorMapper(e);
+    }
+  }
+
+  // ==========================================================================
+  // New OAuth / API-key platforms (Mastodon + WordPress)
+  // ==========================================================================
+
+  /**
+   * POST /api/connections/mastodon  { instance, accessToken }
+   * Per docs/02-SRS.md FR-007: Mastodon support.
+   */
+  @Post('mastodon')
+  @HttpCode(201)
+  async connectMastodon(@Body() body: unknown, @Req() req: Request): Promise<{ id: string; username: string }> {
+    try {
+      return await this._conn.saveSimpleConnection(
+        getUserId(req),
+        'MASTODON',
+        body,
+        getAuditContext(req)
+      );
+    } catch (e) {
+      throw errorMapper(e);
+    }
+  }
+
+  /**
+   * POST /api/connections/wordpress  { siteUrl, username, appPassword }
+   * Per docs/02-SRS.md FR-007: WordPress support.
+   */
+  @Post('wordpress')
+  @HttpCode(201)
+  async connectWordPress(@Body() body: unknown, @Req() req: Request): Promise<{ id: string; username: string }> {
+    try {
+      return await this._conn.saveSimpleConnection(
+        getUserId(req),
+        'WORDPRESS',
+        body,
+        getAuditContext(req)
+      );
+    } catch (e) {
+      throw errorMapper(e);
+    }
+  }
+
   /**
    * DELETE /api/connections/:platform
    * Hard-delete the user's connection for that platform.
@@ -170,14 +254,16 @@ export class ConnectionsController {
 /**
  * Validate that the URL parameter is a recognized platform identifier.
  * Throws ServiceError(VALIDATION_ERROR) for unknown platforms.
+ *
+ * Accepts both snake-case (twitter-cookie) and direct (TWITTER_COOKIE) forms.
  */
 function parsePlatformParam(raw: string): Platform {
-  const upper = raw.toUpperCase();
+  const upper = raw.toUpperCase().replace(/-/g, '_');
   const parsed = PLATFORM_SCHEMA.safeParse(upper);
   if (!parsed.success) {
     throw new ServiceError(
       'VALIDATION_ERROR',
-      `Unknown platform: "${raw}". Must be one of: REDDIT, DISCORD, DEVTO, TELEGRAM, BLUESKY, HASHNODE, TWITTER, LINKEDIN.`
+      `Unknown platform: "${raw}". Must be one of: REDDIT, DISCORD, DEVTO, TELEGRAM, BLUESKY, HASHNODE, TWITTER, LINKEDIN, MASTODON, WORDPRESS, TWITTER_COOKIE, REDDIT_COOKIE.`
     );
   }
   return parsed.data;

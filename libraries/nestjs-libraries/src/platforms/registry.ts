@@ -23,9 +23,13 @@ import { DevtoAdapter } from './devto/devto.adapter';
 import { HashnodeAdapter } from './hashnode/hashnode.adapter';
 import { TelegramAdapter } from './telegram/telegram.adapter';
 import { BlueskyAdapter } from './bluesky/bluesky.adapter';
+import { XCookieAdapter } from './x/x-cookie.adapter';
+import { RedditCookieAdapter } from './reddit/reddit-cookie.adapter';
+import { MastodonAdapter } from './mastodon/mastodon.adapter';
+import { WordPressAdapter } from './wordpress/wordpress.adapter';
 
 /**
- * Registry of all 8 NetAmplify platform adapters.
+ * Registry of all 12 NetAmplify platform adapters.
  *
  * The registry is a Map<Platform, PlatformAdapter>. Lookup is O(1).
  * Adapters are singletons (NestJS injectable); the registry holds one
@@ -43,7 +47,11 @@ export class AdapterRegistry {
     @Inject(DevtoAdapter) private readonly _devto: DevtoAdapter,
     @Inject(HashnodeAdapter) private readonly _hashnode: HashnodeAdapter,
     @Inject(TelegramAdapter) private readonly _telegram: TelegramAdapter,
-    @Inject(BlueskyAdapter) private readonly _bluesky: BlueskyAdapter
+    @Inject(BlueskyAdapter) private readonly _bluesky: BlueskyAdapter,
+    @Inject(XCookieAdapter) private readonly _xCookie: XCookieAdapter,
+    @Inject(RedditCookieAdapter) private readonly _redditCookie: RedditCookieAdapter,
+    @Inject(MastodonAdapter) private readonly _mastodon: MastodonAdapter,
+    @Inject(WordPressAdapter) private readonly _wordpress: WordPressAdapter
   ) {
     this.adapters = new Map<Platform, PlatformAdapter>([
       ['REDDIT', this._reddit],
@@ -54,6 +62,10 @@ export class AdapterRegistry {
       ['HASHNODE', this._hashnode],
       ['TELEGRAM', this._telegram],
       ['BLUESKY', this._bluesky],
+      ['TWITTER_COOKIE', this._xCookie],
+      ['REDDIT_COOKIE', this._redditCookie],
+      ['MASTODON', this._mastodon],
+      ['WORDPRESS', this._wordpress],
     ]);
   }
 

@@ -40,9 +40,15 @@ import { devtoFormatter } from './devto';
 import { hashnodeFormatter } from './hashnode';
 import { telegramFormatter } from './telegram';
 import { blueskyFormatter } from './bluesky';
+import { mastodonFormatter } from './mastodon';
+import { wordpressFormatter } from './wordpress';
 
 /**
  * Map of platform → formatter function. Pure functions, no DI.
+ *
+ * TWITTER_COOKIE reuses the X (OAuth) formatter — both produce ≤280 char
+ * tweets. REDDIT_COOKIE reuses the Reddit formatter — both produce
+ * title + markdown body submissions.
  */
 export const FORMATTERS: Record<Platform, Formatter> = {
   REDDIT: redditFormatter,
@@ -53,6 +59,10 @@ export const FORMATTERS: Record<Platform, Formatter> = {
   HASHNODE: hashnodeFormatter,
   TELEGRAM: telegramFormatter,
   BLUESKY: blueskyFormatter,
+  MASTODON: mastodonFormatter,
+  WORDPRESS: wordpressFormatter,
+  TWITTER_COOKIE: xFormatter,
+  REDDIT_COOKIE: redditFormatter,
 };
 
 /**

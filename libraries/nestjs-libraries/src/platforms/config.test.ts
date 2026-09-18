@@ -22,7 +22,7 @@ describe('PLATFORM_CONFIG', () => {
     expect(platforms).toContain('HASHNODE');
     expect(platforms).toContain('TWITTER');
     expect(platforms).toContain('LINKEDIN');
-    expect(platforms.length).toBe(8);
+    expect(platforms.length).toBe(12);
   });
 
   it('Reddit has 300-char title limit', () => {

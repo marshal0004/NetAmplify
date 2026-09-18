@@ -14,6 +14,10 @@ import { DevtoAdapter } from './devto/devto.adapter';
 import { HashnodeAdapter } from './hashnode/hashnode.adapter';
 import { TelegramAdapter } from './telegram/telegram.adapter';
 import { BlueskyAdapter } from './bluesky/bluesky.adapter';
+import { XCookieAdapter } from './x/x-cookie.adapter';
+import { RedditCookieAdapter } from './reddit/reddit-cookie.adapter';
+import { MastodonAdapter } from './mastodon/mastodon.adapter';
+import { WordPressAdapter } from './wordpress/wordpress.adapter';
 
 @Module({
   providers: [
@@ -26,6 +30,10 @@ import { BlueskyAdapter } from './bluesky/bluesky.adapter';
     HashnodeAdapter,
     TelegramAdapter,
     BlueskyAdapter,
+    XCookieAdapter,
+    RedditCookieAdapter,
+    MastodonAdapter,
+    WordPressAdapter,
   ],
   exports: [
     AdapterRegistry,
@@ -37,6 +45,10 @@ import { BlueskyAdapter } from './bluesky/bluesky.adapter';
     HashnodeAdapter,
     TelegramAdapter,
     BlueskyAdapter,
+    XCookieAdapter,
+    RedditCookieAdapter,
+    MastodonAdapter,
+    WordPressAdapter,
   ],
 })
 export class PlatformsModule {}

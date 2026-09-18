@@ -28,7 +28,7 @@ PASS=0
 FAIL=0
 
 # Backend API tests (require running backend)
-for script in "$SCRIPT_DIR"/health.sh "$SCRIPT_DIR"/auth.sh "$SCRIPT_DIR"/connections.sh "$SCRIPT_DIR"/postcards.sh "$SCRIPT_DIR"/publish.sh; do
+for script in "$SCRIPT_DIR"/health.sh "$SCRIPT_DIR"/auth.sh "$SCRIPT_DIR"/connections.sh "$SCRIPT_DIR"/new-platforms.sh "$SCRIPT_DIR"/postcards.sh "$SCRIPT_DIR"/publish.sh; do
   if [ ! -f "$script" ]; then
     continue
   fi

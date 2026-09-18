@@ -36,9 +36,10 @@ datasource db {
 // Enums
 // ============================================================================
 
-/// NetAmplify supports 8 platforms in MVP per docs/01-PRD.md §4:
-///   Tier A (live): REDDIT, DISCORD, DEVTO, TELEGRAM, BLUESKY, HASHNODE
-///   Tier B (bonus): TWITTER (X), LINKEDIN
+/// NetAmplify supports 12 platforms in MVP per docs/01-PRD.md §4:
+///   Tier A (live): REDDIT, DISCORD, DEVTO, TELEGRAM, BLUESKY, HASHNODE, MASTODON, WORDPRESS
+///   Tier A (cookie variant): TWITTER_COOKIE, REDDIT_COOKIE (bypass paywall via session cookies)
+///   Tier B (bonus OAuth): TWITTER (X), LINKEDIN
 enum Platform {
   REDDIT
   DISCORD
@@ -48,15 +49,20 @@ enum Platform {
   HASHNODE
   TWITTER
   LINKEDIN
+  MASTODON
+  WORDPRESS
+  TWITTER_COOKIE
+  REDDIT_COOKIE
 }
 
 /// How the platform credential was obtained. Drives the Connect Checklist UX.
 enum ConnectionType {
   OAUTH          /// Reddit, X, LinkedIn (OAuth 2.0 + PKCE)
-  API_KEY        /// Dev.to, Hashnode (user-pasted)
+  API_KEY        /// Dev.to, Hashnode, Mastodon (user-pasted)
   WEBHOOK        /// Discord (user-pasted webhook URL)
   BOT_TOKEN      /// Telegram (user-pasted bot token + channel)
-  APP_PASSWORD   /// Bluesky (user-pasted app password)
+  APP_PASSWORD   /// Bluesky, WordPress (user-pasted app password)
+  COOKIE         /// X + Reddit via session cookies (Postiz-style)
 }
 
 /// Lifecycle of a single Connection row.

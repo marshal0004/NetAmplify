@@ -78,7 +78,7 @@ describe('Integration: Connections', () => {
         .set('Authorization', `Bearer ${token}`);
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
-      expect(res.body.length).toBe(8);
+      expect(res.body.length).toBe(12);
       // All 8 platforms should be present
       const platforms = res.body.map((c: { platform: string }) => c.platform);
       expect(platforms).toContain('REDDIT');

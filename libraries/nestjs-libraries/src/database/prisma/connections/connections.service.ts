@@ -34,6 +34,10 @@ import {
   CONNECT_TELEGRAM_SCHEMA,
   CONNECT_BLUESKY_SCHEMA,
   CONNECT_HASHNODE_SCHEMA,
+  CONNECT_TWITTER_COOKIE_SCHEMA,
+  CONNECT_REDDIT_COOKIE_SCHEMA,
+  CONNECT_MASTODON_SCHEMA,
+  CONNECT_WORDPRESS_SCHEMA,
 } from '@netamplify/nestjs-libraries/validation/schemas';
 
 interface AuditContext {
@@ -48,7 +52,7 @@ interface AuditContext {
 export interface ConnectionView {
   id: string;
   platform: Platform;
-  type: 'OAUTH' | 'API_KEY' | 'WEBHOOK' | 'BOT_TOKEN' | 'APP_PASSWORD';
+  type: 'OAUTH' | 'API_KEY' | 'WEBHOOK' | 'BOT_TOKEN' | 'APP_PASSWORD' | 'COOKIE';
   platformUsername: string | null;
   platformAccountId: string;
   status: 'ACTIVE' | 'REVOKED' | 'ERROR';
@@ -213,6 +217,18 @@ export class ConnectionsService {
       case 'HASHNODE':
         parsedInput = CONNECT_HASHNODE_SCHEMA.parse(rawInput) as Record<string, string>;
         break;
+      case 'TWITTER_COOKIE':
+        parsedInput = CONNECT_TWITTER_COOKIE_SCHEMA.parse(rawInput) as Record<string, string>;
+        break;
+      case 'REDDIT_COOKIE':
+        parsedInput = CONNECT_REDDIT_COOKIE_SCHEMA.parse(rawInput) as Record<string, string>;
+        break;
+      case 'MASTODON':
+        parsedInput = CONNECT_MASTODON_SCHEMA.parse(rawInput) as Record<string, string>;
+        break;
+      case 'WORDPRESS':
+        parsedInput = CONNECT_WORDPRESS_SCHEMA.parse(rawInput) as Record<string, string>;
+        break;
       default:
         throw new ServiceError(
           'VALIDATION_ERROR',
@@ -309,8 +325,8 @@ export class ConnectionsService {
 
 /**
  * Tier A = live in MVP (instant setup): Reddit, Discord, Dev.to, Telegram,
- *   Bluesky, Hashnode
- * Tier B = bonus attempts (work if creds configured): X, LinkedIn
+ *   Bluesky, Hashnode, Mastodon, WordPress, TWITTER_COOKIE, REDDIT_COOKIE
+ * Tier B = bonus attempts (work if creds configured): X (OAuth), LinkedIn (OAuth)
  */
 function isTierB(platform: Platform): boolean {
   return platform === 'TWITTER' || platform === 'LINKEDIN';
@@ -321,7 +337,7 @@ function isTierB(platform: Platform): boolean {
  */
 function connectionTypeFor(
   platform: Platform
-): 'OAUTH' | 'API_KEY' | 'WEBHOOK' | 'BOT_TOKEN' | 'APP_PASSWORD' {
+): 'OAUTH' | 'API_KEY' | 'WEBHOOK' | 'BOT_TOKEN' | 'APP_PASSWORD' | 'COOKIE' {
   switch (platform) {
     case 'REDDIT':
     case 'TWITTER':
@@ -329,13 +345,18 @@ function connectionTypeFor(
       return 'OAUTH';
     case 'DEVTO':
     case 'HASHNODE':
+    case 'MASTODON':
       return 'API_KEY';
     case 'DISCORD':
       return 'WEBHOOK';
     case 'TELEGRAM':
       return 'BOT_TOKEN';
     case 'BLUESKY':
+    case 'WORDPRESS':
       return 'APP_PASSWORD';
+    case 'TWITTER_COOKIE':
+    case 'REDDIT_COOKIE':
+      return 'COOKIE';
     default:
       // Exhaustiveness check — TypeScript will error if a new platform is added
       const _exhaustive: never = platform;

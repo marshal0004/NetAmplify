@@ -107,6 +107,42 @@ export const PLATFORM_CONFIG: Record<Platform, PlatformConfig> = {
     imageSupported: false,
     maxImages: 0,
   },
+  MASTODON: {
+    platform: 'MASTODON',
+    name: 'Mastodon',
+    charLimit: 500, // per https://docs.joinmastodon.org/user/posting/#text
+    rateLimitPerMinute: 30, // 300 req/5min per token — we use 30/min for safety
+    markdownSupported: true, // Mastodon renders a markdown subset
+    imageSupported: true,
+    maxImages: 4,
+  },
+  WORDPRESS: {
+    platform: 'WORDPRESS',
+    name: 'WordPress',
+    charLimit: 200, // post_title column is VARCHAR(200)
+    rateLimitPerMinute: null, // varies by site/plugin; no global cap
+    markdownSupported: true, // pass-through; theme/plugin handles rendering
+    imageSupported: true,
+    maxImages: 1,
+  },
+  TWITTER_COOKIE: {
+    platform: 'TWITTER_COOKIE',
+    name: 'X (Twitter) — Cookie',
+    charLimit: 280, // same as TWITTER
+    rateLimitPerMinute: 30, // cookies use the per-user web rate limit (lower than API)
+    markdownSupported: false,
+    imageSupported: false, // MVP: text only via cookie method
+    maxImages: 0,
+  },
+  REDDIT_COOKIE: {
+    platform: 'REDDIT_COOKIE',
+    name: 'Reddit — Cookie',
+    charLimit: 300, // same as REDDIT (title limit)
+    rateLimitPerMinute: 30, // cookies use the per-user web rate limit
+    markdownSupported: true, // self-post markdown
+    imageSupported: false,
+    maxImages: 0,
+  },
 };
 
 /**

@@ -78,7 +78,8 @@ export class ConnectionRepository {
       | 'API_KEY'
       | 'WEBHOOK'
       | 'BOT_TOKEN'
-      | 'APP_PASSWORD';
+      | 'APP_PASSWORD'
+      | 'COOKIE';
     platformAccountId: string;
     platformUsername?: string;
     credentialsCipher: string;

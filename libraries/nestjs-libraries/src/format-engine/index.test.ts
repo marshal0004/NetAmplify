@@ -282,7 +282,7 @@ describe('formatForAllPlatforms', () => {
       REDDIT: { subreddit: 'test' },
     });
     const platforms = Object.keys(results) as Platform[];
-    expect(platforms.length).toBe(8);
+    expect(platforms.length).toBe(12);
     expect(platforms).toContain('REDDIT');
     expect(platforms).toContain('TWITTER');
     expect(platforms).toContain('LINKEDIN');
