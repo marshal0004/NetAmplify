@@ -228,20 +228,31 @@ export const CONNECT_TWITTER_COOKIE_SCHEMA = z.object({
 });
 
 export const CONNECT_REDDIT_COOKIE_SCHEMA = z.object({
-  token: z
+  tokenV2: z
     .string()
-    .min(100, 'token (JWT) looks too short — copy the full cookie value')
-    .max(5000, 'token is too long (max 5000 chars)')
+    .min(100, 'token_v2 (JWT) looks too short — copy the full cookie value')
+    .max(10000, 'token_v2 is too long (max 10000 chars)')
     // JWT format: 3 dot-separated base64url-encoded parts
     .regex(
       /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/,
-      'token must be a JWT with 3 dot-separated parts (header.payload.signature)'
+      'token_v2 must be a JWT with 3 dot-separated parts (header.payload.signature)'
     ),
   csrfToken: z
     .string()
     .min(32, 'csrf_token must be 32 chars')
     .max(32, 'csrf_token must be 32 chars')
     .regex(/^[a-f0-9]{32}$/i, 'csrf_token must be 32 hex chars (0-9, a-f)'),
+  // Optional legacy `token` cookie (improves browser fingerprint, has no scopes alone)
+  token: z
+    .string()
+    .min(100, 'token (legacy JWT, optional) looks too short — copy the full value or leave blank')
+    .max(5000, 'token is too long (max 5000 chars)')
+    .regex(
+      /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/,
+      'token (legacy JWT, optional) must have 3 dot-separated parts'
+    )
+    .optional()
+    .or(z.literal('').optional()),
 });
 
 // ============================================================================

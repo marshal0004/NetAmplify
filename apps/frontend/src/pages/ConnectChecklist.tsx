@@ -127,16 +127,18 @@ const platformConfig: Record<string, PlatformConfig> = {
   },
   REDDIT_COOKIE: {
     fields: [
-      { key: 'token', label: 'token cookie (JWT)', placeholder: 'eyJhbGciOiJ... (long string with 2 dots)' },
-      { key: 'csrfToken', label: 'csrf_token cookie', placeholder: '32-char hex string (0-9, a-f)' },
+      { key: 'tokenV2', label: 'token_v2 cookie (JWT, REQUIRED)', placeholder: 'eyJhbGciOiJ... (long string with 2 dots)' },
+      { key: 'csrfToken', label: 'csrf_token cookie (REQUIRED)', placeholder: '32-char hex string (0-9, a-f)' },
+      { key: 'token', label: 'token cookie (legacy, OPTIONAL)', placeholder: 'eyJhbGciOiJ... or leave blank' },
     ],
     steps: [
       { text: 'Install the Cookie-Editor extension (opens in new tab)', link: 'https://chromewebstore.google.com/detail/cookie-editor/hlkenndednhonkehodjpanfjoadhacee', linkText: 'Install Cookie-Editor' },
       { text: 'Log in to reddit.com in your browser' },
       { text: 'Click the Cookie-Editor icon in your browser toolbar' },
-      { text: 'Find the "token" cookie — copy its full value (a long JWT with 2 dots)' },
+      { text: 'Find the "token_v2" cookie — copy its full value (long JWT, ~1500+ chars)' },
       { text: 'Find the "csrf_token" cookie — copy its value (32 hex chars)' },
-      { text: 'Paste both values above and click Connect' },
+      { text: 'Find the "token" cookie (legacy) — copy its value (optional, but recommended)' },
+      { text: 'Paste token_v2 + csrf_token above (required), and token if you have it' },
     ],
     docsLink: 'https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies',
   },

@@ -99,22 +99,22 @@ STATUS=$(echo "$RESP" | tail -n1)
 assert_status "twitter-cookie connect (mock valid format → 400 from X)" "400" "$STATUS"
 echo ""
 
-echo -e "${YELLOW}[5/14] POST /api/connections/reddit-cookie (no token)${NC}"
+echo -e "${YELLOW}[5/14] POST /api/connections/reddit-cookie (no token_v2)${NC}"
 RESP=$(curl -s -w "\n%{http_code}" -X POST "$BASE_URL/api/connections/reddit-cookie" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -d '{"csrfToken":"abc"}')
 STATUS=$(echo "$RESP" | tail -n1)
-assert_status "reddit-cookie connect (no token)" "400" "$STATUS"
+assert_status "reddit-cookie connect (no token_v2)" "400" "$STATUS"
 echo ""
 
-echo -e "${YELLOW}[6/14] POST /api/connections/reddit-cookie (token too short)${NC}"
+echo -e "${YELLOW}[6/14] POST /api/connections/reddit-cookie (token_v2 too short)${NC}"
 RESP=$(curl -s -w "\n%{http_code}" -X POST "$BASE_URL/api/connections/reddit-cookie" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
-  -d '{"token":"short.token.sig","csrfToken":"1234567890abcdef1234567890abcdef"}')
+  -d '{"tokenV2":"short.token.sig","csrfToken":"1234567890abcdef1234567890abcdef"}')
 STATUS=$(echo "$RESP" | tail -n1)
-assert_status "reddit-cookie connect (short token)" "400" "$STATUS"
+assert_status "reddit-cookie connect (short token_v2)" "400" "$STATUS"
 echo ""
 
 echo -e "${YELLOW}[7/14] POST /api/connections/reddit-cookie (valid JWT format, mock creds)${NC}"
@@ -123,7 +123,7 @@ MOCK_JWT="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0Ml90ZXN0MTIzIiwiZXhwI
 RESP=$(curl -s -w "\n%{http_code}" -X POST "$BASE_URL/api/connections/reddit-cookie" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
-  -d "{\"token\":\"$MOCK_JWT\",\"csrfToken\":\"abcdef0123456789abcdef0123456789\"}")
+  -d "{\"tokenV2\":\"$MOCK_JWT\",\"csrfToken\":\"abcdef0123456789abcdef0123456789\"}")
 STATUS=$(echo "$RESP" | tail -n1)
 assert_status "reddit-cookie connect (mock valid format → 400 from Reddit)" "400" "$STATUS"
 echo ""
