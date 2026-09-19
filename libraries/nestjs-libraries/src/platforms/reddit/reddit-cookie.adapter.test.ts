@@ -2,6 +2,10 @@
 // Vitest unit tests for RedditCookieAdapter.
 //
 // Per docs/09-TESTING-STRATEGY.md Rule #1: "Mock at the HTTP boundary only."
+//
+// Uses the modern Reddit cookie auth flow:
+//   - token cookie (JWT, ~500-2000 chars) — sent as Authorization: Bearer + cookie
+//   - csrf_token cookie (32-char hex) — sent as x-CSRF-TOKEN header + cookie
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { RedditCookieAdapter, RedditCookieCredentials } from './reddit-cookie.adapter';
@@ -17,11 +21,18 @@ function mockResponse(status: number, body: unknown): Response {
   } as Response;
 }
 
-const VALID_REDDIT_SESSION = 'a'.repeat(200);
-const VALID_TOKEN = 'b'.repeat(40);
+// Valid JWT shape (header.payload.signature) — each part is base64url.
+// We build a synthetic JWT that's long enough to pass the 100-char min.
+const JWT_HEADER = 'eyJhbGciOiJSUzI1NiIsImtpZCI6IlNIQTI1NjpsVFdYNlFVUEloWktaRG1rR0pVd1gvdWNFK01BSjBYRE12RU1kNzVxTXQ4IiwidHlwIjoiSldUIn0';
+const JWT_PAYLOAD = 'eyJzdWIiOiJ0Ml8yYm5qOHBubTlhIiwiZXhwIjoxODA1MjA4MjUxLjU3NTk1OSwiaWF0IjoxNzg5NTY5ODUxLjU3NTk1OSwianRpIjoibXdVdXp4MEZIallIY2lVeTFRMzZfZGNwYjlTZU5nIiwiYXQiOjEsImNpZCI6ImNvb2tpZSIsImxjYSI6MTc3NTM1MTQ1NTA0MCwic2NwIjoiZUp3QUFnRDlfMXRkQXdBQkZRQzUiLCJmbG8iOjMsImFtciI6WyJzc28iXX0';
+const JWT_SIGNATURE = 'i_sh3PJq3MLXxk7yWrsebpXdGM6Gul2uPyOLw5AfrVZN6340_vTdPWTVkG0sNfmeoaGGxb3xAet9BT2-_U_uXEVB9Cx1pHEm3o35V3gdGAxPcrqoSiiEPM_LDt36GxqUb-LVgCST6wu0Bg4imCP4tz6nlEzdNjaR13DZ6mJ7jPF0Hsh2ZnMe8mu0LEIr-Iq3EwWTsGcJ_xGZdJ7IE-cmUs5tx5tRCrUSuxx9AbEw3UW6a_NJWexEjBA1vZdP96v2I6rtkeQ37nzoN70XQSdI5zwikwTWXNb8qJRR4eLlSlUpnf-6IgPeuiqeJCwrm23cuH8RE7R3XxddeAd-OA-djQ';
+const VALID_JWT = `${JWT_HEADER}.${JWT_PAYLOAD}.${JWT_SIGNATURE}`;
+
+const VALID_CSRF = '38347fc606021458b4069a77822832cf';
+
 const VALID_CREDS: RedditCookieCredentials = {
-  redditSession: VALID_REDDIT_SESSION,
-  token: VALID_TOKEN,
+  token: VALID_JWT,
+  csrfToken: VALID_CSRF,
 };
 
 describe('RedditCookieAdapter', () => {
@@ -51,7 +62,7 @@ describe('RedditCookieAdapter', () => {
     it('returns user identity on valid cookies (200 + id + name)', async () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
         mockResponse(200, {
-          id: 't2_abc123',
+          id: 't2_2bnj8pnm9a',
           name: 'Marshal_The_dev0007',
           comment_karma: 5,
           link_karma: 10,
@@ -59,44 +70,69 @@ describe('RedditCookieAdapter', () => {
       ));
 
       const result = await adapter.validateCredentials({
-        redditSession: VALID_REDDIT_SESSION,
-        token: VALID_TOKEN,
+        token: VALID_JWT,
+        csrfToken: VALID_CSRF,
       });
 
-      expect(result.identity.id).toBe('t2_abc123');
+      expect(result.identity.id).toBe('t2_2bnj8pnm9a');
       expect(result.identity.username).toBe('u/Marshal_The_dev0007');
-      expect(result.credentials.redditSession).toBe(VALID_REDDIT_SESSION);
-      expect(result.credentials.token).toBe(VALID_TOKEN);
+      expect(result.credentials.token).toBe(VALID_JWT);
+      expect(result.credentials.csrfToken).toBe(VALID_CSRF);
     });
 
-    it('throws PublishError(VALIDATION) when redditSession missing', async () => {
+    it('throws PublishError(VALIDATION) when token (JWT) missing', async () => {
       await expect(
-        adapter.validateCredentials({ token: VALID_TOKEN })
+        adapter.validateCredentials({ csrfToken: VALID_CSRF })
       ).rejects.toThrow(PublishError);
     });
 
-    it('throws PublishError(VALIDATION) when token missing', async () => {
+    it('throws PublishError(VALIDATION) when csrfToken missing', async () => {
       await expect(
-        adapter.validateCredentials({ redditSession: VALID_REDDIT_SESSION })
+        adapter.validateCredentials({ token: VALID_JWT })
       ).rejects.toThrow(PublishError);
     });
 
-    it('throws PublishError(VALIDATION) when redditSession too short (<50)', async () => {
+    it('throws PublishError(VALIDATION) when token is too short (<100 chars)', async () => {
       await expect(
-        adapter.validateCredentials({ redditSession: 'short', token: VALID_TOKEN })
+        adapter.validateCredentials({ token: 'short.token.sig', csrfToken: VALID_CSRF })
       ).rejects.toThrow(PublishError);
     });
 
-    it('throws PublishError(VALIDATION) when token too short (<16)', async () => {
+    it('throws PublishError(VALIDATION) when token is not a valid JWT (no dots)', async () => {
+      // Long enough but no dots — not a JWT
+      const longString = 'a'.repeat(200);
       await expect(
-        adapter.validateCredentials({ redditSession: VALID_REDDIT_SESSION, token: 'short' })
+        adapter.validateCredentials({ token: longString, csrfToken: VALID_CSRF })
       ).rejects.toThrow(PublishError);
     });
 
-    it('throws PublishError(AUTH) on 401', async () => {
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(mockResponse(401, 'unauthorized')));
+    it('throws PublishError(VALIDATION) when token has only 2 parts (missing signature)', async () => {
+      const twoPartToken = `${JWT_HEADER}.${JWT_PAYLOAD}`;
+      await expect(
+        adapter.validateCredentials({ token: twoPartToken, csrfToken: VALID_CSRF })
+      ).rejects.toThrow(PublishError);
+    });
+
+    it('throws PublishError(VALIDATION) when csrfToken is not 32 chars', async () => {
+      await expect(
+        adapter.validateCredentials({ token: VALID_JWT, csrfToken: 'short' })
+      ).rejects.toThrow(PublishError);
+    });
+
+    it('throws PublishError(VALIDATION) when csrfToken is not hex', async () => {
+      // 32 chars but contains non-hex chars
+      const nonHex = 'z'.repeat(32);
+      await expect(
+        adapter.validateCredentials({ token: VALID_JWT, csrfToken: nonHex })
+      ).rejects.toThrow(PublishError);
+    });
+
+    it('throws PublishError(AUTH) on 401 (invalid cookies or blocked IP)', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+        mockResponse(401, '{"success":false,"error":{"reason":"UNAUTHORIZED"}}')
+      ));
       try {
-        await adapter.validateCredentials({ redditSession: VALID_REDDIT_SESSION, token: VALID_TOKEN });
+        await adapter.validateCredentials({ token: VALID_JWT, csrfToken: VALID_CSRF });
         throw new Error('should have thrown');
       } catch (e) {
         expect((e as PublishError).errorClass).toBe('AUTH');
@@ -106,7 +142,7 @@ describe('RedditCookieAdapter', () => {
     it('throws PublishError(AUTH) on 403', async () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(mockResponse(403, 'forbidden')));
       try {
-        await adapter.validateCredentials({ redditSession: VALID_REDDIT_SESSION, token: VALID_TOKEN });
+        await adapter.validateCredentials({ token: VALID_JWT, csrfToken: VALID_CSRF });
         throw new Error('should have thrown');
       } catch (e) {
         expect((e as PublishError).errorClass).toBe('AUTH');
@@ -116,7 +152,7 @@ describe('RedditCookieAdapter', () => {
     it('throws PublishError(RATE) on 429', async () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(mockResponse(429, 'slow down')));
       try {
-        await adapter.validateCredentials({ redditSession: VALID_REDDIT_SESSION, token: VALID_TOKEN });
+        await adapter.validateCredentials({ token: VALID_JWT, csrfToken: VALID_CSRF });
         throw new Error('should have thrown');
       } catch (e) {
         expect((e as PublishError).errorClass).toBe('RATE');
@@ -125,25 +161,25 @@ describe('RedditCookieAdapter', () => {
 
     it('throws PublishError(NETWORK) when id missing from response', async () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
-        mockResponse(200, { name: 'test' })
+        mockResponse(200, { name: 'test' })  // no id
       ));
       try {
-        await adapter.validateCredentials({ redditSession: VALID_REDDIT_SESSION, token: VALID_TOKEN });
+        await adapter.validateCredentials({ token: VALID_JWT, csrfToken: VALID_CSRF });
         throw new Error('should have thrown');
       } catch (e) {
         expect((e as PublishError).errorClass).toBe('NETWORK');
       }
     });
 
-    it('sends correct headers (cookie + user-agent + accept)', async () => {
+    it('sends correct headers (Authorization Bearer + x-csrf-token + cookie + origin + referer)', async () => {
       const mockFetch = vi.fn().mockResolvedValue(
         mockResponse(200, { id: 't2_x', name: 'test' })
       );
       vi.stubGlobal('fetch', mockFetch);
 
       await adapter.validateCredentials({
-        redditSession: VALID_REDDIT_SESSION,
-        token: VALID_TOKEN,
+        token: VALID_JWT,
+        csrfToken: VALID_CSRF,
       });
 
       const callArgs = mockFetch.mock.calls[0];
@@ -152,10 +188,15 @@ describe('RedditCookieAdapter', () => {
       const headers = init.headers as Record<string, string>;
 
       expect(url).toBe('https://www.reddit.com/api/v1/me');
-      expect(headers.cookie).toContain(`reddit_session=${VALID_REDDIT_SESSION}`);
-      expect(headers.cookie).toContain(`token=${VALID_TOKEN}`);
+      // Modern Reddit auth flow: Authorization Bearer + x-CSRF-TOKEN + cookie
+      expect(headers.authorization).toBe(`Bearer ${VALID_JWT}`);
+      expect(headers['x-csrf-token']).toBe(VALID_CSRF);
+      expect(headers.cookie).toContain(`token=${VALID_JWT}`);
+      expect(headers.cookie).toContain(`csrf_token=${VALID_CSRF}`);
+      // Browser-like headers
       expect(headers['user-agent']).toMatch(/Mozilla/);
-      expect(headers.accept).toBe('application/json');
+      expect(headers.origin).toBe('https://www.reddit.com');
+      expect(headers.referer).toBe('https://www.reddit.com/');
     });
   });
 

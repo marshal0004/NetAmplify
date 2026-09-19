@@ -228,17 +228,20 @@ export const CONNECT_TWITTER_COOKIE_SCHEMA = z.object({
 });
 
 export const CONNECT_REDDIT_COOKIE_SCHEMA = z.object({
-  redditSession: z
-    .string()
-    .min(50, 'reddit_session cookie looks too short — copy the full value')
-    .max(2000, 'reddit_session cookie is too long (max 2000 chars)')
-    // reddit_session is a URL-encoded JSON-like string with %7C separators
-    .regex(/^[A-Za-z0-9%._\-]+$/, 'reddit_session contains invalid characters'),
   token: z
     .string()
-    .min(16, 'token cookie looks too short — copy the full value')
-    .max(500, 'token cookie is too long')
-    .regex(/^[A-Za-z0-9%._\-]+$/, 'token cookie contains invalid characters'),
+    .min(100, 'token (JWT) looks too short — copy the full cookie value')
+    .max(5000, 'token is too long (max 5000 chars)')
+    // JWT format: 3 dot-separated base64url-encoded parts
+    .regex(
+      /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/,
+      'token must be a JWT with 3 dot-separated parts (header.payload.signature)'
+    ),
+  csrfToken: z
+    .string()
+    .min(32, 'csrf_token must be 32 chars')
+    .max(32, 'csrf_token must be 32 chars')
+    .regex(/^[a-f0-9]{32}$/i, 'csrf_token must be 32 hex chars (0-9, a-f)'),
 });
 
 // ============================================================================

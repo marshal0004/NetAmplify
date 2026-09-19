@@ -127,15 +127,15 @@ const platformConfig: Record<string, PlatformConfig> = {
   },
   REDDIT_COOKIE: {
     fields: [
-      { key: 'redditSession', label: 'reddit_session cookie', placeholder: 'Long URL-encoded string' },
-      { key: 'token', label: 'token cookie', placeholder: '~32-char string' },
+      { key: 'token', label: 'token cookie (JWT)', placeholder: 'eyJhbGciOiJ... (long string with 2 dots)' },
+      { key: 'csrfToken', label: 'csrf_token cookie', placeholder: '32-char hex string (0-9, a-f)' },
     ],
     steps: [
       { text: 'Install the Cookie-Editor extension (opens in new tab)', link: 'https://chromewebstore.google.com/detail/cookie-editor/hlkenndednhonkehodjpanfjoadhacee', linkText: 'Install Cookie-Editor' },
       { text: 'Log in to reddit.com in your browser' },
       { text: 'Click the Cookie-Editor icon in your browser toolbar' },
-      { text: 'Find the "reddit_session" cookie — copy its full value' },
-      { text: 'Find the "token" cookie — copy its value' },
+      { text: 'Find the "token" cookie — copy its full value (a long JWT with 2 dots)' },
+      { text: 'Find the "csrf_token" cookie — copy its value (32 hex chars)' },
       { text: 'Paste both values above and click Connect' },
     ],
     docsLink: 'https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies',

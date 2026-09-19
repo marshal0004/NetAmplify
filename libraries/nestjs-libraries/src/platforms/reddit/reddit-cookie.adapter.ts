@@ -1,5 +1,5 @@
 // /home/z/my-project/netamplify-app/libraries/nestjs-libraries/src/platforms/reddit/reddit-cookie.adapter.ts
-// NetAmplify — Reddit cookie-based adapter.
+// NetAmplify — Reddit cookie-based adapter (modern JWT auth flow).
 //
 // Per docs/01-PRD.md §6 (Cookie Method — Option A):
 //   "Bypass Reddit's manual developer review by using the user's
@@ -8,17 +8,32 @@
 //    Same approach Postiz takes. ToS-risky but functional."
 //
 // Required user-supplied credentials (extracted from reddit.com cookies
-// via a browser extension like Cookie-Editor):
-//   - redditSession: the `reddit_session` cookie value (long string)
-//   - token:          the `token` cookie value (used as modhash-like CSRF)
+// via the Cookie-Editor browser extension):
+//
+//   1. `token` cookie (JWT, ~500-2000 chars)
+//      - The modern Reddit web app's primary authentication cookie
+//      - Format: header.payload.signature (3 base64url-encoded parts
+//        separated by dots)
+//      - Contains the user's Reddit user ID (`sub` field, format: t2_xxx)
+//      - Issued via SSO flow (`amr: ["sso"]`, `cid: "cookie"`)
+//      - Lifetime: ~6 months from issue date
+//      - Sent both as a cookie AND as the Authorization: Bearer header
+//
+//   2. `csrf_token` cookie (32-char hex)
+//      - CSRF protection token
+//      - Must be sent as the `x-CSRF-TOKEN` header on POST/PUT/DELETE
+//      - Must match the cookie value (Reddit validates this server-side)
 //
 // How Reddit's internal API works (reverse-engineered, publicly
 // documented at https://github.com/reddit-archive/reddit/wiki/JSON):
+//
 //   1. The reddit.com web app uses /api/{action} endpoints (not OAuth).
-//   2. Each request requires:
-//        - cookie: reddit_session=...; token=...
-//        - User-Agent: a real browser UA (Reddit 403s empty/generic UAs)
-//        - content-type: application/x-www-form-urlencoded (for POSTs)
+//   2. Each authenticated request requires:
+//        - Authorization: Bearer <JWT>
+//        - cookie: token=<JWT>; csrf_token=<csrf>;
+//        - x-CSRF-TOKEN: <csrf>           (must match the cookie)
+//        - User-Agent: a real browser UA (Reddit 403s non-browser UAs)
+//        - Origin + Referer: https://www.reddit.com
 //   3. Submitting a post:
 //        - POST /api/submit with form-encoded body:
 //            kind: link | self
@@ -27,14 +42,12 @@
 //            url: <url>          (for kind=link)
 //            text: <markdown>     (for kind=self)
 //            api_type: json
-//            uh: <modhash>        (optional in modern Reddit, but kept
-//                                  for backwards compat)
 //
 // Validation: GET /api/v1/me — returns the user's username + id.
 //
 // Trust model: cookies stored encrypted (AES-256-GCM) in
 // Connection.credentialsCipher. User can revoke by logging out of
-// reddit.com on any device.
+// reddit.com on any device (which invalidates the JWT server-side).
 
 import { Injectable } from '@nestjs/common';
 import type {
@@ -67,21 +80,49 @@ const REDDIT_USER_AGENT =
  * The shape of the credentials JSON blob stored encrypted in
  * Connection.credentialsCipher for Reddit cookie-based connections.
  *
- * - `redditSession`: the `reddit_session` cookie value (long URL-encoded
- *   string with `%7C` separators)
- * - `token`:          the `token` cookie value (short string, ~32 chars)
+ * - `token`:     the `token` cookie value (JWT, ~500-2000 chars).
+ *                The modern Reddit web app's primary auth cookie.
+ * - `csrfToken`: the `csrf_token` cookie value (32-char hex string).
+ *                CSRF protection — sent as both a cookie AND the
+ *                `x-CSRF-TOKEN` header (must match).
  */
 export interface RedditCookieCredentials extends AdapterCredentials {
-  redditSession: string;
   token: string;
+  csrfToken: string;
 }
 
 /**
- * Build the Cookie header from credentials.
+ * Build the Cookie header value from credentials.
  * Per RFC 6265 §4.2.1 — semicolon-separated name=value pairs.
+ *
+ * Sends BOTH the JWT (`token`) and the CSRF token (`csrf_token`) cookies,
+ * matching the modern Reddit web app's exact behavior.
  */
 function buildCookieHeader(creds: RedditCookieCredentials): string {
-  return `reddit_session=${creds.redditSession}; token=${creds.token}`;
+  return `token=${creds.token}; csrf_token=${creds.csrfToken}`;
+}
+
+/**
+ * Build the standard set of headers required by Reddit's internal API.
+ *
+ * Per Reddit's web app reverse-engineering (verified 2025-09):
+ *   - Authorization: Bearer <JWT>   (the `token` cookie value, as a header)
+ *   - x-CSRF-TOKEN: <csrf>         (must match the csrf_token cookie)
+ *   - cookie: token=<JWT>; csrf_token=<csrf>;
+ *   - User-Agent: must look like a real browser
+ *   - Origin + Referer: https://www.reddit.com (prevents CSRF rejection)
+ */
+function buildRedditHeaders(creds: RedditCookieCredentials): Record<string, string> {
+  return {
+    authorization: `Bearer ${creds.token}`,
+    'x-csrf-token': creds.csrfToken,
+    cookie: buildCookieHeader(creds),
+    'user-agent': REDDIT_USER_AGENT,
+    accept: 'application/json, text/plain, */*',
+    'accept-language': 'en-US,en;q=0.9',
+    origin: 'https://www.reddit.com',
+    referer: 'https://www.reddit.com/',
+  };
 }
 
 /**
@@ -99,7 +140,7 @@ function classifyStatus(status: number): 'AUTH' | 'RATE' | 'VALIDATION' | 'NETWO
 export class RedditCookieAdapter implements PlatformAdapter {
   readonly platform: Platform = 'REDDIT_COOKIE';
   readonly name = 'Reddit — Cookie';
-  readonly toolTip = 'Paste your reddit.com session cookies (reddit_session + token)';
+  readonly toolTip = 'Paste your reddit.com session cookies (token JWT + csrf_token)';
   readonly kind = 'SIMPLE' as const;
 
   configured(): boolean {
@@ -113,49 +154,61 @@ export class RedditCookieAdapter implements PlatformAdapter {
    *
    * Endpoint: GET /api/v1/me
    * Returns: { id, name, comment_karma, link_karma, ... } on success.
+   *
+   * Reddit's anti-bot system may reject requests from cloud IPs with
+   * HTTP 401 even when the cookies are valid. Users should test from
+   * their own residential IP (their Arch machine).
    */
   async validateCredentials(
     input: Record<string, string>
   ): Promise<{ identity: PlatformIdentity; credentials: RedditCookieCredentials }> {
-    const redditSession = input.redditSession;
     const token = input.token;
+    const csrfToken = input.csrfToken;
 
-    if (!redditSession || typeof redditSession !== 'string') {
-      throw new PublishError('VALIDATION', 'reddit_session cookie is required');
-    }
     if (!token || typeof token !== 'string') {
-      throw new PublishError('VALIDATION', 'token cookie is required');
+      throw new PublishError('VALIDATION', 'token cookie (JWT) is required');
     }
-    // reddit_session is a long URL-encoded string (~200-400 chars)
-    if (redditSession.length < 50) {
+    if (!csrfToken || typeof csrfToken !== 'string') {
+      throw new PublishError('VALIDATION', 'csrf_token cookie is required');
+    }
+
+    // JWT format validation: 3 dot-separated base64url-encoded parts
+    // (header.payload.signature). Each part uses [A-Za-z0-9_-] chars.
+    if (token.length < 100) {
       throw new PublishError(
         'VALIDATION',
-        'reddit_session looks too short — copy the full cookie value (it should be a long string with %7C separators)'
+        'token (JWT) looks too short — copy the full cookie value (it should be a long string with 2 dots)'
       );
     }
-    // token is typically a ~32-char alphanumeric string
-    if (token.length < 16) {
+    if (!/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token)) {
       throw new PublishError(
         'VALIDATION',
-        'token cookie looks too short — copy the full cookie value'
+        'token must be a JWT with 3 dot-separated parts (header.payload.signature)'
       );
     }
 
-    const creds: RedditCookieCredentials = { redditSession, token };
+    // csrf_token is a 32-char hex string
+    if (!/^[a-f0-9]{32}$/i.test(csrfToken)) {
+      throw new PublishError(
+        'VALIDATION',
+        'csrf_token must be 32 hex chars (0-9, a-f) — copy the cookie value exactly'
+      );
+    }
+
+    const creds: RedditCookieCredentials = { token, csrfToken };
+
     const resp = await fetch(REDDIT_VERIFY_URL, {
       method: 'GET',
       headers: {
-        cookie: buildCookieHeader(creds),
-        'user-agent': REDDIT_USER_AGENT,
+        ...buildRedditHeaders(creds),
         accept: 'application/json',
-        'accept-language': 'en-US,en;q=0.5',
       },
     });
 
     if (resp.status === 401 || resp.status === 403) {
       throw new PublishError(
         'AUTH',
-        'Reddit cookies are invalid or expired — log in to reddit.com and re-export your cookies'
+        'Reddit cookies are invalid, expired, or Reddit rejected the request IP — log in to reddit.com and re-export your cookies, or test from a residential IP'
       );
     }
     if (resp.status === 429) {
@@ -206,7 +259,7 @@ export class RedditCookieAdapter implements PlatformAdapter {
     formatted: FormattedPost
   ): Promise<PublishResult> {
     const creds = credentials as RedditCookieCredentials;
-    if (!creds.redditSession || !creds.token) {
+    if (!creds.token || !creds.csrfToken) {
       throw new PublishError('AUTH', 'Reddit cookie credentials missing — user must reconnect');
     }
 
@@ -256,13 +309,8 @@ export class RedditCookieAdapter implements PlatformAdapter {
     const resp = await fetch(REDDIT_SUBMIT_URL, {
       method: 'POST',
       headers: {
-        cookie: buildCookieHeader(creds),
-        'user-agent': REDDIT_USER_AGENT,
+        ...buildRedditHeaders(creds),
         'content-type': 'application/x-www-form-urlencoded',
-        accept: 'application/json',
-        'accept-language': 'en-US,en;q=0.5',
-        origin: 'https://www.reddit.com',
-        referer: 'https://www.reddit.com/',
       },
       body: formParams.toString(),
     });
@@ -272,7 +320,7 @@ export class RedditCookieAdapter implements PlatformAdapter {
       const text = await resp.text();
       throw new PublishError(
         'AUTH',
-        `Reddit rejected the post (${resp.status}) — cookies may be expired: ${text.slice(0, 200)}`
+        `Reddit rejected the post (${resp.status}) — cookies may be expired or Reddit blocked the request IP: ${text.slice(0, 200)}`
       );
     }
     if (errorClass === 'RATE') {

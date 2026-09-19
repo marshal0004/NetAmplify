@@ -99,29 +99,31 @@ STATUS=$(echo "$RESP" | tail -n1)
 assert_status "twitter-cookie connect (mock valid format → 400 from X)" "400" "$STATUS"
 echo ""
 
-echo -e "${YELLOW}[5/14] POST /api/connections/reddit-cookie (no redditSession)${NC}"
+echo -e "${YELLOW}[5/14] POST /api/connections/reddit-cookie (no token)${NC}"
 RESP=$(curl -s -w "\n%{http_code}" -X POST "$BASE_URL/api/connections/reddit-cookie" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
-  -d '{"token":"abc"}')
+  -d '{"csrfToken":"abc"}')
 STATUS=$(echo "$RESP" | tail -n1)
-assert_status "reddit-cookie connect (no redditSession)" "400" "$STATUS"
+assert_status "reddit-cookie connect (no token)" "400" "$STATUS"
 echo ""
 
-echo -e "${YELLOW}[6/14] POST /api/connections/reddit-cookie (redditSession too short)${NC}"
+echo -e "${YELLOW}[6/14] POST /api/connections/reddit-cookie (token too short)${NC}"
 RESP=$(curl -s -w "\n%{http_code}" -X POST "$BASE_URL/api/connections/reddit-cookie" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
-  -d '{"redditSession":"short","token":"1234567890abcdef"}')
+  -d '{"token":"short.token.sig","csrfToken":"1234567890abcdef1234567890abcdef"}')
 STATUS=$(echo "$RESP" | tail -n1)
-assert_status "reddit-cookie connect (short redditSession)" "400" "$STATUS"
+assert_status "reddit-cookie connect (short token)" "400" "$STATUS"
 echo ""
 
-echo -e "${YELLOW}[7/14] POST /api/connections/reddit-cookie (valid format, mock creds)${NC}"
+echo -e "${YELLOW}[7/14] POST /api/connections/reddit-cookie (valid JWT format, mock creds)${NC}"
+# Build a synthetic JWT-looking string (3 dot-separated base64url parts, 100+ chars total)
+MOCK_JWT="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0Ml90ZXN0MTIzIiwiZXhwIjoxODA1MjA4MjUxfQ.i_sh3PJq3MLXxk7yWrsebpXdGM6Gul2uPyOLw5AfrVZN6340_vTdPWTVkG0sNfmeoaGGxb3xAet9BT2-_U_uXEVB9Cx1pHEm3o35V3gdGAxPcrqoSiiEPM_LDt36GxqUb"
 RESP=$(curl -s -w "\n%{http_code}" -X POST "$BASE_URL/api/connections/reddit-cookie" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
-  -d "{\"redditSession\":\"$(printf 'a%.0s' {1..100})\",\"token\":\"$(printf 'b%.0s' {1..40})\"}")
+  -d "{\"token\":\"$MOCK_JWT\",\"csrfToken\":\"abcdef0123456789abcdef0123456789\"}")
 STATUS=$(echo "$RESP" | tail -n1)
 assert_status "reddit-cookie connect (mock valid format → 400 from Reddit)" "400" "$STATUS"
 echo ""
