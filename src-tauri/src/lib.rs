@@ -1,0 +1,107 @@
+// /home/z/my-project/netamplify-app/src-tauri/src/lib.rs
+// NetAmplify — Tauri app library (registered commands + plugin wiring).
+//
+// Per Tauri 2.0 architecture: the `run()` function initializes the app,
+// registers all Tauri commands (cookie capture, refresh, backend proxy),
+// loads the frontend, and starts the NestJS sidecar.
+//
+// The frontend invokes these commands via `window.__TAURI__.invoke()`.
+// Each command is a pure async function that returns serde_json::Value
+// or a typed struct — no global mutable state.
+
+mod commands;
+
+use commands::{
+    cookie_capture::{capture_x_cookies, capture_reddit_cookies},
+    cookie_refresh::{refresh_reddit_cookies, refresh_x_cookies, check_cookie_expiry},
+    backend_proxy::{proxy_cookie_connection, get_backend_health},
+    sidecar::{start_backend_sidecar, stop_backend_sidecar},
+};
+use tauri::Manager;
+
+/// The local NestJS backend port. Must match `apps/backend/src/main.ts`.
+const BACKEND_PORT: u16 = 3000;
+
+/// The local frontend dev port. Must match `apps/frontend/vite.config.ts`.
+const FRONTEND_DEV_PORT: u16 = 4200;
+
+/// Tauri app entry point. Called by `main.rs`.
+///
+/// Initializes:
+///   1. Logging (env_logger — respects RUST_LOG env var)
+///   2. Tauri plugins (shell, http, dialog, process)
+///   3. Tauri commands (cookie capture, refresh, backend proxy, sidecar)
+///   4. On startup: starts the NestJS backend sidecar
+///   5. On shutdown: kills the backend sidecar
+///
+/// In dev mode, the frontend is loaded from `http://localhost:4200`
+/// (the Vite dev server). In production, it's loaded from the bundled
+/// `apps/frontend/dist` directory.
+pub fn run() {
+    // Initialize logging — defaults to "info" level.
+    // Users can set RUST_LOG=debug for verbose output.
+    let _ = env_logger::Builder::from_env(
+        env_logger::Env::default().default_filter_or("info")
+    )
+    .format_timestamp_secs()
+    .try_init();
+
+    log::info!("NetAmplify desktop app starting...");
+
+    tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_process::init())
+        .invoke_handler(tauri::generate_handler![
+            // Cookie capture commands — open native login windows + read cookies
+            capture_reddit_cookies,
+            capture_x_cookies,
+            // Cookie refresh commands — auto-refresh expired tokens
+            refresh_reddit_cookies,
+            refresh_x_cookies,
+            check_cookie_expiry,
+            // Backend proxy — send captured cookies to local NestJS API
+            proxy_cookie_connection,
+            get_backend_health,
+            // Sidecar management — start/stop the NestJS backend
+            start_backend_sidecar,
+            stop_backend_sidecar,
+        ])
+        .setup(|app| {
+            // On app launch: log the environment + start the backend sidecar.
+            let app_handle = app.handle().clone();
+
+            // Spawn the backend sidecar in a background thread so it doesn't
+            // block the Tauri window from loading.
+            tauri::async_runtime::spawn(async move {
+                match sidecar::start_backend_sidecar(app_handle.clone()).await {
+                    Ok(pid) => {
+                        log::info!("Backend sidecar started (PID: {}). Listening on port {}.", pid, BACKEND_PORT);
+                    }
+                    Err(e) => {
+                        log::error!("Failed to start backend sidecar: {}. The app will still load, but API calls will fail until the backend is manually started.", e);
+                    }
+                }
+            });
+
+            log::info!("NetAmplify desktop app ready. Frontend: http://localhost:{}", FRONTEND_DEV_PORT);
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            // On app close: stop the backend sidecar.
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                if let Some(app) = window.app_handle().try_state::<sidecar::SidecarState>() {
+                    if let Some(pid) = app.0.lock().unwrap().take() {
+                        log::info!("Stopping backend sidecar (PID: {}) on app close...", pid);
+                        let _ = nix::sys::signal::kill(
+                            nix::unistd::Pid::from_raw(pid as i32),
+                            nix::sys::signal::Signal::SIGTERM,
+                        );
+                    }
+                }
+            }
+        })
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}

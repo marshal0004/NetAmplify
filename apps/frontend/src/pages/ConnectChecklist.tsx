@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { isTauri, captureAndConnect } from '@/lib/tauri';
 
 const trustCopy: Record<string, string> = {
   REDDIT: 'You\'ll log in on Reddit\'s official page — NetAmplify never sees your password. We receive only a limited permission to submit posts, and you can revoke it anytime in your Reddit settings.',
@@ -189,6 +190,7 @@ export function ConnectChecklist() {
   const [expandedPlatform, setExpandedPlatform] = useState<string | null>(null);
   const [formValues, setFormValues] = useState<Record<string, Record<string, string>>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [capturingPlatform, setCapturingPlatform] = useState<string | null>(null);
 
   const connectMutation = useMutation({
     mutationFn: ({ platform, data }: { platform: string; data: Record<string, string> }) =>
@@ -224,6 +226,25 @@ export function ConnectChecklist() {
   function handleDisconnect(platform: string) {
     if (confirm(`Disconnect ${platform}? You'll need to reconnect to publish again.`)) {
       disconnectMutation.mutate(platform);
+    }
+  }
+
+  async function handleAutoCapture(platform: 'REDDIT_COOKIE' | 'TWITTER_COOKIE') {
+    setCapturingPlatform(platform);
+    setErrors({});
+    try {
+      const jwtToken = localStorage.getItem('netamplify_token');
+      if (!jwtToken) {
+        setErrors({ global: 'You must be logged in to NetAmplify to connect platforms.' });
+        return;
+      }
+      await captureAndConnect(platform, jwtToken);
+      queryClient.invalidateQueries({ queryKey: ['connections'] });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Auto-capture failed. Try the manual cookie input below.';
+      setErrors({ global: message });
+    } finally {
+      setCapturingPlatform(null);
     }
   }
 
@@ -331,6 +352,15 @@ export function ConnectChecklist() {
                       </Button>
                     ) : isTierB && !isConfigured ? (
                       <Button variant="outline" size="sm" disabled className="border-white/5 text-white/20">Coming soon</Button>
+                    ) : (conn.platform === 'TWITTER_COOKIE' || conn.platform === 'REDDIT_COOKIE') && isTauri() ? (
+                      <Button
+                        size="sm"
+                        onClick={() => handleAutoCapture(conn.platform as 'REDDIT_COOKIE' | 'TWITTER_COOKIE')}
+                        disabled={capturingPlatform !== null}
+                        className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 border-0"
+                      >
+                        {capturingPlatform === conn.platform ? 'Opening login…' : 'Auto-Capture'}
+                      </Button>
                     ) : (
                       <Button
                         size="sm"

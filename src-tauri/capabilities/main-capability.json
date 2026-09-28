@@ -1,0 +1,40 @@
+// /home/z/my-project/netamplify-app/src-tauri/capabilities/main-capability.json
+// Tauri 2.0 capability file — grants the main window permission to invoke
+// Tauri commands (shell, dialog, http, process) per the capability-based
+// security model introduced in Tauri 2.0.
+//
+// Docs: https://v2.tauri.app/security/capabilities/
+
+{
+  "$schema": "https://raw.githubusercontent.com/nicehash/tauri/dev/crates/tauri-utils/schema.json",
+  "identifier": "main-capability",
+  "description": "Permissions for the main NetAmplify window — shell access (sidecar management), dialog (file pickers), HTTP (local API calls), process (app lifecycle).",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:default",
+    "core:webview:default",
+    "core:app:default",
+    "core:event:default",
+    "core:resources:default",
+    "core:menu:default",
+    "core:tray:default",
+    "shell:allow-execute",
+    "shell:allow-open",
+    "shell:allow-spawn",
+    "shell:allow-stdin-write",
+    "shell:allow-kill",
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "dialog:allow-message",
+    "dialog:allow-ask",
+    "dialog:allow-confirm",
+    "http:default",
+    "http:allow-fetch",
+    "http:allow-fetch-cancel",
+    "http:allow-fetch-read-body",
+    "http:allow-fetch-send",
+    "process:allow-exit",
+    "process:allow-restart"
+  ]
+}

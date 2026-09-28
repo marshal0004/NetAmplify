@@ -249,6 +249,109 @@ export class ConnectionsController {
       throw errorMapper(e);
     }
   }
+
+  /**
+   * POST /api/connections/:platform/auto-capture  { cookies }
+   *
+   * Called by the Tauri desktop app after it captures cookies from the
+   * native WebView login window. The Tauri app opens reddit.com/x.com
+   * in a native browser window → user logs in normally → Tauri reads
+   * the cookies via WebviewWindow::cookies() → sends them here.
+   *
+   * This endpoint:
+   *   1. Maps cookie names to the adapter's expected input fields
+   *   2. Calls saveSimpleConnection() which validates + encrypts + stores
+   *   3. Returns the user's platform username
+   *
+   * This eliminates the copy-paste UX — the user just logs in and
+   * NetAmplify handles the rest.
+   */
+  @Post(':platform/auto-capture')
+  @HttpCode(201)
+  async autoCapture(
+    @Param('platform') platformParam: string,
+    @Body() body: unknown,
+    @Req() req: Request
+  ): Promise<{ id: string; username: string }> {
+    try {
+      const platform = parsePlatformParam(platformParam);
+
+      // Only cookie-based platforms support auto-capture.
+      if (platform !== 'TWITTER_COOKIE' && platform !== 'REDDIT_COOKIE') {
+        throw new ServiceError(
+          'VALIDATION_ERROR',
+          `Auto-capture is only supported for TWITTER_COOKIE and REDDIT_COOKIE (got ${platform})`
+        );
+      }
+
+      // Validate the request body shape.
+      const rawBody = (body ?? {}) as Record<string, unknown>;
+      const cookies = rawBody.cookies;
+      if (!cookies || typeof cookies !== 'object' || Array.isArray(cookies)) {
+        throw new ServiceError(
+          'VALIDATION_ERROR',
+          'Request body must contain a "cookies" object with cookie name → value pairs'
+        );
+      }
+
+      // Map the captured cookies to the adapter's expected input fields.
+      const cookieMap = cookies as Record<string, string>;
+      const input = mapCookiesToInput(platform, cookieMap);
+
+      // Save via the existing saveSimpleConnection flow — it validates
+      // the cookies by calling the platform's identity endpoint, then
+      // encrypts + stores them.
+      return await this._conn.saveSimpleConnection(
+        getUserId(req),
+        platform,
+        input,
+        getAuditContext(req)
+      );
+    } catch (e) {
+      throw errorMapper(e);
+    }
+  }
+}
+
+/**
+ * Map captured cookie names to the adapter's expected input field names.
+ *
+ * The Tauri WebView captures cookies by their actual names (e.g.,
+ * `token_v2`, `csrf_token`, `auth_token`, `ct0`). But the Zod validation
+ * schemas in the backend use camelCase field names (e.g., `tokenV2`,
+ * `csrfToken`, `authToken`, `ct0`). This function translates between
+ * the two.
+ *
+ * For Reddit:
+ *   token_v2 (cookie) → tokenV2 (input field)
+ *   csrf_token (cookie) → csrfToken (input field)
+ *   token (cookie) → token (input field, optional)
+ *
+ * For X:
+ *   auth_token (cookie) → authToken (input field)
+ *   ct0 (cookie) → ct0 (input field, same name)
+ */
+function mapCookiesToInput(
+  platform: Platform,
+  cookies: Record<string, string>
+): Record<string, string> {
+  switch (platform) {
+    case 'REDDIT_COOKIE': {
+      const input: Record<string, string> = {};
+      if (cookies.token_v2) input.tokenV2 = cookies.token_v2;
+      if (cookies.csrf_token) input.csrfToken = cookies.csrf_token;
+      if (cookies.token) input.token = cookies.token;
+      return input;
+    }
+    case 'TWITTER_COOKIE': {
+      const input: Record<string, string> = {};
+      if (cookies.auth_token) input.authToken = cookies.auth_token;
+      if (cookies.ct0) input.ct0 = cookies.ct0;
+      return input;
+    }
+    default:
+      return {};
+  }
 }
 
 /**
