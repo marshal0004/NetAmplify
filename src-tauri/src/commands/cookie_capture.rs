@@ -395,7 +395,3 @@ fn base64_decode(input: &str) -> Result<Vec<u8>, String> {
 
     Ok(output)
 }
-
-/// Parse a URL string into a WebviewUrl.
-///
-fn base64_decode(input: &str) -> Result<Vec<u8>, String> {
