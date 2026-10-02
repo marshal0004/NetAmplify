@@ -53,14 +53,6 @@ pub async fn start_backend_sidecar(app: AppHandle) -> Result<u32, String> {
     let sidecar = app
         .shell()
         .sidecar("netamplify-backend")
-        .or_else(|_| {
-            // Fallback for dev mode: run `node apps/backend/dist/main.js`
-            log::info!("Sidecar binary not found — falling back to node command (dev mode)");
-            app.shell().command("node")
-                .args(["apps/backend/dist/main.js"])
-                .current_dir(std::env::current_dir().unwrap_or_default())
-                .into_command()
-        })
         .map_err(|e| format!("Failed to create sidecar command: {}", e))?;
 
     let (mut rx, child) = sidecar.spawn()

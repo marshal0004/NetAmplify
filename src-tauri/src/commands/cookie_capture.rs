@@ -26,7 +26,7 @@
 // Cancellation: if the user closes the login window → return USER_CANCELLED
 
 use crate::commands::{
-    CookieCaptureError, CookieCaptureResult, backend_url,
+    CookieCaptureError, CookieCaptureResult,
 };
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 use std::collections::HashMap;
@@ -138,7 +138,7 @@ pub async fn capture_x_cookies(app: AppHandle) -> Result<CookieCaptureResult, Co
 /// * `login_cookie` — the cookie name that indicates successful login
 /// * `required_cookies` — list of cookie names to extract after login
 /// * `platform` — the NetAmplify platform identifier (e.g., "REDDIT_COOKIE")
-async fn capture_cookies_generic(
+pub async fn capture_cookies_generic(
     app: &AppHandle,
     window_label: &str,
     window_title: &str,
@@ -158,17 +158,18 @@ async fn capture_cookies_generic(
     }
 
     // Create the login window.
-    let url: WebviewUrl = login_url.parse()
-        .map_err(|e| CookieCaptureError {
-            code: "TAURI_ERROR".to_string(),
-            message: format!("Invalid login URL: {}", e),
-        })?;
+    // WebviewUrl::External takes a Url, not a &str
+    let parsed_url = url::Url::parse(login_url).map_err(|e| CookieCaptureError {
+        code: "TAURI_ERROR".to_string(),
+        message: format!("Invalid login URL: {}", e),
+    })?;
+    let url = WebviewUrl::External(parsed_url);
 
     let login_window = WebviewWindowBuilder::new(app, window_label, url)
         .title(window_title)
         .inner_size(800.0, 700.0)
         .min_inner_size(400.0, 500.0)
-        .centered()
+        .center()  // Tauri 2.0 uses .center(), not .centered()
         .visible(true)
         .build()
         .map_err(|e| CookieCaptureError {
@@ -399,17 +400,3 @@ fn base64_decode(input: &str) -> Result<Vec<u8>, String> {
 ///
 /// This is a convenience function to avoid repeating the parse + error
 /// handling logic in each capture command.
-impl From<&str> for WebviewUrl {
-    fn from(s: &str) -> Self {
-        WebviewUrl::External(s.parse().unwrap_or_else(|_| {
-            // Fallback to a blank page if the URL is invalid.
-            // This should never happen in practice — the URLs are hardcoded.
-            "about:blank".parse().unwrap()
-        }))
-    }
-}
-
-// The backend_url function is imported from the parent module.
-// We reference it here to make the dependency explicit.
-#[allow(unused_imports)]
-use crate::commands::backend_url;

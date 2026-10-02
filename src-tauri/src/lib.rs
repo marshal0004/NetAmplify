@@ -73,37 +73,14 @@ pub fn run() {
             publish_to_reddit_via_webview,
         ])
         .setup(|app| {
-            // On app launch: log the environment + start the backend sidecar.
-            let app_handle = app.handle().clone();
-
-            // Spawn the backend sidecar in a background thread so it doesn't
-            // block the Tauri window from loading.
-            tauri::async_runtime::spawn(async move {
-                match sidecar::start_backend_sidecar(app_handle.clone()).await {
-                    Ok(pid) => {
-                        log::info!("Backend sidecar started (PID: {}). Listening on port {}.", pid, BACKEND_PORT);
-                    }
-                    Err(e) => {
-                        log::error!("Failed to start backend sidecar: {}. The app will still load, but API calls will fail until the backend is manually started.", e);
-                    }
-                }
-            });
-
+            // On app launch: log the environment.
             log::info!("NetAmplify desktop app ready. Frontend: http://localhost:{}", FRONTEND_DEV_PORT);
             Ok(())
         })
         .on_window_event(|window, event| {
-            // On app close: stop the backend sidecar.
+            // On app close: just log it (sidecar is managed separately).
             if let tauri::WindowEvent::CloseRequested { .. } = event {
-                if let Some(app) = window.app_handle().try_state::<sidecar::SidecarState>() {
-                    if let Some(pid) = app.0.lock().unwrap().take() {
-                        log::info!("Stopping backend sidecar (PID: {}) on app close...", pid);
-                        let _ = nix::sys::signal::kill(
-                            nix::unistd::Pid::from_raw(pid as i32),
-                            nix::sys::signal::Signal::SIGTERM,
-                        );
-                    }
-                }
+                log::info!("Window close requested: {}", window.label());
             }
         })
         .run(tauri::generate_context!())

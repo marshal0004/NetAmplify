@@ -23,7 +23,6 @@
 use crate::commands::{
     CookieCaptureError, CookieCaptureResult,
     cookie_capture::capture_cookies_generic,
-    backend_url,
 };
 use tauri::AppHandle;
 
@@ -196,6 +195,3 @@ fn base64_decode(input: &str) -> Result<Vec<u8>, String> {
 
     Ok(output)
 }
-
-#[allow(unused_imports)]
-use crate::commands::cookie_capture;
