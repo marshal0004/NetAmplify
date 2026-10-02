@@ -298,10 +298,17 @@ export class ConnectionsController {
       const cookieMap = cookies as Record<string, string>;
       const input = mapCookiesToInput(platform, cookieMap);
 
-      // Save via the existing saveSimpleConnection flow — it validates
-      // the cookies by calling the platform's identity endpoint, then
-      // encrypts + stores them.
-      return await this._conn.saveSimpleConnection(
+      // For auto-captured cookies, SKIP backend validation.
+      // The Tauri WebView already proved the cookies are valid (the user
+      // logged in successfully in a real browser window). Calling
+      // validateCredentials() from Node.js would fail due to TLS
+      // fingerprinting — X/Reddit reject Node.js requests even with
+      // valid cookies.
+      //
+      // Instead, we trust the cookies + store them directly (encrypted).
+      // The actual publish will go through the Tauri WebView too (via
+      // the webview_publish command), so it will also bypass the TLS check.
+      return await this._conn.saveSimpleConnectionSkipValidation(
         getUserId(req),
         platform,
         input,

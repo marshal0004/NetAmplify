@@ -283,6 +283,81 @@ export class ConnectionsService {
   }
 
   /**
+   * Save a cookie-based connection WITHOUT backend validation.
+   *
+   * Used by the Tauri auto-capture flow. When the Tauri WebView captures
+   * cookies from a native login window, we already know the cookies are
+   * valid (the user logged in successfully in a real browser). Calling
+   * validateCredentials() from Node.js would fail due to TLS fingerprinting
+   * — X/Reddit reject Node.js requests even with valid cookies.
+   *
+   * Instead, we:
+   *   1. Zod-validate the input shape (format validation, not API validation)
+   *   2. Encrypt the credentials with AES-256-GCM via TokenVault
+   *   3. Store them in the Connection table
+   *   4. Return a placeholder username (the actual username will be
+   *      fetched when the Tauri WebView publishes — it has the real
+   *      browser TLS fingerprint)
+   *
+   * # Arguments
+   * * `userId` — the authenticated user's ID
+   * * `platform` — "TWITTER_COOKIE" or "REDDIT_COOKIE"
+   * * `rawInput` — the mapped cookie values (authToken/ct0 or tokenV2/csToken)
+   * * `audit` — IP + User-Agent for the audit log
+   */
+  async saveSimpleConnectionSkipValidation(
+    userId: string,
+    platform: Platform,
+    rawInput: unknown,
+    audit: AuditContext = {}
+  ): Promise<{ id: string; username: string }> {
+    const adapter = this._adapters.get(platform);
+    if (adapter.kind !== 'SIMPLE') {
+      throw new ServiceError(
+        'VALIDATION_ERROR',
+        `${platform} is not a SIMPLE-credential platform`
+      );
+    }
+
+    // Zod-validate the input shape (format validation only — no API call)
+    let parsedInput: Record<string, string>;
+    switch (platform) {
+      case 'TWITTER_COOKIE':
+        parsedInput = CONNECT_TWITTER_COOKIE_SCHEMA.parse(rawInput) as Record<string, string>;
+        break;
+      case 'REDDIT_COOKIE':
+        parsedInput = CONNECT_REDDIT_COOKIE_SCHEMA.parse(rawInput) as Record<string, string>;
+        break;
+      default:
+        throw new ServiceError(
+          'VALIDATION_ERROR',
+          `${platform} does not support skip-validation save`
+        );
+    }
+
+    // Encrypt + store directly (skip adapter.validateCredentials)
+    const cipher = this._vault.encrypt(parsedInput);
+    const conn = await this._repo.upsert({
+      userId,
+      platform,
+      type: connectionTypeFor(platform),
+      platformAccountId: 'tauri-auto-captured',
+      platformUsername: 'Connected via Auto-Capture',
+      credentialsCipher: cipher,
+      scopes: [],
+    });
+    await this._audit.log({
+      userId,
+      action: 'CONNECT',
+      platform,
+      ip: audit.ip,
+      userAgent: audit.userAgent,
+      metadata: { method: 'auto-capture', skipValidation: true },
+    });
+    return { id: conn.id, username: 'Connected via Auto-Capture' };
+  }
+
+  /**
    * Disconnect a platform — hard-delete the Connection row.
    * Per docs/02-SRS.md FR-010: ciphertext gone.
    */

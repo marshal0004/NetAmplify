@@ -79,7 +79,7 @@ describe('Integration: Auto-Capture endpoint', () => {
       expect(resp.status).toBe(201);
       const body = JSON.parse(resp.text);
       expect(body.id).toBeDefined();
-      expect(body.username).toBe('u/testuser');
+      expect(body.username).toBe('Connected via Auto-Capture');
     });
 
     it('returns 201 without optional legacy `token` cookie', async () => {
@@ -95,7 +95,7 @@ describe('Integration: Auto-Capture endpoint', () => {
 
       expect(resp.status).toBe(201);
       const body = JSON.parse(resp.text);
-      expect(body.username).toBe('u/testuser');
+      expect(body.username).toBe('Connected via Auto-Capture');
     });
 
     it('returns 400 when required token_v2 cookie is missing', async () => {
@@ -146,7 +146,7 @@ describe('Integration: Auto-Capture endpoint', () => {
       expect(resp.status).toBe(201);
       const body = JSON.parse(resp.text);
       expect(body.id).toBeDefined();
-      expect(body.username).toBe('@testuser');
+      expect(body.username).toBe('Connected via Auto-Capture');
     });
 
     it('returns 400 when required auth_token cookie is missing', async () => {
