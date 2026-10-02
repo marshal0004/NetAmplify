@@ -222,9 +222,9 @@ export const CONNECT_TWITTER_COOKIE_SCHEMA = z.object({
     .regex(/^[a-f0-9]{40}$/i, 'auth_token must be 40 hex chars (0-9, a-f)'),
   ct0: z
     .string()
-    .min(32, 'ct0 must be a 32-char hex string')
-    .max(32, 'ct0 must be a 32-char hex string')
-    .regex(/^[a-f0-9]{32}$/i, 'ct0 must be 32 hex chars (0-9, a-f)'),
+    .min(32, 'ct0 must be at least 32 chars')
+    .max(256, 'ct0 is too long (max 256 chars)')
+    .regex(/^[a-f0-9]+$/i, 'ct0 must be hex chars only (0-9, a-f)'),
 });
 
 export const CONNECT_REDDIT_COOKIE_SCHEMA = z.object({
@@ -242,14 +242,14 @@ export const CONNECT_REDDIT_COOKIE_SCHEMA = z.object({
     .min(32, 'csrf_token must be 32 chars')
     .max(32, 'csrf_token must be 32 chars')
     .regex(/^[a-f0-9]{32}$/i, 'csrf_token must be 32 hex chars (0-9, a-f)'),
-  // Optional legacy `token` cookie (improves browser fingerprint, has no scopes alone)
-  token: z
+  // Optional legacy `reddit_session` cookie (improves browser fingerprint, has no scopes alone)
+  redditSession: z
     .string()
-    .min(100, 'token (legacy JWT, optional) looks too short — copy the full value or leave blank')
-    .max(5000, 'token is too long (max 5000 chars)')
+    .min(100, 'reddit_session (legacy JWT, optional) looks too short — copy the full value or leave blank')
+    .max(5000, 'reddit_session is too long (max 5000 chars)')
     .regex(
       /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/,
-      'token (legacy JWT, optional) must have 3 dot-separated parts'
+      'reddit_session (legacy JWT, optional) must have 3 dot-separated parts'
     )
     .optional()
     .or(z.literal('').optional()),

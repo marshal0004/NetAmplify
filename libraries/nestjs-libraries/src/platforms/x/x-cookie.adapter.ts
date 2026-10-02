@@ -250,10 +250,10 @@ export class XCookieAdapter implements PlatformAdapter {
         'auth_token must be a 40-char hex string (copy the cookie value exactly)'
       );
     }
-    if (!/^[a-f0-9]{32}$/i.test(ct0)) {
+    if (!/^[a-f0-9]{32,}$/i.test(ct0)) {
       throw new PublishError(
         'VALIDATION',
-        'ct0 must be a 32-char hex string (copy the cookie value exactly)'
+        'ct0 must be at least 32 hex chars (copy the cookie value exactly)'
       );
     }
 

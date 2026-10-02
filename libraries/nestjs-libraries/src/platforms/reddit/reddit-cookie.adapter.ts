@@ -102,14 +102,16 @@ const REDDIT_USER_AGENT =
  * - `csrfToken`: the `csrf_token` cookie value (32-char hex string).
  *                CSRF protection — sent as both a cookie AND the
  *                `x-CSRF-TOKEN` header (must match).
- * - `token`:     OPTIONAL legacy `token` cookie (JWT, ~500-2000 chars).
+ * - `redditSession`: OPTIONAL legacy `reddit_session` cookie (JWT, ~500-2000 chars).
  *                Sent as a cookie only (improves browser fingerprint).
  *                Has no scopes — cannot post alone.
+ *                Reddit renamed this cookie from `token` to `reddit_session`
+ *                in late 2025. Both names may appear in older sessions.
  */
 export interface RedditCookieCredentials extends AdapterCredentials {
   tokenV2: string;
   csrfToken: string;
-  token?: string;
+  redditSession?: string;
 }
 
 /**
@@ -119,15 +121,15 @@ export interface RedditCookieCredentials extends AdapterCredentials {
  * Sends all available cookies:
  *   - token_v2 (always, primary auth)
  *   - csrf_token (always, CSRF protection)
- *   - token (optional, legacy fallback — improves browser fingerprint)
+ *   - reddit_session (optional, legacy fallback — improves browser fingerprint)
  */
 function buildCookieHeader(creds: RedditCookieCredentials): string {
   const parts: string[] = [
     `token_v2=${creds.tokenV2}`,
     `csrf_token=${creds.csrfToken}`,
   ];
-  if (creds.token) {
-    parts.push(`token=${creds.token}`);
+  if (creds.redditSession) {
+    parts.push(`reddit_session=${creds.redditSession}`);
   }
   return parts.join('; ');
 }
@@ -138,7 +140,7 @@ function buildCookieHeader(creds: RedditCookieCredentials): string {
  * Per Reddit's web app reverse-engineering (verified 2025-09):
  *   - Authorization: Bearer <token_v2 JWT>  (the modern auth cookie)
  *   - x-CSRF-TOKEN: <csrf>                  (must match the csrf_token cookie)
- *   - cookie: token_v2=<JWT>; csrf_token=<csrf>; [token=<JWT>;]
+ *   - cookie: token_v2=<JWT>; csrf_token=<csrf>; [reddit_session=<JWT>;]
  *   - User-Agent: must look like a real browser
  *   - Origin + Referer: https://www.reddit.com (prevents CSRF rejection)
  */
@@ -194,7 +196,7 @@ export class RedditCookieAdapter implements PlatformAdapter {
   ): Promise<{ identity: PlatformIdentity; credentials: RedditCookieCredentials }> {
     const tokenV2 = input.tokenV2;
     const csrfToken = input.csrfToken;
-    const token = input.token; // optional
+    const redditSession = input.redditSession; // optional
 
     if (!tokenV2 || typeof tokenV2 !== 'string') {
       throw new PublishError('VALIDATION', 'token_v2 cookie (JWT) is required');
@@ -226,18 +228,18 @@ export class RedditCookieAdapter implements PlatformAdapter {
       );
     }
 
-    // Optional legacy token — validate format if provided
-    if (token !== undefined && token !== '') {
-      if (typeof token !== 'string' || token.length < 100) {
+    // Optional legacy reddit_session — validate format if provided
+    if (redditSession !== undefined && redditSession !== '') {
+      if (typeof redditSession !== 'string' || redditSession.length < 100) {
         throw new PublishError(
           'VALIDATION',
-          'token (legacy JWT, optional) looks too short — copy the full cookie value or leave blank'
+          'reddit_session (legacy JWT, optional) looks too short — copy the full cookie value or leave blank'
         );
       }
-      if (!/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token)) {
+      if (!/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(redditSession)) {
         throw new PublishError(
           'VALIDATION',
-          'token (legacy JWT, optional) must have 3 dot-separated parts (header.payload.signature)'
+          'reddit_session (legacy JWT, optional) must have 3 dot-separated parts (header.payload.signature)'
         );
       }
     }
@@ -245,7 +247,7 @@ export class RedditCookieAdapter implements PlatformAdapter {
     const creds: RedditCookieCredentials = {
       tokenV2,
       csrfToken,
-      ...(token ? { token } : {}),
+      ...(redditSession ? { redditSession } : {}),
     };
 
     const resp = await fetch(REDDIT_VERIFY_URL, {

@@ -18,7 +18,7 @@ function mockResponse(status: number, body: unknown, headersInit?: Record<string
 }
 
 const VALID_AUTH_TOKEN = 'a'.repeat(40);
-const VALID_CT0 = 'b'.repeat(32);
+const VALID_CT0 = 'b'.repeat(160);
 const VALID_CREDS: XCookieCredentials = {
   authToken: VALID_AUTH_TOKEN,
   ct0: VALID_CT0,

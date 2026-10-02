@@ -28,11 +28,11 @@ const JWT_PAYLOAD_V2 = 'eyJzdWIiOiJ1c2VyIiwiZXhwIjoxNzg5ODc5MDA1LjczMDM4MywiaWF0
 const JWT_SIG_V2 = 'Y6nf4z2MklyAncn5xF8ugmFcE0LVMGZorYnQ4thnBzWy1rAKVMlDRVIxOsTnDl4mbP0hTK1ZbVdRaSYNEitJlMZV-z49GB9yd6j4fbFShgcdUffhM7s4aRFunAusSmTQR4u3Dr83___DH5z5qXdX5uBpViKECO4_grGopztdbBEG9hR9uDOfgwSL8pvYYdtkj_2b_UQl_ZEs2W4bUVvMy7ptcuUf1OxPDRUu35Hg8Ud8UmgsuTaY4DQ--dWyvQNqxLnN6PAnr6idA1Sm8GCmR7b79FLtavQqExyrJwbuSQhDXPmS51akQoA7Y4I5h0g7yik7ToZoRCK8mQObwycbhg';
 const VALID_TOKEN_V2 = `${JWT_HEADER_V2}.${JWT_PAYLOAD_V2}.${JWT_SIG_V2}`;
 
-// Legacy `token` cookie (optional, no scopes)
+// Legacy `reddit_session` cookie (optional, no scopes)
 const JWT_HEADER_LEGACY = 'eyJhbGciOiJSUzI1NiIsImtpZCI6IlNIQTI1NjpsVFdYNlFVUEloWktaRG1rR0pVd1gvdWNFK01BSjBYRE12RU1kNzVxTXQ4IiwidHlwIjoiSldUIn0';
 const JWT_PAYLOAD_LEGACY = 'eyJzdWIiOiJ0Ml8yYm5qOHBubTlhIiwiZXhwIjoxODA1MjA4MjUxLjU3NTk1OSwiaWF0IjoxNzg5NTY5ODUxLjU3NTk1OSwianRpIjoibXdVdXp4MEZIallIY2lVeTFRMzZfZGNwYjlTZU5nIiwiYXQiOjEsImNpZCI6ImNvb2tpZSIsImxjYSI6MTc3NTM1MTQ1NTA0MCwic2NwIjoiZUp3QUFnRDlfMXRkQXdBQkZRQzUiLCJmbG8iOjMsImFtciI6WyJzc28iXX0';
 const JWT_SIG_LEGACY = 'i_sh3PJq3MLXxk7yWrsebpXdGM6Gul2uPyOLw5AfrVZN6340_vTdPWTVkG0sNfmeoaGGxb3xAet9BT2-_U_uXEVB9Cx1pHEm3o35V3gdGAxPcrqoSiiEPM_LDt36GxqUb-LVgCST6wu0Bg4imCP4tz6nlEzdNjaR13DZ6mJ7jPF0Hsh2ZnMe8mu0LEIr-Iq3EwWTsGcJ_xGZdJ7IE-cmUs5tx5tRCrUSuxx9AbEw3UW6a_NJWexEjBA1vZdP96v2I6rtkeQ37nzoN70XQSdI5zwikwTWXNb8qJRR4eLlSlUpnf-6IgPeuiqeJCwrm23cuH8RE7R3XxddeAd-OA-djQ';
-const VALID_TOKEN_LEGACY = `${JWT_HEADER_LEGACY}.${JWT_PAYLOAD_LEGACY}.${JWT_SIG_LEGACY}`;
+const VALID_REDDIT_SESSION = `${JWT_HEADER_LEGACY}.${JWT_PAYLOAD_LEGACY}.${JWT_SIG_LEGACY}`;
 
 const VALID_CSRF = '38347fc606021458b4069a77822832cf';
 
@@ -44,7 +44,7 @@ const VALID_CREDS: RedditCookieCredentials = {
 const VALID_CREDS_WITH_LEGACY: RedditCookieCredentials = {
   tokenV2: VALID_TOKEN_V2,
   csrfToken: VALID_CSRF,
-  token: VALID_TOKEN_LEGACY,
+  redditSession: VALID_REDDIT_SESSION,
 };
 
 describe('RedditCookieAdapter', () => {
@@ -71,7 +71,7 @@ describe('RedditCookieAdapter', () => {
   });
 
   describe('validateCredentials()', () => {
-    it('returns user identity on valid cookies (token_v2 + csrf only, no legacy token)', async () => {
+    it('returns user identity on valid cookies (token_v2 + csrf only, no legacy reddit_session)', async () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
         mockResponse(200, {
           id: 't2_2bnj8pnm9a',
@@ -90,10 +90,10 @@ describe('RedditCookieAdapter', () => {
       expect(result.identity.username).toBe('u/Marshal_The_dev0007');
       expect(result.credentials.tokenV2).toBe(VALID_TOKEN_V2);
       expect(result.credentials.csrfToken).toBe(VALID_CSRF);
-      expect(result.credentials.token).toBeUndefined();
+      expect(result.credentials.redditSession).toBeUndefined();
     });
 
-    it('accepts optional legacy `token` cookie and includes it in the credential blob', async () => {
+    it('accepts optional legacy `reddit_session` cookie and includes it in the credential blob', async () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
         mockResponse(200, { id: 't2_x', name: 'test' })
       ));
@@ -101,10 +101,10 @@ describe('RedditCookieAdapter', () => {
       const result = await adapter.validateCredentials({
         tokenV2: VALID_TOKEN_V2,
         csrfToken: VALID_CSRF,
-        token: VALID_TOKEN_LEGACY,
+        redditSession: VALID_REDDIT_SESSION,
       });
 
-      expect(result.credentials.token).toBe(VALID_TOKEN_LEGACY);
+      expect(result.credentials.redditSession).toBe(VALID_REDDIT_SESSION);
     });
 
     it('throws PublishError(VALIDATION) when token_v2 is missing', async () => {
@@ -152,26 +152,26 @@ describe('RedditCookieAdapter', () => {
       ).rejects.toThrow(PublishError);
     });
 
-    it('throws PublishError(VALIDATION) when optional legacy token is provided but not a valid JWT', async () => {
+    it('throws PublishError(VALIDATION) when optional legacy reddit_session is provided but not a valid JWT', async () => {
       await expect(
         adapter.validateCredentials({
           tokenV2: VALID_TOKEN_V2,
           csrfToken: VALID_CSRF,
-          token: 'not-a-jwt-but-long-enough-' + 'x'.repeat(100),
+          redditSession: 'not-a-jwt-but-long-enough-' + 'x'.repeat(100),
         })
       ).rejects.toThrow(PublishError);
     });
 
-    it('accepts empty string for optional legacy token (treated as not provided)', async () => {
+    it('accepts empty string for optional legacy reddit_session (treated as not provided)', async () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
         mockResponse(200, { id: '1', name: 'test' })
       ));
       const result = await adapter.validateCredentials({
         tokenV2: VALID_TOKEN_V2,
         csrfToken: VALID_CSRF,
-        token: '',
+        redditSession: '',
       });
-      expect(result.credentials.token).toBeUndefined();
+      expect(result.credentials.redditSession).toBeUndefined();
     });
 
     it('throws PublishError(AUTH) on 401 (invalid cookies or blocked IP)', async () => {
@@ -229,7 +229,7 @@ describe('RedditCookieAdapter', () => {
       await adapter.validateCredentials({
         tokenV2: VALID_TOKEN_V2,
         csrfToken: VALID_CSRF,
-        token: VALID_TOKEN_LEGACY,
+        redditSession: VALID_REDDIT_SESSION,
       });
 
       const callArgs = mockFetch.mock.calls[0];
@@ -241,10 +241,10 @@ describe('RedditCookieAdapter', () => {
       // Modern Reddit auth flow: Authorization Bearer uses token_v2 (the one with scopes)
       expect(headers.authorization).toBe(`Bearer ${VALID_TOKEN_V2}`);
       expect(headers['x-csrf-token']).toBe(VALID_CSRF);
-      // All 3 cookies should be present: token_v2, csrf_token, token (legacy)
+      // All 3 cookies should be present: token_v2, csrf_token, reddit_session (legacy)
       expect(headers.cookie).toContain(`token_v2=${VALID_TOKEN_V2}`);
       expect(headers.cookie).toContain(`csrf_token=${VALID_CSRF}`);
-      expect(headers.cookie).toContain(`token=${VALID_TOKEN_LEGACY}`);
+      expect(headers.cookie).toContain(`reddit_session=${VALID_REDDIT_SESSION}`);
       // Browser-like headers
       expect(headers['user-agent']).toMatch(/Mozilla/);
       expect(headers.origin).toBe('https://www.reddit.com');
@@ -264,14 +264,14 @@ describe('RedditCookieAdapter', () => {
 
       const init = mockFetch.mock.calls[0][1] as RequestInit;
       const headers = init.headers as Record<string, string>;
-      // token_v2 + csrf_token present, but no legacy token cookie.
+      // token_v2 + csrf_token present, but no legacy reddit_session cookie.
       // We check for `token=eyJ` (the JWT prefix) specifically to avoid
       // false matches with `csrf_token=` or `token_v2=`.
       expect(headers.cookie).toContain(`token_v2=${VALID_TOKEN_V2}`);
       expect(headers.cookie).toContain(`csrf_token=${VALID_CSRF}`);
-      // The legacy `token=` cookie (followed by a JWT starting with `eyJ`)
+      // The legacy `reddit_session=` cookie (followed by a JWT starting with `eyJ`)
       // should NOT be present.
-      expect(headers.cookie).not.toMatch(/\btoken=eyJ/);
+      expect(headers.cookie).not.toMatch(/\breddit_session=eyJ/);
     });
   });
 
@@ -334,7 +334,7 @@ describe('RedditCookieAdapter', () => {
       expect(params.get('sr')).toBe('programming');
     });
 
-    it('includes legacy token cookie in publish request when provided', async () => {
+    it('includes legacy reddit_session cookie in publish request when provided', async () => {
       const mockFetch = vi.fn().mockResolvedValue(
         mockResponse(200, {
           json: { errors: [], data: { id: '1', name: 't3_1' } },
@@ -351,7 +351,7 @@ describe('RedditCookieAdapter', () => {
       const headers = init.headers as Record<string, string>;
       expect(headers.cookie).toContain(`token_v2=${VALID_TOKEN_V2}`);
       expect(headers.cookie).toContain(`csrf_token=${VALID_CSRF}`);
-      expect(headers.cookie).toContain(`token=${VALID_TOKEN_LEGACY}`);
+      expect(headers.cookie).toContain(`reddit_session=${VALID_REDDIT_SESSION}`);
     });
 
     it('throws PublishError(VALIDATION) when subreddit missing', async () => {

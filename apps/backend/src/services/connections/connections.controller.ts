@@ -340,7 +340,7 @@ function mapCookiesToInput(
       const input: Record<string, string> = {};
       if (cookies.token_v2) input.tokenV2 = cookies.token_v2;
       if (cookies.csrf_token) input.csrfToken = cookies.csrf_token;
-      if (cookies.token) input.token = cookies.token;
+      if (cookies.reddit_session) input.redditSession = cookies.reddit_session;
       return input;
     }
     case 'TWITTER_COOKIE': {
