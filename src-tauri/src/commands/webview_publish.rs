@@ -317,10 +317,14 @@ pub async fn publish_to_reddit_via_webview(
                 const kind = "{kind}";
                 const content = {content_json};
 
-                // Set cookies explicitly IF provided (non-empty).
-                // If empty, rely on the WebView's cookie jar.
+                // Set non-httpOnly cookies explicitly (httpOnly cookies like
+                // token_v2 CANNOT be set via document.cookie — they must
+                // already be in the WebView's cookie jar from the auto-capture
+                // login). Tauri WebViews share a single cookie jar, so the
+                // cookies from the auto-capture window should be available.
                 if (tokenV2) {{
-                    document.cookie = `token_v2=${{tokenV2}}; path=/; domain=.reddit.com; secure`;
+                    // token_v2 is httpOnly — we can't set it via JS.
+                    // We rely on the shared cookie jar from the auto-capture login.
                 }}
                 if (csrfTokenProvided) {{
                     document.cookie = `csrf_token=${{csrfTokenProvided}}; path=/; domain=.reddit.com; secure`;
@@ -344,10 +348,14 @@ pub async fn publish_to_reddit_via_webview(
                     formData.append("text", content);
                 }}
 
+                // Make the request WITHOUT the Authorization header.
+                // The httpOnly token_v2 cookie will be sent automatically
+                // via credentials: "include" (from the shared cookie jar).
+                // Adding the Authorization header without the matching
+                // token_v2 cookie triggers Reddit's WAF (403 Forbidden).
                 const resp = await fetch("https://www.reddit.com/api/submit", {{
                     method: "POST",
                     headers: {{
-                        "authorization": `Bearer ${{tokenV2}}`,
                         "x-csrf-token": csrfToken,
                         "content-type": "application/x-www-form-urlencoded",
                     }},
