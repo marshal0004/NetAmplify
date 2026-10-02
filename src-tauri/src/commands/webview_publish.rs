@@ -363,18 +363,59 @@ pub async fn publish_to_reddit_via_webview(
                     return;
                 }}
 
-                const postId = data.json?.data?.id;
+                // Reddit's /api/submit response shape varies:
+                // Old Reddit: data.json.data.id, data.json.data.name, data.json.data.url
+                // New Reddit: data.json.data.id, data.json.data.name
+                // Sometimes: data.jquery?.[?]..[0]..
+                // Try multiple paths to find the post ID
+                let postId = null;
+                let postName = null;
+                let postUrl = null;
+
+                // Path 1: data.json.data.id (standard)
+                if (data.json?.data?.id) {{
+                    postId = data.json.data.id;
+                    postName = data.json.data.name || postId;
+                    postUrl = data.json.data.url || `https://www.reddit.com/r/${{subreddit}}/comments/${{postId}}/`;
+                }}
+
+                // Path 2: data.jquery response (old format)
+                if (!postId && data.jquery) {{
+                    for (const entry of data.jquery) {{
+                        if (Array.isArray(entry) && entry.length >= 4) {{
+                            const inner = entry[3];
+                            if (Array.isArray(inner) && inner.length > 0) {{
+                                for (const item of inner) {{
+                                    if (item?.data?.id) {{
+                                        postId = item.data.id;
+                                        postName = item.data.name || postId;
+                                        postUrl = item.data.url || `https://www.reddit.com/r/${{subreddit}}/comments/${{postId}}/`;
+                                        break;
+                                    }}
+                                }}
+                            }}
+                        }}
+                        if (postId) break;
+                    }}
+                }}
+
+                // Path 3: Check for redirect URL in the response
+                if (!postId && data.json?.data?.redirect) {{
+                    postUrl = data.json.data.redirect;
+                    const match = postUrl.match(/comments\\/([a-z0-9]+)\\//);
+                    if (match) postId = match[1];
+                }}
+
                 if (!postId) {{
+                    // Log the full response for debugging
+                    const debugJson = JSON.stringify(data).substring(0, 500);
                     window.location.href = "http://publish-callback?error=" +
-                        encodeURIComponent("Reddit returned success but no post ID");
+                        encodeURIComponent("No post ID found. Response: " + debugJson);
                     return;
                 }}
 
-                const postName = data.json?.data?.name || postId;
-                const postUrl = `https://www.reddit.com/r/${{subreddit}}/comments/${{postId}}/`;
-
                 window.location.href = "http://publish-callback?success=true&id=" +
-                    encodeURIComponent(postName) + "&url=" + encodeURIComponent(postUrl);
+                    encodeURIComponent(postName || postId) + "&url=" + encodeURIComponent(postUrl || "");
             }} catch (e) {{
                 window.location.href = "http://publish-callback?error=" +
                     encodeURIComponent(e.message || String(e));
