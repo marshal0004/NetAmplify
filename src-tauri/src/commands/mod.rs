@@ -13,6 +13,7 @@ pub mod cookie_capture;
 pub mod cookie_refresh;
 pub mod backend_proxy;
 pub mod sidecar;
+pub mod webview_publish;
 
 /// The result of a successful cookie capture operation.
 /// Returned to the frontend as JSON, then proxied to the NestJS backend.

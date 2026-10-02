@@ -266,3 +266,84 @@ export async function captureAndConnect(
 
   return connection;
 }
+
+/// Type representing the formatted post content for WebView publishing.
+/// Must match the FormattedPost struct in webview_publish.rs.
+export interface WebViewFormattedPost {
+  title: string;
+  body: string;
+  url?: string;
+  hashtags?: string[];
+  options?: Record<string, unknown>;
+}
+
+/// Type representing the result of a WebView publish operation.
+export interface WebViewPublishResult {
+  id: string;
+  url: string;
+  success: boolean;
+  error?: string;
+}
+
+/**
+ * Publish to X (Twitter) via the Tauri WebView.
+ *
+ * This is the KEY FIX for the TLS fingerprint problem. Instead of making
+ * the HTTP request from the Node.js backend (which uses OpenSSL and gets
+ * detected as a bot), this command makes the request from inside a
+ * hidden Tauri WebView window. The WebView uses WebKitGTK (on Linux),
+ * which has a real browser TLS fingerprint — so X accepts the request.
+ *
+ * This is the same approach Postiz's Chrome extension uses.
+ *
+ * @param cookies — the captured X cookies (auth_token + ct0)
+ * @param formatted — the formatted post content from the Format Engine
+ * @param jwtToken — the user's NetAmplify JWT (for updating PostTarget status)
+ * @param postTargetId — the PostTarget ID (so the backend can update the status)
+ * @returns the publish result (success/failure + URL)
+ */
+export async function publishToXViaWebview(
+  cookies: Record<string, string>,
+  formatted: WebViewFormattedPost,
+  jwtToken: string,
+  postTargetId: string
+): Promise<WebViewPublishResult> {
+  return invokeTauri<WebViewPublishResult>('publish_to_x_via_webview', {
+    request: {
+      platform: 'TWITTER_COOKIE',
+      cookies,
+      formatted,
+      jwtToken,
+      postTargetId,
+    },
+  });
+}
+
+/**
+ * Publish to Reddit via the Tauri WebView.
+ *
+ * Same approach as publishToXViaWebview — makes the request from inside
+ * a hidden WebView window so Reddit sees WebKitGTK's TLS fingerprint.
+ *
+ * @param cookies — the captured Reddit cookies (token_v2 + csrf_token + reddit_session)
+ * @param formatted — the formatted post content from the Format Engine
+ * @param jwtToken — the user's NetAmplify JWT
+ * @param postTargetId — the PostTarget ID
+ * @returns the publish result (success/failure + URL)
+ */
+export async function publishToRedditViaWebview(
+  cookies: Record<string, string>,
+  formatted: WebViewFormattedPost,
+  jwtToken: string,
+  postTargetId: string
+): Promise<WebViewPublishResult> {
+  return invokeTauri<WebViewPublishResult>('publish_to_reddit_via_webview', {
+    request: {
+      platform: 'REDDIT_COOKIE',
+      cookies,
+      formatted,
+      jwtToken,
+      postTargetId,
+    },
+  });
+}
