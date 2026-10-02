@@ -223,14 +223,11 @@ pub async fn capture_cookies_generic(
             let mut cookie_map: HashMap<String, String> = HashMap::new();
             for cookie in &cookies {
                 // Only capture cookies for the platform's domain (not third-party tracking cookies).
+                // cookie.domain() returns Option<&str>, so we use map().unwrap_or(false)
+                let domain = cookie.domain().unwrap_or("");
                 let is_platform_domain = match platform {
-                    "REDDIT_COOKIE" => {
-                        cookie.domain().contains("reddit.com")
-                    }
-                    "TWITTER_COOKIE" => {
-                        cookie.domain().contains("twitter.com")
-                            || cookie.domain().contains("x.com")
-                    }
+                    "REDDIT_COOKIE" => domain.contains("reddit.com"),
+                    "TWITTER_COOKIE" => domain.contains("twitter.com") || domain.contains("x.com"),
                     _ => true,
                 };
 
