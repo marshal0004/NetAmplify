@@ -295,7 +295,10 @@ export function ConnectChecklist() {
         setPublishResult({ [platform]: `❌ Failed: ${result.error || 'Unknown error'}` });
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Test publish failed.';
+      const message = err instanceof Error ? err.message :
+        (typeof err === 'object' && err !== null && 'message' in err) ? String((err as { message: unknown }).message) :
+        typeof err === 'string' ? err :
+        'Test publish failed (check terminal for details).';
       setPublishResult({ [platform]: `❌ Error: ${message}` });
     } finally {
       setPublishingPlatform(null);
