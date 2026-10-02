@@ -292,14 +292,18 @@ export const connectionsApi = {
   },
 
   async connect(platform: string, data: Record<string, string>): Promise<{ id: string; username: string }> {
-    return request(`/connections/${platform}`, {
+    // Convert platform enum to URL path: TWITTER_COOKIE → twitter-cookie
+    // (backend routes use dashes: @Post('twitter-cookie'))
+    const urlPath = platform.toLowerCase().replace(/_/g, '-');
+    return request(`/connections/${urlPath}`, {
       method: 'POST',
       body: JSON.stringify(data),
     }, z.object({ id: z.string(), username: z.string() }));
   },
 
   async disconnect(platform: string): Promise<void> {
-    return request(`/connections/${platform}`, { method: 'DELETE' });
+    const urlPath = platform.toLowerCase().replace(/_/g, '-');
+    return request(`/connections/${urlPath}`, { method: 'DELETE' });
   },
 
   /** OAuth start — returns the platform authorize URL (full-page redirect) */
