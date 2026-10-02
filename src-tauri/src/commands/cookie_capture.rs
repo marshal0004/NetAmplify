@@ -186,7 +186,8 @@ pub async fn capture_cookies_generic(
 
     loop {
         // Check if the window was closed by the user (cancellation).
-        if login_window.is_closed() {
+        // Tauri 2.0: get_webview_window returns None if the window was closed.
+        if app.get_webview_window(window_label).is_none() {
             log::info!("{} login window closed by user — cancelling capture", platform);
             return Err(CookieCaptureError {
                 code: "USER_CANCELLED".to_string(),
@@ -205,9 +206,8 @@ pub async fn capture_cookies_generic(
         }
 
         // Read the cookie jar from the WebView.
-        // WebviewWindow::cookies() returns ALL cookies including httpOnly.
+        // Tauri 2.0: cookies() returns Result directly (not async).
         let cookies = login_window.cookies()
-            .await
             .map_err(|e| CookieCaptureError {
                 code: "TAURI_ERROR".to_string(),
                 message: format!("Failed to read cookies from login window: {}", e),

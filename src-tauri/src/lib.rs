@@ -17,7 +17,6 @@ use commands::{
     backend_proxy::{proxy_cookie_connection, get_backend_health},
     sidecar::{start_backend_sidecar, stop_backend_sidecar},
 };
-use tauri::Manager;
 
 /// The local NestJS backend port. Must match `apps/backend/src/main.ts`.
 const BACKEND_PORT: u16 = 3000;
