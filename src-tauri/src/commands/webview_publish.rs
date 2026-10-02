@@ -1,48 +1,54 @@
 // /home/z/my-project/netamplify-app/src-tauri/src/commands/webview_publish.rs
 // NetAmplify — Tauri command for publishing to X/Reddit via WebView.
 //
-// This is the KEY FIX for the TLS fingerprint problem. Instead of making
-// the HTTP request from the Node.js backend (which uses OpenSSL and gets
-// detected as a bot by X/Reddit), we make the request from inside a
-// hidden Tauri WebView window.
+// THE TLS FINGERPRINT BYPASS: Instead of making the HTTP request from
+// Node.js (OpenSSL → detected as bot), we open a hidden Tauri WebView
+// on the platform's domain, inject JavaScript that calls fetch() to
+// the platform's API (same-origin → no CORS), and capture the result
+// via Tauri 2.0's on_navigation() callback.
 //
-// The WebView uses WebKitGTK (on Linux), which has a real browser TLS
-// fingerprint (BoringSSL-equivalent). X/Reddit see it as a real browser
-// request, not a bot.
+// Architecture (Tauri 2.0 event-based pattern):
+//   1. Rust opens a hidden WebView on https://x.com/home (or reddit.com)
+//   2. The WebView shares the cookie jar from the previous auto-capture
+//      login — so auth_token/ct0/token_v2/csrf_token are already present
+//   3. Rust injects JavaScript via window.eval(js_code)
+//   4. The JS calls fetch() to X's GraphQL / Reddit's /api/submit endpoint
+//      (same-origin → cookies sent automatically → no CORS issue)
+//   5. When the JS gets the result, it navigates to a custom URL:
+//      http://publish-callback?success=true&id=123&url=https://...
+//   6. Rust's on_navigation() handler intercepts this URL, parses the
+//      query parameters, sends the result through a oneshot channel,
+//      and cancels the navigation (returns false)
+//   7. The async command resolves with the result + returns it to the frontend
 //
-// Flow:
-//   1. Frontend calls `publish_via_webview` with the platform + cookies + post content
-//   2. Tauri opens a hidden WebView window
-//   3. We inject JavaScript that makes the fetch() request to X/Reddit
-//   4. The fetch() runs inside the WebView (real browser TLS fingerprint)
-//   5. We capture the response and return it to the frontend
-//   6. Frontend shows the result in the UI
-//
-// This is the same approach Postiz's Chrome extension uses — the request
-// is made from inside a real browser engine, not from Node.js.
+// Why on_navigation() instead of eval() return value:
+//   In Tauri 2.0, WebviewWindow::eval() returns Result<()> (unit type),
+//   not the JS evaluation result. To get data back from the WebView, we
+//   use the navigation interception pattern: the JS navigates to a
+//   custom URL with the result encoded as query parameters, and Rust
+//   catches it via on_navigation().
 
-use crate::commands::{CookieCaptureError, backend_url};
+use crate::commands::CookieCaptureError;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use tauri::{AppHandle, WebviewUrl, WebviewWindowBuilder};
+use tokio::sync::oneshot;
+use url::Url;
 
 /// The request payload for publishing via WebView.
-/// Sent from the frontend to the Tauri command.
 #[derive(Debug, Clone, Deserialize)]
 pub struct WebViewPublishRequest {
-    /// The platform: "TWITTER_COOKIE" or "REDDIT_COOKIE"
     pub platform: String,
-    /// The captured cookies (name → value)
     pub cookies: HashMap<String, String>,
-    /// The formatted post content (from the Format Engine)
     pub formatted: FormattedPost,
-    /// The user's NetAmplify JWT (for updating the PostTarget status)
+    #[allow(dead_code)]
     pub jwt_token: String,
-    /// The PostTarget ID (so the backend can update the status)
+    #[allow(dead_code)]
     pub post_target_id: String,
 }
 
 /// The formatted post content from the Format Engine.
-/// Matches the FormattedPost interface in the backend.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct FormattedPost {
     pub title: String,
@@ -52,32 +58,42 @@ pub struct FormattedPost {
     pub options: Option<HashMap<String, serde_json::Value>>,
 }
 
-/// The result of a successful publish via WebView.
+/// The result of a publish via WebView.
 #[derive(Debug, Clone, Serialize)]
 pub struct WebViewPublishResult {
-    /// The platform-side post ID
     pub id: String,
-    /// The public URL of the published post
     pub url: String,
-    /// Whether the publish succeeded
     pub success: bool,
-    /// Error message if success=false
     pub error: Option<String>,
 }
 
+/// The X (Twitter) public Bearer token (shipped in x.com's main.js bundle).
+/// This is a PUBLIC value — not a secret. Every browser visiting x.com uses it.
+const X_WEB_BEARER_TOKEN: &str =
+    "AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuAhw6TZR0YwqHvQ%3D\
+     JqGisW7eT0YmZKb1iVpPu5pFgCqVQUO5WnLhQaLvO4";
+
+/// Timeout for the publish operation (30 seconds).
+const PUBLISH_TIMEOUT_SECS: u64 = 30;
+
+/// Wait time for the page to load before injecting JS (3 seconds).
+const PAGE_LOAD_WAIT_MS: u64 = 3000;
+
 /// Publish to X (Twitter) via a hidden WebView window.
 ///
-/// This command:
-///   1. Opens a hidden Tauri WebView window to x.com
-///   2. Injects JavaScript that calls fetch() to the CreateTweet GraphQL endpoint
-///   3. The fetch() runs inside the WebView (WebKitGTK TLS fingerprint)
-///   4. Captures the response and returns it
+/// This command bypasses the TLS fingerprint check by making the HTTP
+/// request from inside a WebKitGTK WebView (real browser TLS fingerprint).
 ///
-/// The key insight: WebKitGTK's TLS fingerprint matches what X expects,
-/// so X accepts the request. Node.js's OpenSSL fingerprint gets rejected.
+/// Flow:
+///   1. Opens a hidden WebView on https://x.com/home
+///   2. Sets the auth_token + ct0 cookies via document.cookie
+///   3. Injects JS that calls fetch() to X's CreateTweet GraphQL endpoint
+///   4. The JS navigates to http://publish-callback?result=<JSON>
+///   5. Rust's on_navigation() handler catches this, parses the result
+///   6. Returns the result to the frontend
 #[tauri::command]
 pub async fn publish_to_x_via_webview(
-    app: tauri::AppHandle,
+    app: AppHandle,
     request: WebViewPublishRequest,
 ) -> Result<WebViewPublishResult, CookieCaptureError> {
     log::info!("Publishing to X via WebView (TLS fingerprint bypass)...");
@@ -93,7 +109,7 @@ pub async fn publish_to_x_via_webview(
             message: "ct0 cookie is required for X publishing".to_string(),
         })?;
 
-    // Build the tweet text
+    // Build the tweet text (same logic as the backend adapter)
     let tags_line = if let Some(hashtags) = &request.formatted.hashtags {
         if !hashtags.is_empty() {
             format!("\n{}", hashtags.iter().map(|t| format!("#{}", t)).collect::<Vec<_>>().join(" "))
@@ -108,6 +124,14 @@ pub async fn publish_to_x_via_webview(
         .unwrap_or_default();
     let tweet_text = format!("{}{}{}", request.formatted.body, url_line, tags_line);
 
+    if tweet_text.is_empty() {
+        return Ok(WebViewPublishResult {
+            id: String::new(),
+            url: String::new(),
+            success: false,
+            error: Some("Tweet text is empty".to_string()),
+        });
+    }
     if tweet_text.len() > 280 {
         return Ok(WebViewPublishResult {
             id: String::new(),
@@ -117,116 +141,140 @@ pub async fn publish_to_x_via_webview(
         });
     }
 
-    // The JavaScript to execute inside the WebView.
-    // This makes the fetch() request to X's CreateTweet GraphQL endpoint.
+    // Build the JavaScript to execute inside the WebView.
+    // The JS makes a fetch() to X's CreateTweet GraphQL endpoint (same-origin
+    // on x.com → cookies sent automatically → no CORS). When done, it
+    // navigates to http://publish-callback?result=<base64-encoded-JSON>
+    // which Rust intercepts via on_navigation().
     let js_code = format!(
         r#"
         (async () => {{
-            const authToken = "{auth_token}";
-            const ct0 = "{ct0}";
-            const tweetText = {tweet_text_json};
+            try {{
+                const authToken = {auth_token_json};
+                const ct0 = {ct0_json};
+                const tweetText = {tweet_text_json};
+                const bearer = {bearer_json};
 
-            // The public Bearer token X ships in their main.js bundle
-            const bearer = "AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuAhw6TZR0YwqHvQ%3DJqGisW7eT0YmZKb1iVpPu5pFgCqVQUO5WnLhQaLvO4";
+                // Set cookies explicitly (in case the WebView's cookie jar
+                // doesn't have them from a previous session)
+                document.cookie = `auth_token=${{authToken}}; path=/; domain=.x.com; secure`;
+                document.cookie = `ct0=${{ct0}}; path=/; domain=.x.com; secure`;
 
-            // First, fetch the queryId from x.com's main.js bundle
-            const homeResp = await fetch("https://x.com/", {{
-                headers: {{
-                    "user-agent": navigator.userAgent,
+                // Fetch the CreateTweet queryId from x.com's main.js bundle.
+                // X rotates this with each web release (~weekly).
+                const homeResp = await fetch("https://x.com/", {{
+                    headers: {{ "user-agent": navigator.userAgent }}
+                }});
+                const homeHtml = await homeResp.text();
+                const mainJsMatch = homeHtml.match(
+                    /https:\/\/abs\.twimg\.com\/responsive-web\/client-web\/main\.[a-z0-9]+\.js/
+                );
+                if (!mainJsMatch) {{
+                    window.location.href = "http://publish-callback?error=" +
+                        encodeURIComponent("Could not find main.js URL in x.com homepage");
+                    return;
                 }}
-            }});
-            const homeHtml = await homeResp.text();
-            const mainJsMatch = homeHtml.match(/https:\\/\\/abs\\.twimg\\.com\\/responsive-web\\/client-web\\/main\\.[a-z0-9]+\\.js/);
-            if (!mainJsMatch) {{
-                return {{ success: false, error: "Could not find main.js URL in x.com homepage" }};
-            }}
 
-            const jsResp = await fetch(mainJsMatch[0]);
-            const jsBody = await jsResp.text();
-            const queryIdMatch = jsBody.match(/queryId:"([A-Za-z0-9_-]+)".*?operationName:"CreateTweet"/);
-            if (!queryIdMatch) {{
-                return {{ success: false, error: "Could not find CreateTweet queryId in main.js" }};
-            }}
-            const queryId = queryIdMatch[1];
+                const jsResp = await fetch(mainJsMatch[0]);
+                const jsBody = await jsResp.text();
+                const queryIdMatch = jsBody.match(
+                    /queryId:"([A-Za-z0-9_-]+)".*?operationName:"CreateTweet"/
+                );
+                if (!queryIdMatch) {{
+                    window.location.href = "http://publish-callback?error=" +
+                        encodeURIComponent("Could not find CreateTweet queryId in main.js");
+                    return;
+                }}
+                const queryId = queryIdMatch[1];
 
-            // Now make the CreateTweet request
-            const endpoint = `https://x.com/i/api/graphql/${{queryId}}/CreateTweet`;
-            const payload = {{
-                variables: {{
-                    tweet_text: tweetText,
-                    dark_request: false,
-                    media: {{ media_entities: [], possibly_sensitive: false }},
-                    semantic_annotation_ids: [],
-                }},
-                features: {{
-                    communities_web_enable_tweet_community_results_fetch: true,
-                    c9s_tweet_anatomy_moderator_badge_enabled: true,
-                    tweetypie_unmention_optimization_enabled: true,
-                    responsive_web_edit_tweet_api_enabled: true,
-                    graphql_is_translatable_rweb_tweet_is_translatable_enabled: true,
-                    view_counts_everywhere_api_enabled: true,
-                    longform_notetweets_consumption_enabled: true,
-                    responsive_web_twitter_article_tweet_consumption_enabled: true,
-                    creator_subscriptions_quote_tweet_enabled: true,
-                    longform_notetweets_rich_text_read_enabled: true,
-                    longform_notetweets_inline_media_enabled: true,
-                    rweb_video_timestamps_enabled: true,
-                    rweb_tipjar_consumption_enabled: true,
-                    responsive_web_graphql_exclude_directive_enabled: true,
-                    verified_phone_label_enabled: false,
-                    responsive_web_graphql_timeline_navigation_enabled: true,
-                    responsive_web_enhance_cards_enabled: false,
-                }},
-            }};
+                // Make the CreateTweet request (same-origin → cookies sent automatically)
+                const endpoint = `https://x.com/i/api/graphql/${{queryId}}/CreateTweet`;
+                const payload = {{
+                    variables: {{
+                        tweet_text: tweetText,
+                        dark_request: false,
+                        media: {{ media_entities: [], possibly_sensitive: false }},
+                        semantic_annotation_ids: [],
+                    }},
+                    features: {{
+                        communities_web_enable_tweet_community_results_fetch: true,
+                        c9s_tweet_anatomy_moderator_badge_enabled: true,
+                        tweetypie_unmention_optimization_enabled: true,
+                        responsive_web_edit_tweet_api_enabled: true,
+                        graphql_is_translatable_rweb_tweet_is_translatable_enabled: true,
+                        view_counts_everywhere_api_enabled: true,
+                        longform_notetweets_consumption_enabled: true,
+                        responsive_web_twitter_article_tweet_consumption_enabled: true,
+                        creator_subscriptions_quote_tweet_enabled: true,
+                        longform_notetweets_rich_text_read_enabled: true,
+                        longform_notetweets_inline_media_enabled: true,
+                        rweb_video_timestamps_enabled: true,
+                        rweb_tipjar_consumption_enabled: true,
+                        responsive_web_graphql_exclude_directive_enabled: true,
+                        verified_phone_label_enabled: false,
+                        responsive_web_graphql_timeline_navigation_enabled: true,
+                        responsive_web_enhance_cards_enabled: false,
+                    }},
+                }};
 
-            const resp = await fetch(endpoint, {{
-                method: "POST",
-                headers: {{
-                    "authorization": `Bearer ${{bearer}}`,
-                    "cookie": `auth_token=${{authToken}}; ct0=${{ct0}}`,
-                    "x-csrf-token": ct0,
-                    "x-twitter-auth-type": "OAuth2Session",
-                    "x-twitter-active-user": "yes",
-                    "content-type": "application/json",
-                }},
-                body: JSON.stringify(payload),
-            }});
+                const resp = await fetch(endpoint, {{
+                    method: "POST",
+                    headers: {{
+                        "authorization": `Bearer ${{bearer}}`,
+                        "x-csrf-token": ct0,
+                        "x-twitter-auth-type": "OAuth2Session",
+                        "x-twitter-active-user": "yes",
+                        "content-type": "application/json",
+                    }},
+                    body: JSON.stringify(payload),
+                    credentials: "include",
+                }});
 
-            const data = await resp.json();
-            if (data.errors && data.errors.length > 0) {{
-                return {{ success: false, error: data.errors[0].message }};
+                const data = await resp.json();
+
+                if (data.errors && data.errors.length > 0) {{
+                    window.location.href = "http://publish-callback?error=" +
+                        encodeURIComponent(data.errors[0].message);
+                    return;
+                }}
+
+                const tweetId = data.data?.create_tweet?.tweet_results?.result?.rest_id;
+                if (!tweetId) {{
+                    window.location.href = "http://publish-callback?error=" +
+                        encodeURIComponent("X returned success but no tweet ID");
+                    return;
+                }}
+
+                const screenName = data.data?.create_tweet?.tweet_results?.result
+                    ?.core?.user_results?.result?.legacy?.screen_name || "i";
+                const tweetUrl = `https://x.com/${{screenName}}/status/${{tweetId}}`;
+
+                window.location.href = "http://publish-callback?success=true&id=" +
+                    encodeURIComponent(tweetId) + "&url=" + encodeURIComponent(tweetUrl);
+            }} catch (e) {{
+                window.location.href = "http://publish-callback?error=" +
+                    encodeURIComponent(e.message || String(e));
             }}
-            const tweetId = data.data?.create_tweet?.tweet_results?.result?.rest_id;
-            if (!tweetId) {{
-                return {{ success: false, error: "X returned success but no tweet ID" }};
-            }}
-            const screenName = data.data?.create_tweet?.tweet_results?.result?.core?.user_results?.result?.legacy?.screen_name || "i";
-            return {{
-                success: true,
-                id: tweetId,
-                url: `https://x.com/${{screenName}}/status/${{tweetId}}`,
-            }};
-        }})().catch(e => ({{ success: false, error: e.message }}));
+        }})();
         "#,
-        auth_token = auth_token,
-        ct0 = ct0,
+        auth_token_json = serde_json::to_string(auth_token).unwrap_or_else(|_| "\"\"".to_string()),
+        ct0_json = serde_json::to_string(ct0).unwrap_or_else(|_| "\"\"".to_string()),
         tweet_text_json = serde_json::to_string(&tweet_text).unwrap_or_else(|_| "\"\"".to_string()),
+        bearer_json = serde_json::to_string(X_WEB_BEARER_TOKEN).unwrap_or_else(|_| "\"\"".to_string()),
     );
 
-    // Execute the JavaScript in a hidden WebView
-    let result = execute_js_in_webview(&app, "https://x.com/home", &js_code, "x-publish").await?;
-
-    log::info!("X publish via WebView result: {:?}", result);
-    Ok(result)
+    execute_js_in_hidden_webview(
+        &app,
+        "https://x.com/home",
+        &js_code,
+        "x-publish",
+    ).await
 }
 
 /// Publish to Reddit via a hidden WebView window.
-///
-/// Same approach as X — makes the fetch() request from inside the WebView
-/// so Reddit sees WebKitGTK's TLS fingerprint (not Node.js's OpenSSL).
 #[tauri::command]
 pub async fn publish_to_reddit_via_webview(
-    app: tauri::AppHandle,
+    app: AppHandle,
     request: WebViewPublishRequest,
 ) -> Result<WebViewPublishResult, CookieCaptureError> {
     log::info!("Publishing to Reddit via WebView (TLS fingerprint bypass)...");
@@ -249,157 +297,219 @@ pub async fn publish_to_reddit_via_webview(
         .replace("r/", "");
 
     let is_link_post = request.formatted.url.is_some();
-    let url_or_text = if is_link_post {
+    let content = if is_link_post {
         request.formatted.url.clone().unwrap_or_default()
     } else {
         request.formatted.body.clone()
     };
 
-    // The JavaScript to execute inside the WebView
+    let reddit_session = request.cookies.get("reddit_session").cloned().unwrap_or_default();
+
     let js_code = format!(
         r#"
         (async () => {{
-            const tokenV2 = {token_v2_json};
-            const csrfToken = "{csrf_token}";
-            const subreddit = "{subreddit}";
-            const title = {title_json};
-            const kind = "{kind}";
-            const content = {content_json};
+            try {{
+                const tokenV2 = {token_v2_json};
+                const csrfToken = "{csrf_token}";
+                const redditSession = {reddit_session_json};
+                const subreddit = "{subreddit}";
+                const title = {title_json};
+                const kind = "{kind}";
+                const content = {content_json};
 
-            const formData = new URLSearchParams();
-            formData.append("api_type", "json");
-            formData.append("sr", subreddit);
-            formData.append("title", title);
-            formData.append("kind", kind);
-            if (kind === "link") {{
-                formData.append("url", content);
-            }} else {{
-                formData.append("text", content);
-            }}
+                // Set cookies explicitly
+                document.cookie = `token_v2=${{tokenV2}}; path=/; domain=.reddit.com; secure`;
+                document.cookie = `csrf_token=${{csrfToken}}; path=/; domain=.reddit.com; secure`;
+                if (redditSession) {{
+                    document.cookie = `reddit_session=${{redditSession}}; path=/; domain=.reddit.com; secure`;
+                }}
 
-            const resp = await fetch("https://www.reddit.com/api/submit", {{
-                method: "POST",
-                headers: {{
-                    "authorization": `Bearer ${{tokenV2}}`,
-                    "x-csrf-token": csrfToken,
-                    "cookie": `token_v2=${{tokenV2}}; csrf_token=${{csrfToken}}`,
-                    "content-type": "application/x-www-form-urlencoded",
-                }},
-                body: formData.toString(),
-            }});
+                const formData = new URLSearchParams();
+                formData.append("api_type", "json");
+                formData.append("sr", subreddit);
+                formData.append("title", title);
+                formData.append("kind", kind);
+                if (kind === "link") {{
+                    formData.append("url", content);
+                }} else {{
+                    formData.append("text", content);
+                }}
 
-            const data = await resp.json();
-            if (data.json?.errors && data.json.errors.length > 0) {{
-                return {{ success: false, error: data.json.errors[0][1] }};
+                const resp = await fetch("https://www.reddit.com/api/submit", {{
+                    method: "POST",
+                    headers: {{
+                        "authorization": `Bearer ${{tokenV2}}`,
+                        "x-csrf-token": csrfToken,
+                        "content-type": "application/x-www-form-urlencoded",
+                    }},
+                    body: formData.toString(),
+                    credentials: "include",
+                }});
+
+                const data = await resp.json();
+
+                if (data.json?.errors && data.json.errors.length > 0) {{
+                    window.location.href = "http://publish-callback?error=" +
+                        encodeURIComponent(data.json.errors[0][1] || "Reddit rejected the post");
+                    return;
+                }}
+
+                const postId = data.json?.data?.id;
+                if (!postId) {{
+                    window.location.href = "http://publish-callback?error=" +
+                        encodeURIComponent("Reddit returned success but no post ID");
+                    return;
+                }}
+
+                const postName = data.json?.data?.name || postId;
+                const postUrl = `https://www.reddit.com/r/${{subreddit}}/comments/${{postId}}/`;
+
+                window.location.href = "http://publish-callback?success=true&id=" +
+                    encodeURIComponent(postName) + "&url=" + encodeURIComponent(postUrl);
+            }} catch (e) {{
+                window.location.href = "http://publish-callback?error=" +
+                    encodeURIComponent(e.message || String(e));
             }}
-            const postId = data.json?.data?.id;
-            if (!postId) {{
-                return {{ success: false, error: "Reddit returned success but no post ID" }};
-            }}
-            return {{
-                success: true,
-                id: data.json?.data?.name || postId,
-                url: `https://www.reddit.com/r/${{subreddit}}/comments/${{postId}}/`,
-            }};
-        }})().catch(e => ({{ success: false, error: e.message }}));
+        }})();
         "#,
         token_v2_json = serde_json::to_string(token_v2).unwrap_or_else(|_| "\"\"".to_string()),
         csrf_token = csrf_token,
+        reddit_session_json = serde_json::to_string(&reddit_session).unwrap_or_else(|_| "\"\"".to_string()),
         subreddit = subreddit,
         title_json = serde_json::to_string(&request.formatted.title).unwrap_or_else(|_| "\"\"".to_string()),
         kind = if is_link_post { "link" } else { "self" },
-        content_json = serde_json::to_string(&url_or_text).unwrap_or_else(|_| "\"\"".to_string()),
+        content_json = serde_json::to_string(&content).unwrap_or_else(|_| "\"\"".to_string()),
     );
 
-    let result = execute_js_in_webview(&app, "https://www.reddit.com/", &js_code, "reddit-publish").await?;
-
-    log::info!("Reddit publish via WebView result: {:?}", result);
-    Ok(result)
+    execute_js_in_hidden_webview(
+        &app,
+        "https://www.reddit.com/",
+        &js_code,
+        "reddit-publish",
+    ).await
 }
 
-/// Execute JavaScript in a hidden WebView window and return the result.
+/// Execute JavaScript in a hidden WebView and capture the result via
+/// Tauri 2.0's on_navigation() callback.
 ///
 /// This is the core function that makes the TLS fingerprint bypass work.
-/// We open a hidden WebView, navigate to the platform's URL, then inject
-/// JavaScript that makes the fetch() request. The fetch() runs inside
-/// the WebView's browser engine (WebKitGTK), which has a real browser
-/// TLS fingerprint.
-async fn execute_js_in_webview(
-    app: &tauri::AppHandle,
+/// We open a hidden WebView on the platform's domain, inject JavaScript
+/// that makes the fetch() request (same-origin → no CORS), and capture
+/// the result when the JS navigates to http://publish-callback?...
+///
+/// The on_navigation() handler:
+///   - Intercepts any navigation to http://publish-callback?...
+///   - Parses the query parameters (success, id, url, error)
+///   - Sends the result through a oneshot channel
+///   - Returns false (cancels the navigation)
+///   - All other navigations are allowed (returns true)
+async fn execute_js_in_hidden_webview(
+    app: &AppHandle,
     url: &str,
     js_code: &str,
     window_label: &str,
 ) -> Result<WebViewPublishResult, CookieCaptureError> {
-    use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
-
     // Close any existing window with this label
     if let Some(existing) = app.get_webview_window(window_label) {
         let _ = existing.close();
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
     }
 
-    let webview_url: WebviewUrl = url.parse()
-        .map_err(|e| CookieCaptureError {
-            code: "TAURI_ERROR".to_string(),
-            message: format!("Invalid URL: {}", e),
-        })?;
+    // Create a oneshot channel to receive the result from the
+    // on_navigation callback. The channel sender is wrapped in
+    // Arc<Mutex<Option<...>>> so the closure can take ownership
+    // and send the result when the navigation occurs.
+    let (tx, rx) = oneshot::channel::<WebViewPublishResult>();
+    let tx = Arc::new(Mutex::new(Some(tx)));
 
-    let window = WebviewWindowBuilder::new(app, window_label, webview_url)
+    // Parse the target URL
+    let parsed_url = Url::parse(url).map_err(|e| CookieCaptureError {
+        code: "TAURI_ERROR".to_string(),
+        message: format!("Invalid URL: {}", e),
+    })?;
+
+    // Build the hidden WebView with a navigation handler.
+    // The handler intercepts navigations to http://publish-callback?...
+    // and extracts the result from the query parameters.
+    let tx_clone = tx.clone();
+    let window = WebviewWindowBuilder::new(app, window_label, WebviewUrl::External(parsed_url))
         .title("NetAmplify — Publishing...")
         .inner_size(1.0, 1.0)
-        .visible(false)  // Hidden window
+        .visible(false)
+        .on_navigation(move |nav_url: &Url| {
+            // Check if this is our callback URL
+            if nav_url.host_str() == Some("publish-callback") {
+                // Parse the query parameters
+                let query: std::collections::HashMap<String, String> =
+                    nav_url.query_pairs()
+                        .map(|(k, v)| (k.to_string(), v.to_string()))
+                        .collect();
+
+                let success = query.get("success").map(|s| s == "true").unwrap_or(false);
+                let id = query.get("id").cloned().unwrap_or_default();
+                let url = query.get("url").cloned().unwrap_or_default();
+                let error = query.get("error").cloned();
+
+                let result = WebViewPublishResult {
+                    id,
+                    url,
+                    success,
+                    error,
+                };
+
+                // Send the result through the channel
+                if let Some(sender) = tx_clone.lock().unwrap().take() {
+                    let _ = sender.send(result);
+                }
+
+                // Cancel the navigation (return false) so the WebView
+                // doesn't actually navigate to the invalid callback URL
+                return false;
+            }
+            // Allow all other navigations (page loads, redirects, etc.)
+            true
+        })
         .build()
         .map_err(|e| CookieCaptureError {
             code: "TAURI_ERROR".to_string(),
             message: format!("Failed to create WebView window: {}", e),
         })?;
 
-    // Wait for the page to load
-    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+    log::info!("Opened hidden WebView on {} for publishing", url);
 
-    // Execute the JavaScript and capture the result
-    let result: serde_json::Value = window.eval(js_code)
+    // Wait for the page to load before injecting JS.
+    // 3 seconds is enough for most pages to fully load.
+    tokio::time::sleep(std::time::Duration::from_millis(PAGE_LOAD_WAIT_MS)).await;
+
+    // Inject the JavaScript that makes the fetch() request.
+    // The JS will navigate to http://publish-callback?... when done.
+    window.eval(js_code)
         .map_err(|e| CookieCaptureError {
             code: "JS_ERROR".to_string(),
             message: format!("Failed to execute JavaScript: {}", e),
         })?;
 
-    // Close the hidden window
+    // Wait for the result (with timeout).
+    // The JS will navigate to http://publish-callback?... when the
+    // fetch() completes. The on_navigation handler will send the
+    // result through the channel.
+    let result = tokio::time::timeout(
+        std::time::Duration::from_secs(PUBLISH_TIMEOUT_SECS),
+        rx,
+    )
+    .await
+    .map_err(|_| CookieCaptureError {
+        code: "TIMEOUT".to_string(),
+        message: format!("Publish timed out after {} seconds", PUBLISH_TIMEOUT_SECS),
+    })?
+    .map_err(|e| CookieCaptureError {
+        code: "CHANNEL_ERROR".to_string(),
+        message: format!("Channel error: {}", e),
+    })?;
+
+    // Close the hidden WebView
     let _ = window.close();
 
-    // Parse the result
-    let success = result.get("success")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
-
-    if success {
-        let id = result.get("id")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
-        let url = result.get("url")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
-        Ok(WebViewPublishResult {
-            id,
-            url,
-            success: true,
-            error: None,
-        })
-    } else {
-        let error = result.get("error")
-            .and_then(|v| v.as_str())
-            .unwrap_or("Unknown error")
-            .to_string();
-        Ok(WebViewPublishResult {
-            id: String::new(),
-            url: String::new(),
-            success: false,
-            error: Some(error),
-        })
-    }
+    log::info!("Publish result: success={}, url={}", result.success, result.url);
+    Ok(result)
 }
-
-#[allow(unused_imports)]
-use crate::commands::backend_url;

@@ -7,7 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { isTauri, captureAndConnect } from '@/lib/tauri';
+import { isTauri, captureAndConnect, publishToXViaWebview, publishToRedditViaWebview } from '@/lib/tauri';
 
 const trustCopy: Record<string, string> = {
   REDDIT: 'You\'ll log in on Reddit\'s official page — NetAmplify never sees your password. We receive only a limited permission to submit posts, and you can revoke it anytime in your Reddit settings.',
@@ -191,6 +191,8 @@ export function ConnectChecklist() {
   const [formValues, setFormValues] = useState<Record<string, Record<string, string>>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [capturingPlatform, setCapturingPlatform] = useState<string | null>(null);
+  const [publishingPlatform, setPublishingPlatform] = useState<string | null>(null);
+  const [publishResult, setPublishResult] = useState<Record<string, string>>({});
 
   const connectMutation = useMutation({
     mutationFn: ({ platform, data }: { platform: string; data: Record<string, string> }) =>
@@ -245,6 +247,58 @@ export function ConnectChecklist() {
       setErrors({ global: message });
     } finally {
       setCapturingPlatform(null);
+    }
+  }
+
+  async function handleTestPublish(platform: 'REDDIT_COOKIE' | 'TWITTER_COOKIE') {
+    setPublishingPlatform(platform);
+    setErrors({});
+    setPublishResult({});
+    try {
+      const jwtToken = localStorage.getItem('netamplify_token');
+      if (!jwtToken) {
+        setErrors({ global: 'You must be logged in to NetAmplify.' });
+        return;
+      }
+
+      // Fetch the stored connection to get the encrypted cookies
+      // For the test, we use the auto-capture flow to get fresh cookies
+      // since the stored cookies are encrypted on the backend
+      const result = platform === 'TWITTER_COOKIE'
+        ? await publishToXViaWebview(
+            {},
+            {
+              title: 'Test Post from NetAmplify',
+              body: 'Hello from NetAmplify! This is a test post via Tauri WebView (bypasses TLS fingerprint).',
+              url: 'https://github.com/marshal0004/NetAmplify',
+              hashtags: ['netamplify', 'test'],
+            },
+            jwtToken,
+            'test-target'
+          )
+        : await publishToRedditViaWebview(
+            {},
+            {
+              title: 'Test Post from NetAmplify',
+              body: 'Hello from NetAmplify! This is a test post via Tauri WebView.',
+              url: 'https://github.com/marshal0004/NetAmplify',
+              hashtags: ['netamplify'],
+              options: { subreddit: 'test' },
+            },
+            jwtToken,
+            'test-target'
+          );
+
+      if (result.success) {
+        setPublishResult({ [platform]: `✅ Posted! ${result.url}` });
+      } else {
+        setPublishResult({ [platform]: `❌ Failed: ${result.error || 'Unknown error'}` });
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Test publish failed.';
+      setPublishResult({ [platform]: `❌ Error: ${message}` });
+    } finally {
+      setPublishingPlatform(null);
     }
   }
 
@@ -341,15 +395,27 @@ export function ConnectChecklist() {
                       )}
                     </div>
                     {isConnected ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDisconnect(conn.platform)}
-                        disabled={disconnectMutation.isPending}
-                        className="border-white/10 bg-white/5 text-white/60 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30"
-                      >
-                        Disconnect
-                      </Button>
+                      <div className="flex gap-2">
+                        {(conn.platform === 'TWITTER_COOKIE' || conn.platform === 'REDDIT_COOKIE') && isTauri() && (
+                          <Button
+                            size="sm"
+                            onClick={() => handleTestPublish(conn.platform as 'REDDIT_COOKIE' | 'TWITTER_COOKIE')}
+                            disabled={publishingPlatform !== null}
+                            className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 border-0"
+                          >
+                            {publishingPlatform === conn.platform ? 'Publishing…' : 'Test Publish'}
+                          </Button>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDisconnect(conn.platform)}
+                          disabled={disconnectMutation.isPending}
+                          className="border-white/10 bg-white/5 text-white/60 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30"
+                        >
+                          Disconnect
+                        </Button>
+                      </div>
                     ) : isTierB && !isConfigured ? (
                       <Button variant="outline" size="sm" disabled className="border-white/5 text-white/20">Coming soon</Button>
                     ) : (conn.platform === 'TWITTER_COOKIE' || conn.platform === 'REDDIT_COOKIE') && isTauri() ? (
@@ -426,6 +492,13 @@ export function ConnectChecklist() {
                   {!isConnected && !fields && isConfigured && config?.steps && (
                     <div className="rounded-lg border border-white/5 bg-black/20 p-3">
                       <p className="text-xs text-white/50">{config.steps[0].text}</p>
+                    </div>
+                  )}
+
+                  {/* Publish result (for Test Publish on cookie platforms) */}
+                  {publishResult[conn.platform] && (
+                    <div className="mt-3 rounded-lg border border-white/10 bg-black/30 p-3 text-sm">
+                      {publishResult[conn.platform]}
                     </div>
                   )}
 

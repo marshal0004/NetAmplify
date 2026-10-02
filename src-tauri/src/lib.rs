@@ -16,6 +16,7 @@ use commands::{
     cookie_refresh::{refresh_reddit_cookies, refresh_x_cookies, check_cookie_expiry},
     backend_proxy::{proxy_cookie_connection, get_backend_health},
     sidecar::{start_backend_sidecar, stop_backend_sidecar},
+    webview_publish::{publish_to_x_via_webview, publish_to_reddit_via_webview},
 };
 
 /// The local NestJS backend port. Must match `apps/backend/src/main.ts`.
@@ -66,6 +67,9 @@ pub fn run() {
             // Sidecar management — start/stop the NestJS backend
             start_backend_sidecar,
             stop_backend_sidecar,
+            // WebView publish — makes requests through WebKitGTK (bypasses TLS fingerprint)
+            publish_to_x_via_webview,
+            publish_to_reddit_via_webview,
         ])
         .setup(|app| {
             // On app launch: log the environment.
