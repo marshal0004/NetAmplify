@@ -186,4 +186,89 @@ describe('Integration: Auto-Capture endpoint', () => {
       expect(resp.status).toBe(400);
     });
   });
+
+  // ==========================================================================
+  // Direct POST /api/connections/twitter-cookie (the manual paste form route)
+  // This is the endpoint the frontend calls via connectionsApi.connect()
+  // ==========================================================================
+  describe('POST /api/connections/twitter-cookie (direct, with JWT)', () => {
+    it('returns 201 + username with valid JWT + mock cookies', async () => {
+      const resp = await test.request
+        .post('/api/connections/twitter-cookie')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          authToken: MOCK_X_AUTH_TOKEN,
+          ct0: MOCK_X_CT0,
+        });
+
+      expect(resp.status).toBe(201);
+      const body = JSON.parse(resp.text);
+      expect(body.id).toBeDefined();
+      expect(body.username).toBe('@testuser');
+    });
+
+    it('returns 400 when authToken is missing', async () => {
+      const resp = await test.request
+        .post('/api/connections/twitter-cookie')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          ct0: MOCK_X_CT0,
+        });
+
+      expect(resp.status).toBe(400);
+    });
+
+    it('returns 401 without JWT (no Authorization header)', async () => {
+      const resp = await test.request
+        .post('/api/connections/twitter-cookie')
+        .send({
+          authToken: MOCK_X_AUTH_TOKEN,
+          ct0: MOCK_X_CT0,
+        });
+
+      expect(resp.status).toBe(401);
+    });
+  });
+
+  // ==========================================================================
+  // Direct POST /api/connections/reddit-cookie (the manual paste form route)
+  // ==========================================================================
+  describe('POST /api/connections/reddit-cookie (direct, with JWT)', () => {
+    it('returns 201 + username with valid JWT + mock cookies', async () => {
+      const resp = await test.request
+        .post('/api/connections/reddit-cookie')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          tokenV2: MOCK_REDDIT_JWT,
+          csrfToken: MOCK_REDDIT_CSRF,
+        });
+
+      expect(resp.status).toBe(201);
+      const body = JSON.parse(resp.text);
+      expect(body.id).toBeDefined();
+      expect(body.username).toBe('u/testuser');
+    });
+
+    it('returns 400 when tokenV2 is missing', async () => {
+      const resp = await test.request
+        .post('/api/connections/reddit-cookie')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          csrfToken: MOCK_REDDIT_CSRF,
+        });
+
+      expect(resp.status).toBe(400);
+    });
+
+    it('returns 401 without JWT (no Authorization header)', async () => {
+      const resp = await test.request
+        .post('/api/connections/reddit-cookie')
+        .send({
+          tokenV2: MOCK_REDDIT_JWT,
+          csrfToken: MOCK_REDDIT_CSRF,
+        });
+
+      expect(resp.status).toBe(401);
+    });
+  });
 });
