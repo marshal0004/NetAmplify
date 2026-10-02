@@ -78,8 +78,8 @@ const X_WEB_BEARER_TOKEN: &str =
 /// Timeout for the publish operation (30 seconds).
 const PUBLISH_TIMEOUT_SECS: u64 = 30;
 
-/// Wait time for the page to load before injecting JS (3 seconds).
-const PAGE_LOAD_WAIT_MS: u64 = 3000;
+/// Wait time for the page to load before injecting JS (5 seconds).
+const PAGE_LOAD_WAIT_MS: u64 = 5000;
 
 /// Publish to X (Twitter) via a hidden WebView window.
 ///
@@ -357,65 +357,11 @@ pub async fn publish_to_reddit_via_webview(
 
                 const data = await resp.json();
 
-                if (data.json?.errors && data.json.errors.length > 0) {{
-                    window.location.href = "http://publish-callback?error=" +
-                        encodeURIComponent(data.json.errors[0][1] || "Reddit rejected the post");
-                    return;
-                }}
-
-                // Reddit's /api/submit response shape varies:
-                // Old Reddit: data.json.data.id, data.json.data.name, data.json.data.url
-                // New Reddit: data.json.data.id, data.json.data.name
-                // Sometimes: data.jquery?.[?]..[0]..
-                // Try multiple paths to find the post ID
-                let postId = null;
-                let postName = null;
-                let postUrl = null;
-
-                // Path 1: data.json.data.id (standard)
-                if (data.json?.data?.id) {{
-                    postId = data.json.data.id;
-                    postName = data.json.data.name || postId;
-                    postUrl = data.json.data.url || `https://www.reddit.com/r/${{subreddit}}/comments/${{postId}}/`;
-                }}
-
-                // Path 2: data.jquery response (old format)
-                if (!postId && data.jquery) {{
-                    for (const entry of data.jquery) {{
-                        if (Array.isArray(entry) && entry.length >= 4) {{
-                            const inner = entry[3];
-                            if (Array.isArray(inner) && inner.length > 0) {{
-                                for (const item of inner) {{
-                                    if (item?.data?.id) {{
-                                        postId = item.data.id;
-                                        postName = item.data.name || postId;
-                                        postUrl = item.data.url || `https://www.reddit.com/r/${{subreddit}}/comments/${{postId}}/`;
-                                        break;
-                                    }}
-                                }}
-                            }}
-                        }}
-                        if (postId) break;
-                    }}
-                }}
-
-                // Path 3: Check for redirect URL in the response
-                if (!postId && data.json?.data?.redirect) {{
-                    postUrl = data.json.data.redirect;
-                    const match = postUrl.match(/comments\\/([a-z0-9]+)\\//);
-                    if (match) postId = match[1];
-                }}
-
-                if (!postId) {{
-                    // Log the full response for debugging
-                    const debugJson = JSON.stringify(data).substring(0, 500);
-                    window.location.href = "http://publish-callback?error=" +
-                        encodeURIComponent("No post ID found. Response: " + debugJson);
-                    return;
-                }}
-
-                window.location.href = "http://publish-callback?success=true&id=" +
-                    encodeURIComponent(postName || postId) + "&url=" + encodeURIComponent(postUrl || "");
+                // Simple: just stringify the response and send it back.
+                // We'll parse it on the Rust side to avoid JS complexity.
+                const rawResponse = JSON.stringify(data).substring(0, 1500);
+                window.location.href = "http://publish-callback?raw=" +
+                    encodeURIComponent(rawResponse);
             }} catch (e) {{
                 window.location.href = "http://publish-callback?error=" +
                     encodeURIComponent(e.message || String(e));
@@ -489,12 +435,113 @@ async fn execute_js_in_hidden_webview(
         .on_navigation(move |nav_url: &Url| {
             // Check if this is our callback URL
             if nav_url.host_str() == Some("publish-callback") {
-                // Parse the query parameters
                 let query: std::collections::HashMap<String, String> =
                     nav_url.query_pairs()
                         .map(|(k, v)| (k.to_string(), v.to_string()))
                         .collect();
 
+                // Check for error
+                if let Some(error) = query.get("error") {
+                    let result = WebViewPublishResult {
+                        id: String::new(),
+                        url: String::new(),
+                        success: false,
+                        error: Some(error.clone()),
+                    };
+                    if let Some(sender) = tx_clone.lock().unwrap().take() {
+                        let _ = sender.send(result);
+                    }
+                    return false;
+                }
+
+                // Check for raw response (debug mode — parse it here)
+                if let Some(raw) = query.get("raw") {
+                    // Try to parse the raw JSON response
+                    match serde_json::from_str::<serde_json::Value>(raw) {
+                        Ok(data) => {
+                            // Check for errors in the response
+                            if let Some(errors) = data.get("json").and_then(|j| j.get("errors")).and_then(|e| e.as_array()) {
+                                if !errors.is_empty() {
+                                    let error_msg = errors[0].as_array()
+                                        .and_then(|arr| arr.get(1))
+                                        .and_then(|v| v.as_str())
+                                        .unwrap_or("Reddit rejected the post");
+                                    let result = WebViewPublishResult {
+                                        id: String::new(),
+                                        url: String::new(),
+                                        success: false,
+                                        error: Some(error_msg.to_string()),
+                                    };
+                                    if let Some(sender) = tx_clone.lock().unwrap().take() {
+                                        let _ = sender.send(result);
+                                    }
+                                    return false;
+                                }
+                            }
+
+                            // Try to extract post ID from the response
+                            let post_id = data.get("json")
+                                .and_then(|j| j.get("data"))
+                                .and_then(|d| d.get("id"))
+                                .and_then(|i| i.as_str())
+                                .map(|s| s.to_string())
+                                .or_else(|| {
+                                    // Try data.json.data.name
+                                    data.get("json")
+                                        .and_then(|j| j.get("data"))
+                                        .and_then(|d| d.get("name"))
+                                        .and_then(|n| n.as_str())
+                                        .map(|s| s.to_string())
+                                });
+
+                            if let Some(id) = post_id {
+                                let url = data.get("json")
+                                    .and_then(|j| j.get("data"))
+                                    .and_then(|d| d.get("url"))
+                                    .and_then(|u| u.as_str())
+                                    .map(|s| s.to_string())
+                                    .unwrap_or_else(|| format!("https://www.reddit.com/comments/{}/", id));
+
+                                let result = WebViewPublishResult {
+                                    id,
+                                    url,
+                                    success: true,
+                                    error: None,
+                                };
+                                if let Some(sender) = tx_clone.lock().unwrap().take() {
+                                    let _ = sender.send(result);
+                                }
+                                return false;
+                            }
+
+                            // No post ID found — return the raw response as the error
+                            let result = WebViewPublishResult {
+                                id: String::new(),
+                                url: String::new(),
+                                success: false,
+                                error: Some(format!("No post ID in response: {}", &raw[..raw.len().min(300)])),
+                            };
+                            if let Some(sender) = tx_clone.lock().unwrap().take() {
+                                let _ = sender.send(result);
+                            }
+                            return false;
+                        }
+                        Err(e) => {
+                            let result = WebViewPublishResult {
+                                id: String::new(),
+                                url: String::new(),
+                                success: false,
+                                error: Some(format!("Failed to parse response: {} — Raw: {}", e, &raw[..raw.len().min(200)])),
+                            };
+                            if let Some(sender) = tx_clone.lock().unwrap().take() {
+                                let _ = sender.send(result);
+                            }
+                            return false;
+                        }
+                    }
+                }
+
+                // Check for explicit success
                 let success = query.get("success").map(|s| s == "true").unwrap_or(false);
                 let id = query.get("id").cloned().unwrap_or_default();
                 let url = query.get("url").cloned().unwrap_or_default();
@@ -507,16 +554,11 @@ async fn execute_js_in_hidden_webview(
                     error,
                 };
 
-                // Send the result through the channel
                 if let Some(sender) = tx_clone.lock().unwrap().take() {
                     let _ = sender.send(result);
                 }
-
-                // Cancel the navigation (return false) so the WebView
-                // doesn't actually navigate to the invalid callback URL
                 return false;
             }
-            // Allow all other navigations (page loads, redirects, etc.)
             true
         })
         .build()
