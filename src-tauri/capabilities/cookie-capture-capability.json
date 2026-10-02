@@ -1,8 +1,3 @@
-// /home/z/my-project/netamplify-app/src-tauri/capabilities/cookie-capture-capability.json
-// Tauri 2.0 capability for cookie-capture windows (the login popups for
-// Reddit, X, etc.). These windows need webview + cookie read permissions
-// but should NOT have shell or process access.
-
 {
   "$schema": "https://raw.githubusercontent.com/nicehash/tauri/dev/crates/tauri-utils/schema.json",
   "identifier": "cookie-capture-capability",
