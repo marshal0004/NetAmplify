@@ -261,12 +261,24 @@ export function ConnectChecklist() {
         return;
       }
 
-      // Fetch the stored connection to get the encrypted cookies
-      // For the test, we use the auto-capture flow to get fresh cookies
-      // since the stored cookies are encrypted on the backend
+      // Step 1: Fetch the decrypted cookies from the backend
+      // (The cookies are stored encrypted on the backend; we need them
+      // in plaintext to inject into the hidden WebView via document.cookie)
+      const cookieResp = await fetch(`/api/connections/${platform.toLowerCase().replace(/_/g, '-')}/cookies`, {
+        headers: { Authorization: `Bearer ${jwtToken}` },
+      });
+      if (!cookieResp.ok) {
+        throw new Error(`Failed to fetch cookies: HTTP ${cookieResp.status}`);
+      }
+      const { cookies } = await cookieResp.json() as { cookies: Record<string, string> };
+      if (Object.keys(cookies).length === 0) {
+        throw new Error('No cookies found for this platform. Please reconnect.');
+      }
+
+      // Step 2: Call the Tauri WebView publish command with the real cookies
       const result = platform === 'TWITTER_COOKIE'
         ? await publishToXViaWebview(
-            {},
+            cookies,
             {
               title: 'Test Post from NetAmplify',
               body: 'Hello from NetAmplify! This is a test post via Tauri WebView (bypasses TLS fingerprint).',
@@ -277,7 +289,7 @@ export function ConnectChecklist() {
             'test-target'
           )
         : await publishToRedditViaWebview(
-            {},
+            cookies,
             {
               title: 'Test Post from NetAmplify',
               body: 'Hello from NetAmplify! This is a test post via Tauri WebView.',

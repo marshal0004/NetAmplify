@@ -318,6 +318,47 @@ export class ConnectionsController {
       throw errorMapper(e);
     }
   }
+
+  /**
+   * GET /api/connections/:platform/cookies
+   *
+   * Returns the decrypted cookies for a cookie-based platform.
+   * Used by the Tauri WebView publish command to inject cookies into
+   * the hidden WebView before making the fetch() request.
+   */
+  @Get(':platform/cookies')
+  @HttpCode(200)
+  async getCookies(
+    @Param('platform') platformParam: string,
+    @Req() req: Request
+  ): Promise<{ cookies: Record<string, string> }> {
+    try {
+      const platform = parsePlatformParam(platformParam);
+      if (platform !== 'TWITTER_COOKIE' && platform !== 'REDDIT_COOKIE') {
+        throw new ServiceError(
+          'VALIDATION_ERROR',
+          `Cookie retrieval is only supported for TWITTER_COOKIE and REDDIT_COOKIE`
+        );
+      }
+      const creds = await this._conn.getDecryptedCredentials(getUserId(req), platform);
+      if (!creds) {
+        throw new ServiceError('NOT_FOUND', `No connection found for ${platform}`);
+      }
+      const cookies: Record<string, string> = {};
+      const credMap = creds as Record<string, unknown>;
+      if (platform === 'TWITTER_COOKIE') {
+        if (credMap.authToken) cookies.auth_token = String(credMap.authToken);
+        if (credMap.ct0) cookies.ct0 = String(credMap.ct0);
+      } else if (platform === 'REDDIT_COOKIE') {
+        if (credMap.tokenV2) cookies.token_v2 = String(credMap.tokenV2);
+        if (credMap.csrfToken) cookies.csrf_token = String(credMap.csrfToken);
+        if (credMap.redditSession) cookies.reddit_session = String(credMap.redditSession);
+      }
+      return { cookies };
+    } catch (e) {
+      throw errorMapper(e);
+    }
+  }
 }
 
 /**
