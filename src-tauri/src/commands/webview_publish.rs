@@ -42,10 +42,12 @@ pub struct WebViewPublishRequest {
     pub platform: String,
     pub cookies: HashMap<String, String>,
     pub formatted: FormattedPost,
+    #[serde(default)]
     #[allow(dead_code)]
-    pub jwt_token: String,
+    pub jwt_token: Option<String>,
+    #[serde(default)]
     #[allow(dead_code)]
-    pub post_target_id: String,
+    pub post_target_id: Option<String>,
 }
 
 /// The formatted post content from the Format Engine.
