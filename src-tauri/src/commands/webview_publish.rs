@@ -98,16 +98,12 @@ pub async fn publish_to_x_via_webview(
 ) -> Result<WebViewPublishResult, CookieCaptureError> {
     log::info!("Publishing to X via WebView (TLS fingerprint bypass)...");
 
-    let auth_token = request.cookies.get("auth_token")
-        .ok_or_else(|| CookieCaptureError {
-            code: "MISSING_COOKIE".to_string(),
-            message: "auth_token cookie is required for X publishing".to_string(),
-        })?;
-    let ct0 = request.cookies.get("ct0")
-        .ok_or_else(|| CookieCaptureError {
-            code: "MISSING_COOKIE".to_string(),
-            message: "ct0 cookie is required for X publishing".to_string(),
-        })?;
+    // Cookies may be empty if called from the frontend (cookies are encrypted
+    // on the backend). In that case, the WebView's cookie jar (from the
+    // previous auto-capture login) has them. The JS code reads them from
+    // document.cookie at runtime.
+    let auth_token = request.cookies.get("auth_token").cloned().unwrap_or_default();
+    let ct0 = request.cookies.get("ct0").cloned().unwrap_or_default();
 
     // Build the tweet text (same logic as the backend adapter)
     let tags_line = if let Some(hashtags) = &request.formatted.hashtags {
@@ -151,14 +147,24 @@ pub async fn publish_to_x_via_webview(
         (async () => {{
             try {{
                 const authToken = {auth_token_json};
-                const ct0 = {ct0_json};
+                const ct0Value = {ct0_json};
                 const tweetText = {tweet_text_json};
                 const bearer = {bearer_json};
 
-                // Set cookies explicitly (in case the WebView's cookie jar
-                // doesn't have them from a previous session)
-                document.cookie = `auth_token=${{authToken}}; path=/; domain=.x.com; secure`;
-                document.cookie = `ct0=${{ct0}}; path=/; domain=.x.com; secure`;
+                // Set cookies explicitly IF provided (non-empty).
+                // If empty, rely on the WebView's cookie jar from the
+                // previous auto-capture login.
+                if (authToken) {{
+                    document.cookie = `auth_token=${{authToken}}; path=/; domain=.x.com; secure`;
+                }}
+                if (ct0Value) {{
+                    document.cookie = `ct0=${{ct0Value}}; path=/; domain=.x.com; secure`;
+                }}
+
+                // Read ct0 from the cookie jar (needed for x-csrf-token header).
+                // If it wasn't provided, it should be in document.cookie from
+                // the previous login.
+                const ct0 = ct0Value || document.cookie.match(/ct0=([^;]+)/)?.[1] || "";
 
                 // Fetch the CreateTweet queryId from x.com's main.js bundle.
                 // X rotates this with each web release (~weekly).
@@ -257,8 +263,8 @@ pub async fn publish_to_x_via_webview(
             }}
         }})();
         "#,
-        auth_token_json = serde_json::to_string(auth_token).unwrap_or_else(|_| "\"\"".to_string()),
-        ct0_json = serde_json::to_string(ct0).unwrap_or_else(|_| "\"\"".to_string()),
+        auth_token_json = serde_json::to_string(&auth_token).unwrap_or_else(|_| "\"\"".to_string()),
+        ct0_json = serde_json::to_string(&ct0).unwrap_or_else(|_| "\"\"".to_string()),
         tweet_text_json = serde_json::to_string(&tweet_text).unwrap_or_else(|_| "\"\"".to_string()),
         bearer_json = serde_json::to_string(X_WEB_BEARER_TOKEN).unwrap_or_else(|_| "\"\"".to_string()),
     );
@@ -279,16 +285,10 @@ pub async fn publish_to_reddit_via_webview(
 ) -> Result<WebViewPublishResult, CookieCaptureError> {
     log::info!("Publishing to Reddit via WebView (TLS fingerprint bypass)...");
 
-    let token_v2 = request.cookies.get("token_v2")
-        .ok_or_else(|| CookieCaptureError {
-            code: "MISSING_COOKIE".to_string(),
-            message: "token_v2 cookie is required for Reddit publishing".to_string(),
-        })?;
-    let csrf_token = request.cookies.get("csrf_token")
-        .ok_or_else(|| CookieCaptureError {
-            code: "MISSING_COOKIE".to_string(),
-            message: "csrf_token cookie is required for Reddit publishing".to_string(),
-        })?;
+    // Cookies may be empty — rely on WebView's cookie jar from previous login
+    let token_v2 = request.cookies.get("token_v2").cloned().unwrap_or_default();
+    let csrf_token = request.cookies.get("csrf_token").cloned().unwrap_or_default();
+    let reddit_session = request.cookies.get("reddit_session").cloned().unwrap_or_default();
 
     let subreddit = request.formatted.options.as_ref()
         .and_then(|o| o.get("subreddit"))
@@ -303,26 +303,33 @@ pub async fn publish_to_reddit_via_webview(
         request.formatted.body.clone()
     };
 
-    let reddit_session = request.cookies.get("reddit_session").cloned().unwrap_or_default();
-
     let js_code = format!(
         r#"
         (async () => {{
             try {{
                 const tokenV2 = {token_v2_json};
-                const csrfToken = "{csrf_token}";
+                const csrfTokenProvided = "{csrf_token}";
                 const redditSession = {reddit_session_json};
                 const subreddit = "{subreddit}";
                 const title = {title_json};
                 const kind = "{kind}";
                 const content = {content_json};
 
-                // Set cookies explicitly
-                document.cookie = `token_v2=${{tokenV2}}; path=/; domain=.reddit.com; secure`;
-                document.cookie = `csrf_token=${{csrfToken}}; path=/; domain=.reddit.com; secure`;
+                // Set cookies explicitly IF provided (non-empty).
+                // If empty, rely on the WebView's cookie jar.
+                if (tokenV2) {{
+                    document.cookie = `token_v2=${{tokenV2}}; path=/; domain=.reddit.com; secure`;
+                }}
+                if (csrfTokenProvided) {{
+                    document.cookie = `csrf_token=${{csrfTokenProvided}}; path=/; domain=.reddit.com; secure`;
+                }}
                 if (redditSession) {{
                     document.cookie = `reddit_session=${{redditSession}}; path=/; domain=.reddit.com; secure`;
                 }}
+
+                // Read csrf_token from cookie jar if not provided
+                const csrfToken = csrfTokenProvided ||
+                    document.cookie.match(/csrf_token=([^;]+)/)?.[1] || "";
 
                 const formData = new URLSearchParams();
                 formData.append("api_type", "json");
@@ -372,7 +379,7 @@ pub async fn publish_to_reddit_via_webview(
             }}
         }})();
         "#,
-        token_v2_json = serde_json::to_string(token_v2).unwrap_or_else(|_| "\"\"".to_string()),
+        token_v2_json = serde_json::to_string(&token_v2).unwrap_or_else(|_| "\"\"".to_string()),
         csrf_token = csrf_token,
         reddit_session_json = serde_json::to_string(&reddit_session).unwrap_or_else(|_| "\"\"".to_string()),
         subreddit = subreddit,
