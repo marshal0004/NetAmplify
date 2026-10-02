@@ -96,10 +96,18 @@ describe('QuotaService', () => {
     });
 
     it('increments the counter', async () => {
-      await quota.increment('TWITTER');
-      expect(await quota.getUsed('TWITTER', '2026-09')).toBe(1);
-      await quota.increment('TWITTER');
-      expect(await quota.getUsed('TWITTER', '2026-09')).toBe(2);
+      // Use a fixed date so the test is deterministic — doesn't depend on
+      // the real current month. The `increment` method defaults to
+      // `new Date()` when no date is passed, which would write to the
+      // current month (e.g., '2026-10' in October) — but `getUsed`
+      // looks up the hardcoded '2026-09'. Mismatch → returns 0 → fail.
+      // Fix: pass the same fixed date to both `increment` and `getUsed`.
+      const now = new Date('2026-09-15T12:00:00Z');
+      const yearMonth = '2026-09';
+      await quota.increment('TWITTER', now);
+      expect(await quota.getUsed('TWITTER', yearMonth)).toBe(1);
+      await quota.increment('TWITTER', now);
+      expect(await quota.getUsed('TWITTER', yearMonth)).toBe(2);
     });
 
     it('tracks per-month (separate counters per YYYY-MM)', async () => {
