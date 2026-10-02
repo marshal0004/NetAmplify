@@ -398,5 +398,4 @@ fn base64_decode(input: &str) -> Result<Vec<u8>, String> {
 
 /// Parse a URL string into a WebviewUrl.
 ///
-/// This is a convenience function to avoid repeating the parse + error
-/// handling logic in each capture command.
+fn base64_decode(input: &str) -> Result<Vec<u8>, String> {

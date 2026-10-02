@@ -13,7 +13,9 @@ pub mod cookie_capture;
 pub mod cookie_refresh;
 pub mod backend_proxy;
 pub mod sidecar;
-pub mod webview_publish;
+// TODO: webview_publish needs Tauri 2.0 event-based API rewrite
+// (eval() returns () not Value — need to use app.listen() + JS emit)
+// pub mod webview_publish;
 
 /// The result of a successful cookie capture operation.
 /// Returned to the frontend as JSON, then proxied to the NestJS backend.
