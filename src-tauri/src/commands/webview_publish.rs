@@ -287,10 +287,14 @@ pub async fn publish_to_reddit_via_webview(
 ) -> Result<WebViewPublishResult, CookieCaptureError> {
     log::info!("Publishing to Reddit via WebView (TLS fingerprint bypass)...");
 
-    // Cookies may be empty — rely on WebView's cookie jar from previous login
-    let token_v2 = request.cookies.get("token_v2").cloned().unwrap_or_default();
-    let csrf_token = request.cookies.get("csrf_token").cloned().unwrap_or_default();
-    let reddit_session = request.cookies.get("reddit_session").cloned().unwrap_or_default();
+    // NOTE: We deliberately do NOT use request.cookies here. The cookies
+    // stored on the backend (encrypted) are STALE — they were captured at
+    // login time, but Reddit rotates token_v2 + csrf_token on every page
+    // load. The WebView's cookie jar (refreshed when we navigated to
+    // reddit.com a moment ago) has the LIVE values. The fresh csrf_token
+    // is read from the cookie jar in execute_js_in_hidden_webview() and
+    // injected into the JS as __FRESH_CSRF_TOKEN__. The httpOnly token_v2
+    // is sent automatically by the browser with credentials: "include".
 
     let subreddit = request.formatted.options.as_ref()
         .and_then(|o| o.get("subreddit"))
@@ -305,77 +309,102 @@ pub async fn publish_to_reddit_via_webview(
         request.formatted.body.clone()
     };
 
+    // Build the JS payload using XMLHttpRequest instead of fetch().
+    // Why XHR: WebKitGTK's fetch() throws "The string did not match the
+    // expected pattern" (DOMException SyntaxError) when a header value
+    // contains a control char or when the request fails certain internal
+    // validations. XHR uses a different code path that:
+    //   - Doesn't throw DOMException SyntaxError on header issues
+    //   - Reports failures via xhr.status / xhr.readyState (numeric, easy)
+    //   - Sends cookies automatically when withCredentials = true
+    // XHR also lets us capture the FULL response text + status code so
+    // we can diagnose exactly what Reddit returned.
     let js_code = format!(
         r#"
         (async () => {{
             try {{
-                const tokenV2 = {token_v2_json};
-                const csrfTokenProvided = "{csrf_token}";
-                const redditSession = {reddit_session_json};
-                const subreddit = "{subreddit}";
+                const subreddit = {subreddit_json};
                 const title = {title_json};
                 const kind = "{kind}";
                 const content = {content_json};
-
-                // DO NOT set any cookies via document.cookie!
-                // The page just loaded reddit.com/ which set FRESH cookies
-                // via Set-Cookie headers (httpOnly + non-httpOnly).
-                // Overwriting them with stale values from the backend
-                // causes csrf_token mismatch → "USER_REQUIRED" error.
-                //
-                // Instead, we rely entirely on credentials: "include"
-                // which sends ALL cookies from the cookie jar automatically.
-
-                // Read csrf_token from the FRESH cookie jar (set by Reddit
-                // when the page loaded). This is NOT httpOnly, so JS can
-                // read it.
-                // NOTE: This line is REPLACED by Rust before injection with
-                // the fresh csrf_token from the Tauri cookie API.
                 const csrfToken = __FRESH_CSRF_TOKEN__;
 
-                const formData = new URLSearchParams();
-                formData.append("api_type", "json");
-                formData.append("sr", subreddit);
-                formData.append("title", title);
-                formData.append("kind", kind);
-                if (kind === "link") {{
-                    formData.append("url", content);
-                }} else {{
-                    formData.append("text", content);
+                // Sanity: csrfToken must be a non-empty printable string.
+                // WebKitGTK's fetch() throws "The string did not match the
+                // expected pattern" if a header value contains a control
+                // character. We strip any control chars here.
+                const cleanCsrf = String(csrfToken || "")
+                    .replace(/[\x00-\x1F\x7F]/g, "");
+                if (cleanCsrf.length < 8) {{
+                    window.location.href = "http://publish-callback/?error=" +
+                        encodeURIComponent(
+                            "csrf_token missing or too short (len=" +
+                            cleanCsrf.length + ")"
+                        );
+                    return;
                 }}
 
-                // Make the request WITHOUT the Authorization header.
-                // The httpOnly token_v2 cookie will be sent automatically
-                // via credentials: "include" (from the shared cookie jar).
-                // Adding the Authorization header without the matching
-                // token_v2 cookie triggers Reddit's WAF (403 Forbidden).
-                const resp = await fetch("https://www.reddit.com/api/submit", {{
-                    method: "POST",
-                    headers: {{
-                        "x-csrf-token": csrfToken,
-                        "content-type": "application/x-www-form-urlencoded",
-                    }},
-                    body: formData.toString(),
-                    credentials: "include",
-                }});
+                // Build the URL-encoded body manually so we don't depend
+                // on URLSearchParams (which can also throw DOMException
+                // SyntaxError under WebKitGTK for non-string inputs).
+                const enc = encodeURIComponent;
+                const parts = [
+                    "api_type=json",
+                    "sr=" + enc(subreddit),
+                    "title=" + enc(title),
+                    "kind=" + enc(kind),
+                ];
+                if (kind === "link") {{
+                    parts.push("url=" + enc(content));
+                }} else {{
+                    parts.push("text=" + enc(content));
+                }}
+                const body = parts.join("&");
 
-                const data = await resp.json();
+                // Use XMLHttpRequest — more reliable than fetch() in WebKitGTK.
+                // Async with explicit onload/onerror handlers so we capture
+                // the exact response status + body.
+                const xhr = new XMLHttpRequest();
+                xhr.open("POST", "https://www.reddit.com/api/submit", true);
+                xhr.withCredentials = true;
+                xhr.setRequestHeader("x-csrf-token", cleanCsrf);
+                xhr.setRequestHeader("content-type",
+                    "application/x-www-form-urlencoded");
 
-                // Simple: just stringify the response and send it back.
-                // We'll parse it on the Rust side to avoid JS complexity.
-                const rawResponse = JSON.stringify(data).substring(0, 1500);
-                window.location.href = "http://publish-callback?raw=" +
-                    encodeURIComponent(rawResponse);
+                xhr.onload = function () {{
+                    const raw = (xhr.responseText || "").substring(0, 1500);
+                    const status = xhr.status;
+                    // Pack both into the callback URL — Rust parses "raw"
+                    // as JSON; if it's not JSON, we fall back to a status
+                    // error message.
+                    window.location.href =
+                        "http://publish-callback/?raw=" + enc(raw) +
+                        "&status=" + status;
+                }};
+                xhr.onerror = function () {{
+                    window.location.href =
+                        "http://publish-callback/?error=" +
+                        enc("XHR network error (status=" + xhr.status +
+                            ", readyState=" + xhr.readyState + ")");
+                }};
+                xhr.ontimeout = function () {{
+                    window.location.href =
+                        "http://publish-callback/?error=" +
+                        enc("XHR timeout (status=" + xhr.status + ")");
+                }};
+                xhr.timeout = 20000;
+                xhr.send(body);
             }} catch (e) {{
-                window.location.href = "http://publish-callback?error=" +
-                    encodeURIComponent(e.message || String(e));
+                window.location.href = "http://publish-callback/?error=" +
+                    encodeURIComponent(
+                        (e && e.name ? e.name + ": " : "") +
+                        (e && e.message ? e.message : String(e)) +
+                        (e && e.stack ? " | stack: " + e.stack.substring(0, 400) : "")
+                    );
             }}
         }})();
         "#,
-        token_v2_json = serde_json::to_string(&token_v2).unwrap_or_else(|_| "\"\"".to_string()),
-        csrf_token = csrf_token,
-        reddit_session_json = serde_json::to_string(&reddit_session).unwrap_or_else(|_| "\"\"".to_string()),
-        subreddit = subreddit,
+        subreddit_json = serde_json::to_string(&subreddit).unwrap_or_else(|_| "\"\"".to_string()),
         title_json = serde_json::to_string(&request.formatted.title).unwrap_or_else(|_| "\"\"".to_string()),
         kind = if is_link_post { "link" } else { "self" },
         content_json = serde_json::to_string(&content).unwrap_or_else(|_| "\"\"".to_string()),
@@ -485,15 +514,34 @@ async fn execute_js_in_hidden_webview(
     // Read the FRESH csrf_token from the WebView's cookie jar.
     // document.cookie can't read SameSite=Strict cookies on WebKitGTK,
     // so we read it from Rust via the Tauri cookie API.
+    //
+    // SANITIZE: Some Tauri 2.0 cookie store backends return values with
+    // trailing NUL/control chars that cause WebKitGTK's fetch()/XHR
+    // setRequestHeader() to throw "The string did not match the expected
+    // pattern" (DOMException SyntaxError). Strip them here as a
+    // defense-in-depth (the JS also strips them).
     let fresh_csrf_token = if login_window_label.starts_with("reddit") {
         let cookies = window.cookies().unwrap_or_default();
-        cookies.iter()
+        let raw = cookies.iter()
             .find(|c| c.name() == "csrf_token")
             .map(|c| c.value().to_string())
             .unwrap_or_else(|| {
                 log::warn!("csrf_token not found in cookie jar");
                 String::new()
-            })
+            });
+        // Strip every char that is not a printable ASCII char (0x20-0x7E).
+        // Reddit csrf_token is normally a 32-char alphanumeric string, so
+        // this sanitization should be a no-op for valid cookies.
+        let cleaned: String = raw.chars()
+            .filter(|c| (*c as u32) >= 0x20 && (*c as u32) <= 0x7E)
+            .collect();
+        if cleaned != raw {
+            log::warn!(
+                "csrf_token sanitized: {} -> {} chars (removed {} non-printable chars)",
+                raw.len(), cleaned.len(), raw.len() - cleaned.len()
+            );
+        }
+        cleaned
     } else {
         String::new()
     };
@@ -565,8 +613,13 @@ async fn execute_js_in_hidden_webview(
                 });
             }
 
-            // Check for raw response
+            // Check for raw response (XHR.onload fired — we got SOME response
+            // from Reddit, possibly an error page or a JSON envelope).
             if let Some(raw) = query.get("raw") {
+                let http_status: i32 = query.get("status")
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(0);
+
                 match serde_json::from_str::<serde_json::Value>(raw) {
                     Ok(data) => {
                         // Check for Reddit errors
@@ -615,19 +668,34 @@ async fn execute_js_in_hidden_webview(
                             });
                         }
 
+                        // JSON parsed but no post ID — include HTTP status
+                        // + the response body so the user can see what Reddit
+                        // actually returned (very likely an auth error like
+                        // "USER_REQUIRED" or a 403/429 page).
                         return Ok(WebViewPublishResult {
                             id: String::new(),
                             url: String::new(),
                             success: false,
-                            error: Some(format!("No post ID in response: {}", &raw[..raw.len().min(300)])),
+                            error: Some(format!(
+                                "Reddit HTTP {} — no post ID. Body: {}",
+                                http_status,
+                                &raw[..raw.len().min(400)]
+                            )),
                         });
                     }
                     Err(e) => {
+                        // Body wasn't JSON — usually means Reddit returned an
+                        // HTML error page (403, 429, 503, or a WAF block).
+                        // Surface the HTTP status + first 300 chars so the
+                        // user can see what happened.
                         return Ok(WebViewPublishResult {
                             id: String::new(),
                             url: String::new(),
                             success: false,
-                            error: Some(format!("Parse error: {} — Raw: {}", e, &raw[..raw.len().min(200)])),
+                            error: Some(format!(
+                                "Reddit HTTP {} — non-JSON response (parse: {}). Body: {}",
+                                http_status, e, &raw[..raw.len().min(300)]
+                            )),
                         });
                     }
                 }
