@@ -317,25 +317,19 @@ pub async fn publish_to_reddit_via_webview(
                 const kind = "{kind}";
                 const content = {content_json};
 
-                // Set non-httpOnly cookies explicitly (httpOnly cookies like
-                // token_v2 CANNOT be set via document.cookie — they must
-                // already be in the WebView's cookie jar from the auto-capture
-                // login). Tauri WebViews share a single cookie jar, so the
-                // cookies from the auto-capture window should be available.
-                if (tokenV2) {{
-                    // token_v2 is httpOnly — we can't set it via JS.
-                    // We rely on the shared cookie jar from the auto-capture login.
-                }}
-                if (csrfTokenProvided) {{
-                    document.cookie = `csrf_token=${{csrfTokenProvided}}; path=/; domain=.reddit.com; secure`;
-                }}
-                if (redditSession) {{
-                    document.cookie = `reddit_session=${{redditSession}}; path=/; domain=.reddit.com; secure`;
-                }}
+                // DO NOT set any cookies via document.cookie!
+                // The page just loaded reddit.com/ which set FRESH cookies
+                // via Set-Cookie headers (httpOnly + non-httpOnly).
+                // Overwriting them with stale values from the backend
+                // causes csrf_token mismatch → "USER_REQUIRED" error.
+                //
+                // Instead, we rely entirely on credentials: "include"
+                // which sends ALL cookies from the cookie jar automatically.
 
-                // Read csrf_token from cookie jar if not provided
-                const csrfToken = csrfTokenProvided ||
-                    document.cookie.match(/csrf_token=([^;]+)/)?.[1] || "";
+                // Read csrf_token from the FRESH cookie jar (set by Reddit
+                // when the page loaded). This is NOT httpOnly, so JS can
+                // read it.
+                const csrfToken = document.cookie.match(/csrf_token=([^;]+)/)?.[1] || "";
 
                 const formData = new URLSearchParams();
                 formData.append("api_type", "json");
