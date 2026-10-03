@@ -437,6 +437,31 @@ async fn execute_js_in_hidden_webview(
     let _ = window.set_focus();
     log::info!("Reusing hidden login window '{}' for publishing", login_window_label);
 
+    // STEP 1: Navigate to the platform's homepage to refresh expired tokens.
+    // Reddit's token_v2 expires after ~1 hour. Loading reddit.com causes
+    // Reddit's web app to automatically issue a fresh token_v2 via
+    // Set-Cookie header (httpOnly). X's auth_token lasts ~1 year, but
+    // loading x.com/home refreshes ct0 if needed.
+    //
+    // We use window.eval to navigate, then wait for the page to load.
+    let refresh_url = if login_window_label.starts_with("reddit") {
+        "https://www.reddit.com/"
+    } else {
+        "https://x.com/home"
+    };
+    log::info!("Refreshing cookies by navigating to {}", refresh_url);
+    window.eval(&format!("window.location.href = '{}';", refresh_url))
+        .map_err(|e| CookieCaptureError {
+            code: "JS_ERROR".to_string(),
+            message: format!("Failed to navigate for refresh: {}", e),
+        })?;
+
+    // Wait for the page to load + Reddit/X to set fresh cookies
+    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+
+    // STEP 2: Inject the publish JS
+    log::info!("Injecting publish JS into refreshed window");
+
     // Inject the JS
     window.eval(js_code)
         .map_err(|e| CookieCaptureError {
