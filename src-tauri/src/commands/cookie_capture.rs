@@ -58,6 +58,27 @@ const X_REQUIRED_COOKIES: &[&str] = &["auth_token", "ct0"];
 const REDDIT_LOGIN_URL: &str = "https://www.reddit.com/login";
 const X_LOGIN_URL: &str = "https://x.com/i/flow/login";
 
+/// Chrome on Windows User-Agent string.
+///
+/// WHY: WebKitGTK (Tauri's WebView on Linux) sends its own UA which is
+/// recognizable as a non-mainstream browser. Reddit's WAF (and X's) blocks
+/// POST requests to /api/submit from non-Chrome/Firefox UAs with HTTP 403
+/// "forbidden". By spoofing a real Chrome UA, the WebView's requests look
+/// like they come from a real Chrome browser — including XHR/fetch calls.
+///
+/// This UA is set at the WebView level (via WebviewWindowBuilder::user_agent)
+/// which affects:
+///   - The initial page load (login form)
+///   - All XHR/fetch requests made from injected JS (Test Publish)
+///   - All sub-resource requests (CSS, JS, images)
+///
+/// Tauri 2.0 stores the UA in the underlying WebKitWebView's "user-agent"
+/// property, which is the same as setting it via WebKit's
+/// webkit_web_context_set_user_agent() C API.
+const CHROME_USER_AGENT: &str =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
+     (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
+
 /// Capture Reddit session cookies by opening a native login window.
 ///
 /// This command:
@@ -172,6 +193,11 @@ pub async fn capture_cookies_generic(
         .min_inner_size(400.0, 500.0)
         .center()  // Tauri 2.0 uses .center(), not .centered()
         .visible(true)
+        // CRITICAL: Spoof Chrome's User-Agent. Without this, WebKitGTK sends
+        // its own UA which Reddit's/X's WAFs recognize as non-browser and
+        // return HTTP 403 "forbidden" for /api/submit POSTs. This UA applies
+        // to the initial page load AND all XHR/fetch calls from injected JS.
+        .user_agent(CHROME_USER_AGENT)
         .build()
         .map_err(|e| CookieCaptureError {
             code: "TAURI_ERROR".to_string(),

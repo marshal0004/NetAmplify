@@ -364,12 +364,31 @@ pub async fn publish_to_reddit_via_webview(
                 // Use XMLHttpRequest — more reliable than fetch() in WebKitGTK.
                 // Async with explicit onload/onerror handlers so we capture
                 // the exact response status + body.
+                //
+                // URL: We use /api/submit.json (with .json extension) instead
+                // of /api/submit. Reddit's WAF treats the .json variant as an
+                // API call (returns JSON), while the bare /api/submit path
+                // sometimes returns the HTML "forbidden" page even for
+                // legitimate requests. The .json suffix is what Reddit's
+                // own web app uses internally.
                 const xhr = new XMLHttpRequest();
-                xhr.open("POST", "https://www.reddit.com/api/submit", true);
+                xhr.open("POST", "https://www.reddit.com/api/submit.json", true);
                 xhr.withCredentials = true;
+
+                // Set all the headers a real Chrome browser sends.
+                // Missing these was causing Reddit's WAF to return HTTP 403
+                // "forbidden" — it was fingerprinting the request as a bot
+                // because the header set was incomplete.
+                //
+                // NOTE: User-Agent, Origin, Referer, and Sec-Fetch-* are
+                // "forbidden" headers in XHR — WebKitGTK sets them
+                // automatically based on the page context. We only set the
+                // non-forbidden headers here.
                 xhr.setRequestHeader("x-csrf-token", cleanCsrf);
                 xhr.setRequestHeader("content-type",
                     "application/x-www-form-urlencoded");
+                xhr.setRequestHeader("accept", "*/*");
+                xhr.setRequestHeader("accept-language", "en-US,en;q=0.9");
 
                 xhr.onload = function () {{
                     const raw = (xhr.responseText || "").substring(0, 1500);
