@@ -329,7 +329,9 @@ pub async fn publish_to_reddit_via_webview(
                 // Read csrf_token from the FRESH cookie jar (set by Reddit
                 // when the page loaded). This is NOT httpOnly, so JS can
                 // read it.
-                const csrfToken = document.cookie.match(/csrf_token=([^;]+)/)?.[1] || "";
+                // NOTE: This line is REPLACED by Rust before injection with
+                // the fresh csrf_token from the Tauri cookie API.
+                const csrfToken = __FRESH_CSRF_TOKEN__;
 
                 const formData = new URLSearchParams();
                 formData.append("api_type", "json");
@@ -500,8 +502,8 @@ async fn execute_js_in_hidden_webview(
 
     // Inject the publish JS with the fresh csrf_token
     let js_with_fresh_csrf = js_code.replace(
-        r#"const csrfToken = document.cookie.match(/csrf_token=([^;]+)/)?.[1] || "";"#,
-        &format!(r#"const csrfToken = "{}";"#, fresh_csrf_token.replace('\\', "\\\\").replace('"', "\\\"")),
+        "__FRESH_CSRF_TOKEN__",
+        &format!("\"{}\"", fresh_csrf_token.replace('\\', "\\\\").replace('"', "\\\"")),
     );
 
     log::info!("Injecting publish JS into refreshed window");
