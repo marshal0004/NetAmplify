@@ -32,9 +32,8 @@ use crate::commands::CookieCaptureError;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, Listener};
 use tokio::sync::oneshot;
-use url::Url;
 
 /// The request payload for publishing via WebView.
 #[derive(Debug, Clone, Deserialize)]
