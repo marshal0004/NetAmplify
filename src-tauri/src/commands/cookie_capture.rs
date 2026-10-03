@@ -259,8 +259,13 @@ pub async fn capture_cookies_generic(
                 continue;
             }
 
-            // Close the login window — we have what we need.
-            let _ = login_window.close();
+            // HIDE the login window instead of closing it.
+            // The window's cookie jar (including httpOnly cookies like
+            // token_v2) is preserved so we can reuse it for publishing
+            // via the WebView publish command. If we close the window,
+            // the cookie jar is destroyed and httpOnly cookies are lost
+            // (they can't be re-set via JavaScript's document.cookie).
+            let _ = login_window.hide();
 
             // Determine the username from the cookie values.
             // For Reddit: we can decode the JWT's `lid` field.
