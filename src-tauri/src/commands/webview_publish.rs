@@ -32,8 +32,9 @@ use crate::commands::CookieCaptureError;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Manager, Listener};
+use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder, Listener};
 use tokio::sync::oneshot;
+use url::Url;
 
 /// The request payload for publishing via WebView.
 #[derive(Debug, Clone, Deserialize)]
@@ -408,174 +409,184 @@ pub async fn publish_to_reddit_via_webview(
 ///   - All other navigations are allowed (returns true)
 async fn execute_js_in_hidden_webview(
     app: &AppHandle,
-    _url: &str,
+    url: &str,
     js_code: &str,
     window_label: &str,
 ) -> Result<WebViewPublishResult, CookieCaptureError> {
-    // REUSE the existing hidden login window instead of creating a new one.
-    // The login window was hidden (not closed) after auto-capture, so its
-    // cookie jar still has all the httpOnly cookies (token_v2, reddit_session,
-    // auth_token, ct0) that were set by Reddit/X during the login flow.
-    let login_window_label = window_label.replace("-publish", "-login");
+    // Create a NEW hidden WebView window with on_navigation callback.
+    //
+    // Tauri 2.0 WebViews share a single cookie jar (Soup session on Linux).
+    // So the httpOnly cookies (token_v2, auth_token) from the auto-capture
+    // login window ARE available in this new window — no need to reuse
+    // the same window.
+    //
+    // The JS uses window.location.href = "http://publish-callback?..."
+    // to send the result back. The on_navigation handler intercepts
+    // this URL, parses the query params, and sends the result through
+    // a oneshot channel.
+    //
+    // Note: __TAURI__.event.emit() does NOT work on external pages
+    // (reddit.com, x.com) — the Tauri JS API is only injected on the
+    // app's own pages (localhost:4200). So we MUST use navigation
+    // interception, not Tauri events.
 
-    let window = app.get_webview_window(&login_window_label)
-        .or_else(|| app.get_webview_window(window_label))
-        .ok_or_else(|| CookieCaptureError {
-            code: "NO_WINDOW".to_string(),
-            message: format!(
-                "No hidden login window found for '{}'. Please run Auto-Capture first to log in.",
-                login_window_label
-            ),
-        })?;
+    // Close any existing window with this label
+    if let Some(existing) = app.get_webview_window(window_label) {
+        let _ = existing.close();
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    }
 
-    // Show the window temporarily (needed for some WebKitGTK versions
-    // to process JavaScript injections correctly)
-    let _ = window.show();
-    let _ = window.set_focus();
-
-    log::info!("Reusing hidden login window '{}' for publishing", login_window_label);
-
-    // Set up a Tauri event listener to receive the result from the JS.
-    // The JS will call __TAURI__.event.emit('publish-result', {...})
-    // instead of navigating to a callback URL (which doesn't work on
-    // existing windows — on_navigation is a builder-only API).
     let (tx, rx) = oneshot::channel::<WebViewPublishResult>();
     let tx = Arc::new(Mutex::new(Some(tx)));
+    let tx_clone = tx.clone();
 
-    let event_id = window.listen("publish-result", move |event| {
-        let payload = event.payload();
-        match serde_json::from_str::<serde_json::Value>(payload) {
-            Ok(data) => {
-                let success = data.get("success").and_then(|v| v.as_bool()).unwrap_or(false);
-                let id = data.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                let url = data.get("url").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                let error = data.get("error").and_then(|v| v.as_str()).map(|s| s.to_string());
+    let parsed_url = Url::parse(url).map_err(|e| CookieCaptureError {
+        code: "TAURI_ERROR".to_string(),
+        message: format!("Invalid URL: {}", e),
+    })?;
 
-                let result = WebViewPublishResult { id, url, success, error };
-                if let Some(sender) = tx.lock().unwrap().take() {
-                    let _ = sender.send(result);
+    let window = WebviewWindowBuilder::new(app, window_label, WebviewUrl::External(parsed_url))
+        .title("NetAmplify — Publishing...")
+        .inner_size(1.0, 1.0)
+        .visible(false)
+        .on_navigation(move |nav_url: &Url| {
+            if nav_url.host_str() == Some("publish-callback") {
+                let query: std::collections::HashMap<String, String> =
+                    nav_url.query_pairs()
+                        .map(|(k, v)| (k.to_string(), v.to_string()))
+                        .collect();
+
+                // Check for error
+                if let Some(error) = query.get("error") {
+                    let result = WebViewPublishResult {
+                        id: String::new(),
+                        url: String::new(),
+                        success: false,
+                        error: Some(error.clone()),
+                    };
+                    if let Some(sender) = tx_clone.lock().unwrap().take() {
+                        let _ = sender.send(result);
+                    }
+                    return false;
                 }
-            }
-            Err(e) => {
+
+                // Check for raw response
+                if let Some(raw) = query.get("raw") {
+                    match serde_json::from_str::<serde_json::Value>(raw) {
+                        Ok(data) => {
+                            // Check for Reddit errors
+                            if let Some(errors) = data.get("json").and_then(|j| j.get("errors")).and_then(|e| e.as_array()) {
+                                if !errors.is_empty() {
+                                    let error_msg = errors[0].as_array()
+                                        .and_then(|arr| arr.get(1))
+                                        .and_then(|v| v.as_str())
+                                        .unwrap_or("Reddit rejected the post");
+                                    let result = WebViewPublishResult {
+                                        id: String::new(),
+                                        url: String::new(),
+                                        success: false,
+                                        error: Some(error_msg.to_string()),
+                                    };
+                                    if let Some(sender) = tx_clone.lock().unwrap().take() {
+                                        let _ = sender.send(result);
+                                    }
+                                    return false;
+                                }
+                            }
+
+                            // Try to extract post ID
+                            let post_id = data.get("json")
+                                .and_then(|j| j.get("data"))
+                                .and_then(|d| d.get("id"))
+                                .and_then(|i| i.as_str())
+                                .map(|s| s.to_string())
+                                .or_else(|| {
+                                    data.get("json")
+                                        .and_then(|j| j.get("data"))
+                                        .and_then(|d| d.get("name"))
+                                        .and_then(|n| n.as_str())
+                                        .map(|s| s.to_string())
+                                });
+
+                            if let Some(id) = post_id {
+                                let url_val = data.get("json")
+                                    .and_then(|j| j.get("data"))
+                                    .and_then(|d| d.get("url"))
+                                    .and_then(|u| u.as_str())
+                                    .map(|s| s.to_string())
+                                    .unwrap_or_else(|| format!("https://www.reddit.com/comments/{}/", id));
+
+                                let result = WebViewPublishResult {
+                                    id,
+                                    url: url_val,
+                                    success: true,
+                                    error: None,
+                                };
+                                if let Some(sender) = tx_clone.lock().unwrap().take() {
+                                    let _ = sender.send(result);
+                                }
+                                return false;
+                            }
+
+                            // No post ID — return raw response as error
+                            let result = WebViewPublishResult {
+                                id: String::new(),
+                                url: String::new(),
+                                success: false,
+                                error: Some(format!("No post ID in response: {}", &raw[..raw.len().min(300)])),
+                            };
+                            if let Some(sender) = tx_clone.lock().unwrap().take() {
+                                let _ = sender.send(result);
+                            }
+                            return false;
+                        }
+                        Err(e) => {
+                            let result = WebViewPublishResult {
+                                id: String::new(),
+                                url: String::new(),
+                                success: false,
+                                error: Some(format!("Parse error: {} — Raw: {}", e, &raw[..raw.len().min(200)])),
+                            };
+                            if let Some(sender) = tx_clone.lock().unwrap().take() {
+                                let _ = sender.send(result);
+                            }
+                            return false;
+                        }
+                    }
+                }
+
+                // Check for explicit success/error
+                let success = query.get("success").map(|s| s == "true").unwrap_or(false);
+                let id = query.get("id").cloned().unwrap_or_default();
+                let url_val = query.get("url").cloned().unwrap_or_default();
+                let error = query.get("error").cloned();
+
                 let result = WebViewPublishResult {
-                    id: String::new(),
-                    url: String::new(),
-                    success: false,
-                    error: Some(format!("Failed to parse result: {}", e)),
+                    id,
+                    url: url_val,
+                    success,
+                    error,
                 };
-                if let Some(sender) = tx.lock().unwrap().take() {
+                if let Some(sender) = tx_clone.lock().unwrap().take() {
                     let _ = sender.send(result);
                 }
+                return false;
             }
-        }
-    });
+            true
+        })
+        .build()
+        .map_err(|e| CookieCaptureError {
+            code: "TAURI_ERROR".to_string(),
+            message: format!("Failed to create WebView window: {}", e),
+        })?;
 
-    // Wrap the user's JS in a try-catch that emits the result via Tauri event.
-    // The JS uses __TAURI__.event.emit() to send the result back to Rust.
-    let wrapped_js = format!(
-        r#"
-        (async () => {{
-            try {{
-                // Run the user's JS code
-                {user_js}
-            }} catch (e) {{
-                // Emit error result
-                if (window.__TAURI__) {{
-                    window.__TAURI__.event.emit('publish-result', {{
-                        success: false,
-                        id: '',
-                        url: '',
-                        error: e.message || String(e)
-                    }});
-                }}
-            }}
-        }})();
-        "#,
-        user_js = js_code,
-    );
+    log::info!("Opened hidden WebView on {} for publishing", url);
 
-    // Also modify the JS to use Tauri events instead of window.location.href
-    // We need to replace all "window.location.href = ..." with Tauri emit
-    let js_with_events = wrapped_js.replace(
-        "window.location.href = \"http://publish-callback?",
-        "if (window.__TAURI__) { window.__TAURI__.event.emit('publish-result', "
-    ).replace(
-        "encodeURIComponent(",
-        "encodeURIComponent("
-    );
-
-    // Actually, the string replacement above is too fragile. Let me use a
-    // different approach: wrap the entire user JS in a function that catches
-    // the navigation and emits the result via Tauri events.
-    //
-    // Simplest approach: override window.location to intercept the navigation
-    // and emit the result via Tauri events instead.
-    let intercept_js = format!(
-        r#"
-        (async () => {{
-            // Override window.location to intercept our callback URL
-            const originalLocation = window.location;
-            const result = {{}};
-
-            // Create a proxy that intercepts assignments to window.location.href
-            let _href = originalLocation.href;
-            try {{
-                Object.defineProperty(window, 'location', {{
-                    configurable: true,
-                    get: function() {{
-                        const self = this;
-                        return new Proxy(originalLocation, {{
-                            set: function(target, prop, value) {{
-                                if (prop === 'href' && value.startsWith('http://publish-callback')) {{
-                                    // Parse the callback URL
-                                    const url = new URL(value);
-                                    const params = url.searchParams;
-                                    const success = params.get('success') === 'true';
-                                    const id = params.get('id') || '';
-                                    const url_val = params.get('url') || '';
-                                    const error = params.get('error') || params.get('raw') || '';
-
-                                    // Emit via Tauri event
-                                    if (window.__TAURI__ && window.__TAURI__.event) {{
-                                        window.__TAURI__.event.emit('publish-result', {{
-                                            success: success,
-                                            id: id,
-                                            url: url_val,
-                                            error: error || null
-                                        }});
-                                    }}
-                                    return true;
-                                }}
-                                target[prop] = value;
-                                return true;
-                            }}
-                        }});
-                    }}
-                }});
-            }} catch (e) {{
-                // Proxy might not work — fall back to polling
-            }}
-
-            // Run the user's JS
-            try {{
-                {user_js}
-            }} catch (e) {{
-                if (window.__TAURI__ && window.__TAURI__.event) {{
-                    window.__TAURI__.event.emit('publish-result', {{
-                        success: false,
-                        id: '',
-                        url: '',
-                        error: e.message || String(e)
-                    }});
-                }}
-            }}
-        }})();
-        "#,
-        user_js = js_code,
-    );
+    // Wait for the page to load before injecting JS
+    tokio::time::sleep(std::time::Duration::from_millis(PAGE_LOAD_WAIT_MS)).await;
 
     // Inject the JS
-    window.eval(&intercept_js)
+    window.eval(js_code)
         .map_err(|e| CookieCaptureError {
             code: "JS_ERROR".to_string(),
             message: format!("Failed to execute JavaScript: {}", e),
@@ -596,9 +607,8 @@ async fn execute_js_in_hidden_webview(
         message: format!("Channel error: {}", e),
     })?;
 
-    // Clean up
-    window.unlisten(event_id);
-    let _ = window.hide();
+    // Close the hidden WebView
+    let _ = window.close();
 
     log::info!("Publish result: success={}, url={}", result.success, result.url);
     Ok(result)
