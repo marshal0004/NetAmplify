@@ -489,11 +489,11 @@ async fn execute_js_in_hidden_webview(
             .find(|c| c.name() == "csrf_token")
             .map(|c| c.value().to_string())
             .unwrap_or_else(|| {
-                log::warn!("csrf_token not found in cookie jar — falling back to backend value");
-                request.cookies.get("csrf_token").cloned().unwrap_or_default()
+                log::warn!("csrf_token not found in cookie jar");
+                String::new()
             })
     } else {
-        String::new()  // X doesn't use csrf_token from cookie jar
+        String::new()
     };
 
     log::info!("Fresh csrf_token from cookie jar: {} chars", fresh_csrf_token.len());
