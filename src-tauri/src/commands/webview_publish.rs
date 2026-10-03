@@ -443,29 +443,28 @@ async fn execute_js_in_hidden_webview(
     let tx = Arc::new(Mutex::new(Some(tx)));
 
     let event_id = window.listen("publish-result", move |event| {
-        if let Some(payload) = event.payload() {
-            match serde_json::from_str::<serde_json::Value>(payload) {
-                Ok(data) => {
-                    let success = data.get("success").and_then(|v| v.as_bool()).unwrap_or(false);
-                    let id = data.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                    let url = data.get("url").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                    let error = data.get("error").and_then(|v| v.as_str()).map(|s| s.to_string());
+        let payload = event.payload();
+        match serde_json::from_str::<serde_json::Value>(payload) {
+            Ok(data) => {
+                let success = data.get("success").and_then(|v| v.as_bool()).unwrap_or(false);
+                let id = data.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                let url = data.get("url").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                let error = data.get("error").and_then(|v| v.as_str()).map(|s| s.to_string());
 
-                    let result = WebViewPublishResult { id, url, success, error };
-                    if let Some(sender) = tx.lock().unwrap().take() {
-                        let _ = sender.send(result);
-                    }
+                let result = WebViewPublishResult { id, url, success, error };
+                if let Some(sender) = tx.lock().unwrap().take() {
+                    let _ = sender.send(result);
                 }
-                Err(e) => {
-                    let result = WebViewPublishResult {
-                        id: String::new(),
-                        url: String::new(),
-                        success: false,
-                        error: Some(format!("Failed to parse result: {}", e)),
-                    };
-                    if let Some(sender) = tx.lock().unwrap().take() {
-                        let _ = sender.send(result);
-                    }
+            }
+            Err(e) => {
+                let result = WebViewPublishResult {
+                    id: String::new(),
+                    url: String::new(),
+                    success: false,
+                    error: Some(format!("Failed to parse result: {}", e)),
+                };
+                if let Some(sender) = tx.lock().unwrap().take() {
+                    let _ = sender.send(result);
                 }
             }
         }
