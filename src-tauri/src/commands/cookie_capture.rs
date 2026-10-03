@@ -58,26 +58,29 @@ const X_REQUIRED_COOKIES: &[&str] = &["auth_token", "ct0"];
 const REDDIT_LOGIN_URL: &str = "https://www.reddit.com/login";
 const X_LOGIN_URL: &str = "https://x.com/i/flow/login";
 
-/// Chrome on Windows User-Agent string.
+/// Firefox on Windows User-Agent string.
 ///
-/// WHY: WebKitGTK (Tauri's WebView on Linux) sends its own UA which is
-/// recognizable as a non-mainstream browser. Reddit's WAF (and X's) blocks
-/// POST requests to /api/submit from non-Chrome/Firefox UAs with HTTP 403
-/// "forbidden". By spoofing a real Chrome UA, the WebView's requests look
-/// like they come from a real Chrome browser — including XHR/fetch calls.
+/// WHY FIREFOX (not Chrome):
+/// We previously tried Chrome's UA. Reddit's WAF still blocked us with
+/// HTTP 403 {"message":"Forbidden","error":403}. The reason: Chrome
+/// automatically sends "Client Hints" headers (sec-ch-ua, sec-ch-ua-platform,
+/// sec-ch-ua-mobile) with every request. WebKitGTK does NOT send these.
+/// So our request said "I'm Chrome 130" via UA but lacked the matching
+/// Client Hints headers — a classic spoofing detection signal.
+///
+/// Firefox does NOT send Client Hints headers. So if we claim to be
+/// Firefox via UA, the absence of sec-ch-ua headers is consistent with
+/// Firefox's real behavior, and Reddit's WAF can't detect the spoofing
+/// via that signal.
 ///
 /// This UA is set at the WebView level (via WebviewWindowBuilder::user_agent)
 /// which affects:
 ///   - The initial page load (login form)
 ///   - All XHR/fetch requests made from injected JS (Test Publish)
 ///   - All sub-resource requests (CSS, JS, images)
-///
-/// Tauri 2.0 stores the UA in the underlying WebKitWebView's "user-agent"
-/// property, which is the same as setting it via WebKit's
-/// webkit_web_context_set_user_agent() C API.
 const CHROME_USER_AGENT: &str =
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
-     (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:130.0) \
+     Gecko/20100101 Firefox/130.0";
 
 /// Capture Reddit session cookies by opening a native login window.
 ///

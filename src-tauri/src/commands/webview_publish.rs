@@ -365,30 +365,44 @@ pub async fn publish_to_reddit_via_webview(
                 // Async with explicit onload/onerror handlers so we capture
                 // the exact response status + body.
                 //
-                // URL: We use /api/submit.json (with .json extension) instead
-                // of /api/submit. Reddit's WAF treats the .json variant as an
-                // API call (returns JSON), while the bare /api/submit path
-                // sometimes returns the HTML "forbidden" page even for
-                // legitimate requests. The .json suffix is what Reddit's
-                // own web app uses internally.
+                // URL: We use /api/submit.json AND append Reddit's internal
+                // query parameters (?app=reddit-web-v3&raw_json=1&ui_bot_mutation=false).
+                // These are added by Reddit's own web app's JS — Reddit's WAF
+                // may use them as a "is this a real request from reddit.com's
+                // web app?" signal. Without them, the request looks like a
+                // raw API call from a script, which trips the WAF.
                 const xhr = new XMLHttpRequest();
-                xhr.open("POST", "https://www.reddit.com/api/submit.json", true);
+                xhr.open("POST",
+                    "https://www.reddit.com/api/submit.json"
+                    + "?app=reddit-web-v3"
+                    + "&raw_json=1"
+                    + "&ui_bot_mutation=false",
+                    true);
                 xhr.withCredentials = true;
 
-                // Set all the headers a real Chrome browser sends.
-                // Missing these was causing Reddit's WAF to return HTTP 403
-                // "forbidden" — it was fingerprinting the request as a bot
-                // because the header set was incomplete.
+                // Set all the headers a real browser sends.
                 //
-                // NOTE: User-Agent, Origin, Referer, and Sec-Fetch-* are
-                // "forbidden" headers in XHR — WebKitGTK sets them
-                // automatically based on the page context. We only set the
-                // non-forbidden headers here.
+                // We use Firefox UA (set on the WebView) — Firefox does NOT
+                // send Client Hints (sec-ch-ua-*) headers, so the absence of
+                // those headers is consistent with our UA.
+                //
+                // We DO set Sec-Fetch-* headers manually because WebKitGTK
+                // may not auto-send them. These are NOT in the XHR "forbidden
+                // header" list (per the Fetch standard), so we can set them.
+                // If WebKitGTK blocks them silently, no harm done — they just
+                // won't be present (same as if we didn't try).
                 xhr.setRequestHeader("x-csrf-token", cleanCsrf);
                 xhr.setRequestHeader("content-type",
                     "application/x-www-form-urlencoded");
-                xhr.setRequestHeader("accept", "*/*");
+                // Reddit's own web app sends this exact Accept value — match it.
+                xhr.setRequestHeader("accept",
+                    "application/json, text/plain, */*");
                 xhr.setRequestHeader("accept-language", "en-US,en;q=0.9");
+                // Sec-Fetch-* headers (help the WAF see this as a same-origin
+                // browser navigation, not a script):
+                xhr.setRequestHeader("sec-fetch-site", "same-origin");
+                xhr.setRequestHeader("sec-fetch-mode", "cors");
+                xhr.setRequestHeader("sec-fetch-dest", "empty");
 
                 xhr.onload = function () {{
                     const raw = (xhr.responseText || "").substring(0, 1500);
