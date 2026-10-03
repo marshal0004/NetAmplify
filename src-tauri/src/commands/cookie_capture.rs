@@ -30,6 +30,7 @@ use crate::commands::{
 };
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 use std::collections::HashMap;
+use url::Url as UrlType;
 
 /// Timeout for cookie capture: 5 minutes.
 /// The user might be slow typing their password or doing 2FA.
@@ -225,7 +226,7 @@ pub async fn capture_cookies_generic(
             //
             // Fix: Check if the URL has changed AWAY from the login page.
             // If still on /login, the user hasn't logged in yet — keep polling.
-            let current_url = login_window.url().unwrap_or_default();
+            let current_url = login_window.url().unwrap_or_else(|_| UrlType::parse("https://unknown.com/").unwrap());
             let url_str = current_url.as_str();
 
             let is_still_on_login_page = match platform {
