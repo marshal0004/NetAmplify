@@ -480,9 +480,32 @@ async fn execute_js_in_hidden_webview(
         });
     }
 
-    // Inject the publish JS
+    // Read the FRESH csrf_token from the WebView's cookie jar.
+    // document.cookie can't read SameSite=Strict cookies on WebKitGTK,
+    // so we read it from Rust via the Tauri cookie API.
+    let fresh_csrf_token = if login_window_label.starts_with("reddit") {
+        let cookies = window.cookies().unwrap_or_default();
+        cookies.iter()
+            .find(|c| c.name() == "csrf_token")
+            .map(|c| c.value().to_string())
+            .unwrap_or_else(|| {
+                log::warn!("csrf_token not found in cookie jar — falling back to backend value");
+                request.cookies.get("csrf_token").cloned().unwrap_or_default()
+            })
+    } else {
+        String::new()  // X doesn't use csrf_token from cookie jar
+    };
+
+    log::info!("Fresh csrf_token from cookie jar: {} chars", fresh_csrf_token.len());
+
+    // Inject the publish JS with the fresh csrf_token
+    let js_with_fresh_csrf = js_code.replace(
+        r#"const csrfToken = document.cookie.match(/csrf_token=([^;]+)/)?.[1] || "";"#,
+        &format!(r#"const csrfToken = "{}";"#, fresh_csrf_token.replace('\\', "\\\\").replace('"', "\\\"")),
+    );
+
     log::info!("Injecting publish JS into refreshed window");
-    window.eval(js_code)
+    window.eval(&js_with_fresh_csrf)
         .map_err(|e| CookieCaptureError {
             code: "JS_ERROR".to_string(),
             message: format!("Failed to execute JavaScript: {}", e),
