@@ -217,7 +217,33 @@ pub async fn capture_cookies_generic(
         let has_login_cookie = cookies.iter().any(|c| c.name() == login_cookie);
 
         if has_login_cookie {
-            log::info!("Detected {} cookie — extracting all required cookies", login_cookie);
+            // CRITICAL: Verify the user has ACTUALLY logged in.
+            // Reddit's login page itself sets token_v2 (an anonymous/guest
+            // token) even before the user logs in. If we capture it immediately,
+            // we get a guest token with no 'submit' scope → publish fails with
+            // "USER_REQUIRED".
+            //
+            // Fix: Check if the URL has changed AWAY from the login page.
+            // If still on /login, the user hasn't logged in yet — keep polling.
+            let current_url = login_window.url().unwrap_or_default();
+            let url_str = current_url.as_str();
+
+            let is_still_on_login_page = match platform {
+                "REDDIT_COOKIE" => url_str.contains("/login"),
+                "TWITTER_COOKIE" => url_str.contains("/i/flow/login") || url_str.contains("/login"),
+                _ => false,
+            };
+
+            if is_still_on_login_page {
+                // The login cookie exists but we're still on the login page.
+                // This means it's a guest/anonymous token, not a real login session.
+                // Keep polling until the URL changes (user logs in → redirected to homepage).
+                log::debug!("{} cookie detected but still on login page — waiting for actual login", platform);
+                tokio::time::sleep(poll_interval).await;
+                continue;
+            }
+
+            log::info!("Detected {} cookie + URL changed from login page — user is logged in", login_cookie);
 
             // Build a map of all cookies (name → value) for the platform's domain.
             let mut cookie_map: HashMap<String, String> = HashMap::new();
