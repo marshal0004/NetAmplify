@@ -437,32 +437,57 @@ async fn execute_js_in_hidden_webview(
     let _ = window.set_focus();
     log::info!("Reusing hidden login window '{}' for publishing", login_window_label);
 
-    // STEP 1: Navigate to the platform's homepage to refresh expired tokens.
-    // Reddit's token_v2 expires after ~1 hour. Loading reddit.com causes
-    // Reddit's web app to automatically issue a fresh token_v2 via
-    // Set-Cookie header (httpOnly). X's auth_token lasts ~1 year, but
-    // loading x.com/home refreshes ct0 if needed.
+    // The login window currently has reddit.com/login loaded (from auto-capture).
+    // We need to navigate it to reddit.com (the homepage) so the fetch() to
+    // /api/submit is same-origin. But we must NOT navigate to reddit.com/login
+    // — that would show the login page again.
     //
-    // We use window.eval to navigate, then wait for the page to load.
-    let refresh_url = if login_window_label.starts_with("reddit") {
+    // Reddit's token_v2 refreshes automatically when the page loads (via
+    // Set-Cookie headers from Reddit's web app). So navigating to reddit.com
+    // will give us fresh cookies + the correct page context.
+    //
+    // For X (Twitter), navigate to x.com/home (same-origin as the API).
+    let target_url = if login_window_label.starts_with("reddit") {
         "https://www.reddit.com/"
     } else {
         "https://x.com/home"
     };
-    log::info!("Refreshing cookies by navigating to {}", refresh_url);
-    window.eval(&format!("window.location.href = '{}';", refresh_url))
+
+    log::info!("Navigating to {} for cookie refresh + same-origin context", target_url);
+
+    // Navigate to the target URL. We use eval() to set window.location.href.
+    // The navigation will cause the page to reload, so we need to wait for
+    // the new page to load before injecting the publish JS.
+    window.eval(&format!("window.location.href = '{}';", target_url))
         .map_err(|e| CookieCaptureError {
             code: "JS_ERROR".to_string(),
-            message: format!("Failed to navigate for refresh: {}", e),
+            message: format!("Failed to navigate to {}: {}", target_url, e),
         })?;
 
-    // Wait for the page to load + Reddit/X to set fresh cookies
-    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+    // Wait for the page to load + cookies to refresh.
+    // Reddit/X web apps are heavy SPAs — give them 8 seconds to fully load.
+    tokio::time::sleep(std::time::Duration::from_secs(8)).await;
 
-    // STEP 2: Inject the publish JS
+    // IMPORTANT: After navigation, the page context changes. We need to verify
+    // the window is still on the correct page before injecting JS.
+    let current_url = window.url().map_err(|e| CookieCaptureError {
+        code: "TAURI_ERROR".to_string(),
+        message: format!("Failed to get window URL after navigation: {}", e),
+    })?;
+
+    log::info!("Window URL after refresh: {}", current_url);
+
+    // If the URL still shows /login, it means the cookies were expired and
+    // Reddit redirected to the login page. In this case, we can't publish.
+    if current_url.path().contains("login") {
+        return Err(CookieCaptureError {
+            code: "SESSION_EXPIRED".to_string(),
+            message: "Your Reddit/X session has expired. Please click 'Auto-Capture' again to log in.".to_string(),
+        });
+    }
+
+    // Inject the publish JS
     log::info!("Injecting publish JS into refreshed window");
-
-    // Inject the JS
     window.eval(js_code)
         .map_err(|e| CookieCaptureError {
             code: "JS_ERROR".to_string(),
