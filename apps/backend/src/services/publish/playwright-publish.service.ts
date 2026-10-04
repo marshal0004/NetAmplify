@@ -23,61 +23,84 @@ import { Injectable, Logger } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { execSync } from 'child_process';
 
 /**
  * Find an available Chromium binary on the system.
  *
- * Playwright ships TWO chromium variants:
- *   1. Full Chromium (~170MB) — at ~/.cache/ms-playwright/chromium-XXXX/chrome-linux64/chrome
- *   2. Headless-only shell (~100MB) — at ~/.cache/ms-playwright/chromium_headless_shell-XXXX/chrome-headless-shell-linux64/chrome-headless-shell
+ * Searches in this order:
+ *   1. Playwright cache (~/.cache/ms-playwright/chromium-XXXX/chrome-linux64/chrome)
+ *   2. Playwright headless shell cache (~/.cache/ms-playwright/chromium_headless_shell-XXXX/...)
+ *   3. System-installed Chromium/Chrome (via `which` command)
+ *   4. Common system binary paths (/usr/bin/chromium, /usr/bin/google-chrome, etc.)
  *
- * By default, `chromium.launch({ headless: true })` looks for #2 (headless shell).
- * But `playwright install chromium` may only install #1 (full chromium), depending
- * on the Playwright version and OS. This causes the error:
- *   "Executable doesn't exist at .../chromium_headless_shell-XXXX/..."
- *
- * This function searches the cache directory for ANY available chromium binary
- * (full or headless shell) and returns its path. We then pass it explicitly to
- * `chromium.launch({ executablePath })` to bypass the default lookup.
+ * Returns the first binary found that exists and is executable.
  */
 function findChromiumBinary(): string | undefined {
-  const cacheDir = path.join(os.homedir(), '.cache', 'ms-playwright');
-  if (!fs.existsSync(cacheDir)) return undefined;
-
-  // Try common chromium binary paths (in order of preference)
-  // 1. Headless shell (smaller, faster — preferred if available)
-  // 2. Full chromium (fallback — works for headless mode too with --headless flag)
   const candidates: string[] = [];
 
-  // Scan all subdirectories that start with chromium or chromium_headless_shell
-  let entries: string[] = [];
-  try {
-    entries = fs.readdirSync(cacheDir);
-  } catch {
-    return undefined;
+  // 1. Scan Playwright cache directory
+  const cacheDir = path.join(os.homedir(), '.cache', 'ms-playwright');
+  if (fs.existsSync(cacheDir)) {
+    let entries: string[] = [];
+    try {
+      entries = fs.readdirSync(cacheDir);
+    } catch {
+      // ignore
+    }
+
+    for (const entry of entries) {
+      // Headless shell variants (preferred — smaller, faster)
+      if (entry.startsWith('chromium_headless_shell-')) {
+        candidates.push(path.join(cacheDir, entry, 'chrome-headless-shell-linux64', 'chrome-headless-shell'));
+        candidates.push(path.join(cacheDir, entry, 'chrome-headless-shell-mac', 'chrome-headless-shell'));
+      }
+      // Full chromium variants (fallback — works for headless too)
+      if (entry.startsWith('chromium-') && !entry.includes('headless')) {
+        candidates.push(path.join(cacheDir, entry, 'chrome-linux64', 'chrome'));
+        candidates.push(path.join(cacheDir, entry, 'chrome-linux', 'chrome'));
+        candidates.push(path.join(cacheDir, entry, 'chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium'));
+      }
+    }
   }
 
-  for (const entry of entries) {
-    // Look for headless shell variants first (preferred)
-    if (entry.startsWith('chromium_headless_shell-')) {
-      // Linux x64 path
-      candidates.push(path.join(cacheDir, entry, 'chrome-headless-shell-linux64', 'chrome-headless-shell'));
-      // macOS path
-      candidates.push(path.join(cacheDir, entry, 'chrome-headless-shell-mac', 'chrome-headless-shell'));
-    }
-    // Then look for full chromium (fallback)
-    if (entry.startsWith('chromium-') && !entry.includes('headless')) {
-      // Linux x64 path (Chrome for Testing uses chrome-linux64/)
-      candidates.push(path.join(cacheDir, entry, 'chrome-linux64', 'chrome'));
-      // macOS path
-      candidates.push(path.join(cacheDir, entry, 'chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium'));
+  // 2. System-installed browsers via `which` (most reliable on Linux)
+  //    On Arch: `sudo pacman -S chromium` installs to /usr/bin/chromium
+  //    On Ubuntu: `apt install chromium-browser` installs to /usr/bin/chromium-browser
+  //    Google Chrome: installs to /usr/bin/google-chrome or /usr/bin/google-chrome-stable
+  const systemBins = [
+    'chromium',
+    'chromium-browser',
+    'google-chrome',
+    'google-chrome-stable',
+    'google-chrome-beta',
+    'brave-browser',
+  ];
+  for (const bin of systemBins) {
+    try {
+      // `which <bin>` returns the path if found, exits non-zero if not
+      const found = execSync(`which ${bin} 2>/dev/null`, { encoding: 'utf-8' }).trim();
+      if (found) candidates.push(found);
+    } catch {
+      // not installed
     }
   }
 
-  // Return the first existing binary
+  // 3. Hardcoded common system paths (fallback if `which` fails)
+  candidates.push('/usr/bin/chromium');
+  candidates.push('/usr/bin/chromium-browser');
+  candidates.push('/usr/bin/google-chrome');
+  candidates.push('/usr/bin/google-chrome-stable');
+  candidates.push('/snap/bin/chromium');
+  candidates.push('/opt/google/chrome/chrome');
+  candidates.push('/opt/chromium/chrome');
+
+  // Return the first existing + executable binary
   for (const candidate of candidates) {
     try {
-      if (fs.existsSync(candidate) && fs.accessSync(candidate, fs.constants.X_OK) === undefined) {
+      if (fs.existsSync(candidate)) {
+        // Check if executable (fs.accessSync throws if not)
+        fs.accessSync(candidate, fs.constants.X_OK);
         return candidate;
       }
     } catch {
@@ -86,6 +109,41 @@ function findChromiumBinary(): string | undefined {
   }
 
   return undefined;
+}
+
+/**
+ * List the contents of the Playwright cache directory for debugging.
+ * Returns a string describing what was found (or not found).
+ */
+function describePlaywrightCache(): string {
+  const cacheDir = path.join(os.homedir(), '.cache', 'ms-playwright');
+  if (!fs.existsSync(cacheDir)) {
+    return `Playwright cache dir does not exist: ${cacheDir}`;
+  }
+
+  let entries: string[] = [];
+  try {
+    entries = fs.readdirSync(cacheDir);
+  } catch (e) {
+    return `Cannot read Playwright cache dir ${cacheDir}: ${e}`;
+  }
+
+  if (entries.length === 0) {
+    return `Playwright cache dir is empty: ${cacheDir}`;
+  }
+
+  const lines = [`Playwright cache dir ${cacheDir} contains:`];
+  for (const entry of entries) {
+    const entryPath = path.join(cacheDir, entry);
+    // Try to list one level deep
+    try {
+      const subEntries = fs.readdirSync(entryPath);
+      lines.push(`  ${entry}/ → [${subEntries.slice(0, 5).join(', ')}${subEntries.length > 5 ? ', ...' : ''}]`);
+    } catch {
+      lines.push(`  ${entry}/ (cannot read)`);
+    }
+  }
+  return lines.join('\n');
 }
 
 export interface PlaywrightPublishRequest {
@@ -168,11 +226,17 @@ export class PlaywrightPublishService {
       // `playwright install chromium` may only install the full chromium.
       // We pass executablePath explicitly to use whichever is available.
       const executablePath = findChromiumBinary();
-      this._logger.log(
-        executablePath
-          ? `Using Chromium binary: ${executablePath}`
-          : 'No explicit binary found — using Playwright default (may fail)',
-      );
+      if (executablePath) {
+        this._logger.log(`Using Chromium binary: ${executablePath}`);
+      } else {
+        this._logger.warn(
+          'No Chromium binary found in Playwright cache OR system paths.\n' +
+          describePlaywrightCache() +
+          '\nTo fix:\n' +
+          '  Option A: Run `pnpm --filter ./apps/backend exec playwright install chromium`\n' +
+          '  Option B (Arch Linux): Run `sudo pacman -S chromium`',
+        );
+      }
 
       // Launch headless Chromium with realistic Chrome args.
       // --disable-blink-features=AutomationControlled hides the
@@ -466,11 +530,17 @@ export class PlaywrightPublishService {
       // Find any available chromium binary on the system (see publishToReddit
       // for full explanation — Playwright's default lookup may fail).
       const executablePath = findChromiumBinary();
-      this._logger.log(
-        executablePath
-          ? `Using Chromium binary: ${executablePath}`
-          : 'No explicit binary found — using Playwright default (may fail)',
-      );
+      if (executablePath) {
+        this._logger.log(`Using Chromium binary: ${executablePath}`);
+      } else {
+        this._logger.warn(
+          'No Chromium binary found in Playwright cache OR system paths.\n' +
+          describePlaywrightCache() +
+          '\nTo fix:\n' +
+          '  Option A: Run `pnpm --filter ./apps/backend exec playwright install chromium`\n' +
+          '  Option B (Arch Linux): Run `sudo pacman -S chromium`',
+        );
+      }
 
       browser = await chromium.launch({
         headless: true,
