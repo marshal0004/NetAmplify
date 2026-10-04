@@ -364,12 +364,32 @@ export class PlaywrightPublishService {
 
       this._logger.log('Logged in on old.reddit.com — filling form');
 
+      // Select the post type radio button (text vs link)
+      // old.reddit.com/submit has radio buttons: "text" and "link"
+      // We need to click the right one before the corresponding field becomes active
+      const kindRadio = await page.$(
+        isLinkPost
+          ? 'input[name="kind"][value="link"]'
+          : 'input[name="kind"][value="self"]',
+      );
+      if (kindRadio) {
+        await kindRadio.click();
+        this._logger.log(`Selected post type: ${isLinkPost ? 'link' : 'self'}`);
+        await page.waitForTimeout(500); // let the form update
+      } else {
+        this._logger.warn('Kind radio button not found — proceeding anyway');
+      }
+
       // Fill the subreddit field
-      // old.reddit.com/submit has a text input for the subreddit
+      // old.reddit.com/submit has a text input with name="sr" or name="subreddit"
+      // (depends on the version). Some versions also use a dropdown.
       const srField = await page.$('input[name="sr"], input[name="subreddit"]');
       if (srField) {
         await srField.fill(subreddit);
         this._logger.log(`Filled subreddit: ${subreddit}`);
+        // Trigger the subreddit validation by pressing Tab
+        await srField.press('Tab');
+        await page.waitForTimeout(1000);
       } else {
         this._logger.warn('Subreddit field not found — may need to select from dropdown');
       }
@@ -403,17 +423,23 @@ export class PlaywrightPublishService {
         }
       }
 
-      // Click the submit button
-      // old.reddit.com uses <button type="submit" class="btn"> or <input type="submit">
+      // Click the submit button — but make sure we click the RIGHT one.
+      // old.reddit.com/submit has multiple buttons (sidebar search, etc).
+      // The actual submit button is inside the main form#newlink
+      // with name="submit" or type="submit" inside div.formtabs.
       const submitButton = await page.$(
-        'button[type="submit"], input[type="submit"], button.c-btn-primary'
+        'form#newlink button[type="submit"], ' +
+        'form#newlink input[type="submit"], ' +
+        'div.formtabs button[type="submit"], ' +
+        'button.c-btn-primary[name="submit"], ' +
+        'button.btn[name="submit"]',
       );
       if (!submitButton) {
         return {
           id: '',
           url: '',
           success: false,
-          error: 'Could not find submit button on old.reddit.com/submit',
+          error: 'Could not find submit button on old.reddit.com/submit form',
         };
       }
 
@@ -422,10 +448,22 @@ export class PlaywrightPublishService {
       // Click the button and wait for navigation to the post page
       // After a successful submit, old.reddit.com redirects to:
       //   https://old.reddit.com/r/SUBREDDIT/comments/POST_ID/TITLE/
-      const [navigationResponse] = await Promise.all([
-        page.waitForNavigation({ timeout: 30000, waitUntil: 'domcontentloaded' }),
-        submitButton.click(),
-      ]);
+      // If Reddit rejects, it redirects to /search?q= or shows errors
+      try {
+        await Promise.all([
+          page.waitForNavigation({ timeout: 30000, waitUntil: 'domcontentloaded' }),
+          submitButton.click(),
+        ]);
+      } catch (navErr: any) {
+        // Navigation may not happen if the form has client-side validation errors
+        const pageText = await page.evaluate(() => document.body?.innerText?.substring(0, 500) || '');
+        return {
+          id: '',
+          url: '',
+          success: false,
+          error: `Form submission failed: ${navErr?.message}. Page text: ${pageText.substring(0, 300)}`,
+        };
+      }
 
       const finalUrl = page.url();
       this._logger.log(`After submit — navigated to: ${finalUrl}`);
@@ -444,6 +482,23 @@ export class PlaywrightPublishService {
           url: '',
           success: false,
           error: `Reddit form error: ${errorMessage}`,
+        };
+      }
+
+      // Check if we ended up on /search — this means Reddit rejected the post
+      // silently and redirected to search instead of showing an error
+      if (finalUrl.includes('/search')) {
+        const pageText = await page.evaluate(() => document.body?.innerText?.substring(0, 500) || '');
+        return {
+          id: '',
+          url: '',
+          success: false,
+          error:
+            `Reddit silently rejected the post and redirected to /search. ` +
+            `This usually means the subreddit doesn't allow posts from your ` +
+            `account (account too new, low karma, or subreddit requires approval). ` +
+            `Try r/test (which allows anyone to post) or wait 24h for account aging. ` +
+            `Final URL: ${finalUrl}`,
         };
       }
 
