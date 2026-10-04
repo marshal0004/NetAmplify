@@ -20,6 +20,73 @@
 // Same approach for X (Twitter) — just different endpoint + headers.
 
 import { Injectable, Logger } from '@nestjs/common';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
+
+/**
+ * Find an available Chromium binary on the system.
+ *
+ * Playwright ships TWO chromium variants:
+ *   1. Full Chromium (~170MB) — at ~/.cache/ms-playwright/chromium-XXXX/chrome-linux64/chrome
+ *   2. Headless-only shell (~100MB) — at ~/.cache/ms-playwright/chromium_headless_shell-XXXX/chrome-headless-shell-linux64/chrome-headless-shell
+ *
+ * By default, `chromium.launch({ headless: true })` looks for #2 (headless shell).
+ * But `playwright install chromium` may only install #1 (full chromium), depending
+ * on the Playwright version and OS. This causes the error:
+ *   "Executable doesn't exist at .../chromium_headless_shell-XXXX/..."
+ *
+ * This function searches the cache directory for ANY available chromium binary
+ * (full or headless shell) and returns its path. We then pass it explicitly to
+ * `chromium.launch({ executablePath })` to bypass the default lookup.
+ */
+function findChromiumBinary(): string | undefined {
+  const cacheDir = path.join(os.homedir(), '.cache', 'ms-playwright');
+  if (!fs.existsSync(cacheDir)) return undefined;
+
+  // Try common chromium binary paths (in order of preference)
+  // 1. Headless shell (smaller, faster — preferred if available)
+  // 2. Full chromium (fallback — works for headless mode too with --headless flag)
+  const candidates: string[] = [];
+
+  // Scan all subdirectories that start with chromium or chromium_headless_shell
+  let entries: string[] = [];
+  try {
+    entries = fs.readdirSync(cacheDir);
+  } catch {
+    return undefined;
+  }
+
+  for (const entry of entries) {
+    // Look for headless shell variants first (preferred)
+    if (entry.startsWith('chromium_headless_shell-')) {
+      // Linux x64 path
+      candidates.push(path.join(cacheDir, entry, 'chrome-headless-shell-linux64', 'chrome-headless-shell'));
+      // macOS path
+      candidates.push(path.join(cacheDir, entry, 'chrome-headless-shell-mac', 'chrome-headless-shell'));
+    }
+    // Then look for full chromium (fallback)
+    if (entry.startsWith('chromium-') && !entry.includes('headless')) {
+      // Linux x64 path (Chrome for Testing uses chrome-linux64/)
+      candidates.push(path.join(cacheDir, entry, 'chrome-linux64', 'chrome'));
+      // macOS path
+      candidates.push(path.join(cacheDir, entry, 'chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium'));
+    }
+  }
+
+  // Return the first existing binary
+  for (const candidate of candidates) {
+    try {
+      if (fs.existsSync(candidate) && fs.accessSync(candidate, fs.constants.X_OK) === undefined) {
+        return candidate;
+      }
+    } catch {
+      // Not executable, try next
+    }
+  }
+
+  return undefined;
+}
 
 export interface PlaywrightPublishRequest {
   cookies: Record<string, string>;
@@ -96,11 +163,23 @@ export class PlaywrightPublishService {
 
     let browser: any = null;
     try {
+      // Find any available chromium binary on the system.
+      // Playwright's default lookup looks for chrome-headless-shell, but
+      // `playwright install chromium` may only install the full chromium.
+      // We pass executablePath explicitly to use whichever is available.
+      const executablePath = findChromiumBinary();
+      this._logger.log(
+        executablePath
+          ? `Using Chromium binary: ${executablePath}`
+          : 'No explicit binary found — using Playwright default (may fail)',
+      );
+
       // Launch headless Chromium with realistic Chrome args.
       // --disable-blink-features=AutomationControlled hides the
       // navigator.webdriver = true flag (a bot detection signal).
       browser = await chromium.launch({
         headless: true,
+        ...(executablePath ? { executablePath } : {}),
         args: [
           '--disable-blink-features=AutomationControlled',
           '--no-sandbox',
@@ -384,8 +463,18 @@ export class PlaywrightPublishService {
 
     let browser: any = null;
     try {
+      // Find any available chromium binary on the system (see publishToReddit
+      // for full explanation — Playwright's default lookup may fail).
+      const executablePath = findChromiumBinary();
+      this._logger.log(
+        executablePath
+          ? `Using Chromium binary: ${executablePath}`
+          : 'No explicit binary found — using Playwright default (may fail)',
+      );
+
       browser = await chromium.launch({
         headless: true,
+        ...(executablePath ? { executablePath } : {}),
         args: [
           '--disable-blink-features=AutomationControlled',
           '--no-sandbox',
