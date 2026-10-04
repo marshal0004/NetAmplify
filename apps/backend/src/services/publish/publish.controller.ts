@@ -18,10 +18,9 @@ import {
 import type { Request } from 'express';
 import { PublishService, type PublishResultView } from './publish.service';
 import { PlaywrightPublishService } from './playwright-publish.service';
+import { ConnectionsService } from '@netamplify/nestjs-libraries/database/prisma/connections/connections.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { errorMapper, ServiceError } from '@netamplify/nestjs-libraries/services/error.mapper';
-import { ConnectionRepository } from '@netamplify/nestjs-libraries/database/prisma/connections/connections.repository';
-import { TokenVault } from '@netamplify/nestjs-libraries/services/vault/token-vault';
 
 function getUserId(req: Request): string {
   const user = req.user as { id?: string } | undefined;
@@ -44,8 +43,7 @@ export class PublishController {
   constructor(
     @Inject(PublishService) private readonly _publish: PublishService,
     @Inject(PlaywrightPublishService) private readonly _playwright: PlaywrightPublishService,
-    @Inject(ConnectionRepository) private readonly _conn: ConnectionRepository,
-    @Inject(TokenVault) private readonly _vault: TokenVault,
+    @Inject(ConnectionsService) private readonly _connections: ConnectionsService,
   ) {}
 
   /**
@@ -155,7 +153,7 @@ export class PublishController {
       const userId = getUserId(req);
 
       // Step 1: Fetch decrypted Reddit cookies from the vault
-      const creds = await this._conn.getDecryptedCredentials(userId, 'REDDIT_COOKIE');
+      const creds = await this._connections.getDecryptedCredentials(userId, 'REDDIT_COOKIE');
       if (!creds) {
         throw new ServiceError('NOT_FOUND', 'No Reddit connection found. Please click Auto-Capture first.');
       }
@@ -198,7 +196,7 @@ export class PublishController {
       const userId = getUserId(req);
 
       // Step 1: Fetch decrypted X cookies
-      const creds = await this._conn.getDecryptedCredentials(userId, 'TWITTER_COOKIE');
+      const creds = await this._connections.getDecryptedCredentials(userId, 'TWITTER_COOKIE');
       if (!creds) {
         throw new ServiceError('NOT_FOUND', 'No X connection found. Please click Auto-Capture first.');
       }

@@ -13,10 +13,11 @@ import { AuditLogService } from '@netamplify/nestjs-libraries/database/prisma/au
 import { TokenVault } from '@netamplify/nestjs-libraries/services/vault/token-vault';
 import { PlatformsModule } from '@netamplify/nestjs-libraries/platforms/platforms.module';
 import { QueueModule } from '@netamplify/nestjs-libraries/queue/queue.module';
+import { ConnectionsModule } from '../connections/connections.module';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Module({
-  imports: [PlatformsModule, QueueModule],
+  imports: [PlatformsModule, QueueModule, ConnectionsModule],
   controllers: [PublishController],
   providers: [
     PublishService,
