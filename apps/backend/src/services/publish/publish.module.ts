@@ -4,6 +4,7 @@
 import { Module } from '@nestjs/common';
 import { PublishController } from './publish.controller';
 import { PublishService } from './publish.service';
+import { PlaywrightPublishService } from './playwright-publish.service';
 import { PostRepository, PostTargetRepository } from '@netamplify/nestjs-libraries/database/prisma/posts/posts.repository';
 import { PostCardRepository } from '@netamplify/nestjs-libraries/database/prisma/postcards/postcards.repository';
 import { ConnectionRepository } from '@netamplify/nestjs-libraries/database/prisma/connections/connections.repository';
@@ -19,6 +20,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
   controllers: [PublishController],
   providers: [
     PublishService,
+    PlaywrightPublishService,
     PostRepository,
     PostTargetRepository,
     PostCardRepository,

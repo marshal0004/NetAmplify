@@ -6,13 +6,22 @@
 //   GET  /api/posts?page=1&platform=REDDIT&status=SUCCESS → { items, total }
 //   GET  /api/posts/:id → post + targets (for status polling)
 //   POST /api/posts/:id/targets/:targetId/retry → 200 | 409
+//
+// Also exposes:
+//   POST /api/publish/reddit-cookie-web  — Playwright-based Reddit publish
+//   POST /api/publish/twitter-cookie-web — Playwright-based X publish
+//   These bypass the Tauri WebView entirely — they spawn a real headless
+//   Chromium on the backend, which uses real BoringSSL TLS (passes WAF).
 
 import {
   Body, Controller, Get, HttpCode, Param, Post, Query, Req, UseGuards, Inject } from '@nestjs/common';
 import type { Request } from 'express';
 import { PublishService, type PublishResultView } from './publish.service';
+import { PlaywrightPublishService } from './playwright-publish.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { errorMapper, ServiceError } from '@netamplify/nestjs-libraries/services/error.mapper';
+import { ConnectionRepository } from '@netamplify/nestjs-libraries/database/prisma/connections/connections.repository';
+import { TokenVault } from '@netamplify/nestjs-libraries/services/vault/token-vault';
 
 function getUserId(req: Request): string {
   const user = req.user as { id?: string } | undefined;
@@ -32,7 +41,12 @@ function getAudit(req: Request) {
 @Controller()
 @UseGuards(JwtAuthGuard)
 export class PublishController {
-  constructor(@Inject(PublishService) private readonly _publish: PublishService) {}
+  constructor(
+    @Inject(PublishService) private readonly _publish: PublishService,
+    @Inject(PlaywrightPublishService) private readonly _playwright: PlaywrightPublishService,
+    @Inject(ConnectionRepository) private readonly _conn: ConnectionRepository,
+    @Inject(TokenVault) private readonly _vault: TokenVault,
+  ) {}
 
   /**
    * POST /api/postcards/:id/publish
@@ -108,6 +122,103 @@ export class PublishController {
   ): Promise<{ id: string; status: string }> {
     try {
       return await this._publish.retry(getUserId(req), postId, targetId, getAudit(req));
+    } catch (e) {
+      throw errorMapper(e);
+    }
+  }
+
+  // ==========================================================================
+  // Playwright-based publish endpoints (cookie platforms)
+  // ==========================================================================
+  //
+  // These bypass the Tauri WebView entirely. The frontend calls these
+  // instead of `publish_to_reddit_via_webview` / `publish_to_x_via_webview`
+  // Tauri commands. The backend spawns a headless Chromium, sets the
+  // user's cookies, and calls the platform's API from inside the page
+  // context — real Chrome TLS → bypasses Reddit's / X's WAF.
+
+  /**
+   * POST /api/publish/reddit-cookie-web
+   * Body: { title, body, url?, hashtags?, options?: { subreddit } }
+   *
+   * Used by the "Test Publish" button on the Connect page.
+   * Fetches the user's stored Reddit cookies from the encrypted vault,
+   * then spawns headless Chromium to make the publish request.
+   */
+  @Post('api/publish/reddit-cookie-web')
+  @HttpCode(200)
+  async publishRedditViaWeb(
+    @Body() body: unknown,
+    @Req() req: Request,
+  ): Promise<{ id: string; url: string; success: boolean; error?: string }> {
+    try {
+      const userId = getUserId(req);
+
+      // Step 1: Fetch decrypted Reddit cookies from the vault
+      const creds = await this._conn.getDecryptedCredentials(userId, 'REDDIT_COOKIE');
+      if (!creds) {
+        throw new ServiceError('NOT_FOUND', 'No Reddit connection found. Please click Auto-Capture first.');
+      }
+      const credMap = creds as Record<string, unknown>;
+      const cookies: Record<string, string> = {};
+      if (credMap.tokenV2) cookies.token_v2 = String(credMap.tokenV2);
+      if (credMap.csrfToken) cookies.csrf_token = String(credMap.csrfToken);
+      if (credMap.redditSession) cookies.reddit_session = String(credMap.redditSession);
+
+      // Step 2: Build the formatted post from the request body
+      const b = (body || {}) as Record<string, unknown>;
+      const formatted = {
+        title: String(b.title ?? 'Test Post from NetAmplify'),
+        body: String(b.body ?? ''),
+        url: b.url ? String(b.url) : undefined,
+        hashtags: Array.isArray(b.hashtags) ? b.hashtags.map(String) : undefined,
+        options: b.options as Record<string, unknown> | undefined,
+      };
+
+      // Step 3: Spawn Playwright + publish
+      return await this._playwright.publishToReddit({ cookies, formatted });
+    } catch (e) {
+      throw errorMapper(e);
+    }
+  }
+
+  /**
+   * POST /api/publish/twitter-cookie-web
+   * Body: { title, body, url?, hashtags? }
+   *
+   * Same as reddit-cookie-web but for X (Twitter).
+   */
+  @Post('api/publish/twitter-cookie-web')
+  @HttpCode(200)
+  async publishTwitterViaWeb(
+    @Body() body: unknown,
+    @Req() req: Request,
+  ): Promise<{ id: string; url: string; success: boolean; error?: string }> {
+    try {
+      const userId = getUserId(req);
+
+      // Step 1: Fetch decrypted X cookies
+      const creds = await this._conn.getDecryptedCredentials(userId, 'TWITTER_COOKIE');
+      if (!creds) {
+        throw new ServiceError('NOT_FOUND', 'No X connection found. Please click Auto-Capture first.');
+      }
+      const credMap = creds as Record<string, unknown>;
+      const cookies: Record<string, string> = {};
+      if (credMap.authToken) cookies.auth_token = String(credMap.authToken);
+      if (credMap.ct0) cookies.ct0 = String(credMap.ct0);
+
+      // Step 2: Build the formatted post
+      const b = (body || {}) as Record<string, unknown>;
+      const formatted = {
+        title: String(b.title ?? 'Test Post from NetAmplify'),
+        body: String(b.body ?? ''),
+        url: b.url ? String(b.url) : undefined,
+        hashtags: Array.isArray(b.hashtags) ? b.hashtags.map(String) : undefined,
+        options: b.options as Record<string, unknown> | undefined,
+      };
+
+      // Step 3: Spawn Playwright + publish
+      return await this._playwright.publishToX({ cookies, formatted });
     } catch (e) {
       throw errorMapper(e);
     }

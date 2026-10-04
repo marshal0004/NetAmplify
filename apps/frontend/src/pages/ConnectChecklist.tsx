@@ -7,7 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { isTauri, captureAndConnect, publishToXViaWebview, publishToRedditViaWebview } from '@/lib/tauri';
+import { isTauri, captureAndConnect } from '@/lib/tauri';
 
 const trustCopy: Record<string, string> = {
   REDDIT: 'You\'ll log in on Reddit\'s official page — NetAmplify never sees your password. We receive only a limited permission to submit posts, and you can revoke it anytime in your Reddit settings.',
@@ -261,45 +261,51 @@ export function ConnectChecklist() {
         return;
       }
 
-      // Step 1: Fetch the decrypted cookies from the backend
-      // (The cookies are stored encrypted on the backend; we need them
-      // in plaintext to inject into the hidden WebView via document.cookie)
-      const cookieResp = await fetch(`/api/connections/${platform.toLowerCase().replace(/_/g, '-')}/cookies`, {
-        headers: { Authorization: `Bearer ${jwtToken}` },
-      });
-      if (!cookieResp.ok) {
-        throw new Error(`Failed to fetch cookies: HTTP ${cookieResp.status}`);
-      }
-      const { cookies } = await cookieResp.json() as { cookies: Record<string, string> };
-      if (Object.keys(cookies).length === 0) {
-        throw new Error('No cookies found for this platform. Please reconnect.');
-      }
+      // Use the backend Playwright-based publish endpoint.
+      // This spawns a headless Chromium on the backend which has a real
+      // Chrome TLS fingerprint — bypasses Reddit's/X's WAF.
+      // The Tauri WebView approach (WebKitGTK) was failing because
+      // Reddit's WAF fingerprints the TLS layer, not just HTTP headers.
+      const endpoint = platform === 'TWITTER_COOKIE'
+        ? '/api/publish/twitter-cookie-web'
+        : '/api/publish/reddit-cookie-web';
 
-      // Step 2: Call the Tauri WebView publish command with the real cookies
-      const result = platform === 'TWITTER_COOKIE'
-        ? await publishToXViaWebview(
-            cookies,
-            {
+      const payload =
+        platform === 'TWITTER_COOKIE'
+          ? {
               title: 'Test Post from NetAmplify',
-              body: 'Hello from NetAmplify! This is a test post via Tauri WebView (bypasses TLS fingerprint).',
+              body: 'Hello from NetAmplify! This is a test post via Playwright (real Chrome TLS).',
               url: 'https://github.com/marshal0004/NetAmplify',
               hashtags: ['netamplify', 'test'],
-            },
-            jwtToken,
-            'test-target'
-          )
-        : await publishToRedditViaWebview(
-            cookies,
-            {
+            }
+          : {
               title: 'Test Post from NetAmplify',
-              body: 'Hello from NetAmplify! This is a test post via Tauri WebView.',
+              body: 'Hello from NetAmplify! This is a test post via Playwright (real Chrome TLS).',
               url: 'https://github.com/marshal0004/NetAmplify',
               hashtags: ['netamplify'],
               options: { subreddit: 'test' },
-            },
-            jwtToken,
-            'test-target'
-          );
+            };
+
+      const resp = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${jwtToken}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!resp.ok) {
+        const text = await resp.text();
+        throw new Error(`HTTP ${resp.status}: ${text.substring(0, 300)}`);
+      }
+
+      const result = (await resp.json()) as {
+        id: string;
+        url: string;
+        success: boolean;
+        error?: string;
+      };
 
       if (result.success) {
         setPublishResult({ [platform]: `✅ Posted! ${result.url}` });
@@ -307,10 +313,7 @@ export function ConnectChecklist() {
         setPublishResult({ [platform]: `❌ Failed: ${result.error || 'Unknown error'}` });
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message :
-        (typeof err === 'object' && err !== null && 'message' in err) ? String((err as { message: unknown }).message) :
-        typeof err === 'string' ? err :
-        'Test publish failed (check terminal for details).';
+      const message = err instanceof Error ? err.message : String(err);
       setPublishResult({ [platform]: `❌ Error: ${message}` });
     } finally {
       setPublishingPlatform(null);
