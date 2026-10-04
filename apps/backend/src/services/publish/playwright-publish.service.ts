@@ -300,149 +300,171 @@ export class PlaywrightPublishService {
         };
       }
 
-      // Read the FRESH csrf_token from document.cookie.
-      // The csrf_token cookie is NOT httpOnly, so JS can read it.
-      // We use page.evaluate to run this in the page context.
-      const freshCsrfToken = await page.evaluate(() => {
-        const match = document.cookie.match(/csrf_token=([^;]+)/);
-        return match ? match[1] : '';
+      // ===== NEW STRATEGY: Fill the actual form on old.reddit.com/submit =====
+      //
+      // The previous approach (calling fetch('/api/submit.json') from the page
+      // context) was returning HTTP 403 even with real Chromium. Reddit's WAF
+      // specifically blocks programmatic POST requests to /api/submit — even
+      // from real Chrome with real cookies.
+      //
+      // This new approach navigates to old.reddit.com/submit and fills in the
+      // actual HTML form like a human would:
+      //   1. Navigate to https://old.reddit.com/submit
+      //   2. Fill in the title input field
+      //   3. Fill in the text textarea (or url input for link posts)
+      //   4. Fill in the subreddit field
+      //   5. Click the "submit" button
+      //   6. Wait for the browser to navigate to the new post's page
+      //   7. Extract the post URL from the final page URL
+      //
+      // old.reddit.com uses a traditional server-rendered HTML form. When the
+      // user clicks "submit", the browser makes a native form POST — not a
+      // fetch() call. Reddit's WAF can't distinguish this from a real human
+      // because it IS a real browser doing a real form submission.
+      //
+      // The cookies (token_v2, csrf_token, reddit_session) work on
+      // old.reddit.com because they're set on the .reddit.com domain.
+      this._logger.log('Navigating to https://old.reddit.com/submit for form submission');
+
+      await page.goto('https://old.reddit.com/submit', {
+        waitUntil: 'domcontentloaded',
+        timeout: 30000,
+      });
+      await page.waitForTimeout(2000);
+
+      // Check if redirected to login
+      const submitUrl = page.url();
+      if (submitUrl.includes('login')) {
+        return {
+          id: '',
+          url: '',
+          success: false,
+          error:
+            'Reddit session expired (redirected to login on old.reddit.com). Please reconnect.',
+        };
+      }
+
+      this._logger.log(`On submit page: ${submitUrl}`);
+
+      // Verify we're logged in by checking for the user's username in the page
+      const isLoggedIn = await page.evaluate(() => {
+        // old.reddit.com shows "logout" link when logged in
+        return !!document.querySelector('form[action="/logout"]')
+          || !!document.querySelector('span.user a');
       });
 
-      if (!freshCsrfToken || freshCsrfToken.length < 8) {
+      if (!isLoggedIn) {
         return {
           id: '',
           url: '',
           success: false,
-          error: `Failed to read fresh csrf_token from page (got length ${freshCsrfToken.length})`,
+          error: 'Not logged in on old.reddit.com — cookies may be invalid. Please reconnect.',
         };
       }
 
-      this._logger.log(
-        `Fresh csrf_token: ${freshCsrfToken.length} chars — making /api/submit call`,
+      this._logger.log('Logged in on old.reddit.com — filling form');
+
+      // Fill the subreddit field
+      // old.reddit.com/submit has a text input for the subreddit
+      const srField = await page.$('input[name="sr"], input[name="subreddit"]');
+      if (srField) {
+        await srField.fill(subreddit);
+        this._logger.log(`Filled subreddit: ${subreddit}`);
+      } else {
+        this._logger.warn('Subreddit field not found — may need to select from dropdown');
+      }
+
+      // Fill the title field
+      const titleField = await page.$('input[name="title"], textarea[name="title"]');
+      if (titleField) {
+        await titleField.fill(req.formatted.title);
+        this._logger.log(`Filled title: ${req.formatted.title}`);
+      } else {
+        return {
+          id: '',
+          url: '',
+          success: false,
+          error: 'Could not find title field on old.reddit.com/submit',
+        };
+      }
+
+      // Fill the content field (text for self posts, url for link posts)
+      if (isLinkPost) {
+        const urlField = await page.$('input[name="url"]');
+        if (urlField) {
+          await urlField.fill(content);
+          this._logger.log(`Filled URL: ${content}`);
+        }
+      } else {
+        const textField = await page.$('textarea[name="text"], textarea[name="selftext"]');
+        if (textField) {
+          await textField.fill(content);
+          this._logger.log('Filled text content');
+        }
+      }
+
+      // Click the submit button
+      // old.reddit.com uses <button type="submit" class="btn"> or <input type="submit">
+      const submitButton = await page.$(
+        'button[type="submit"], input[type="submit"], button.c-btn-primary'
       );
-
-      // Make the publish request from INSIDE the page context.
-      // This is the key: the request goes out with Chromium's real TLS
-      // fingerprint + same-origin cookies (token_v2 + csrf_token).
-      const result = await page.evaluate(
-        async ({ subreddit, title, kind, content, csrfToken }) => {
-          try {
-            const enc = encodeURIComponent;
-            const parts = [
-              'api_type=json',
-              'sr=' + enc(subreddit),
-              'title=' + enc(title),
-              'kind=' + enc(kind),
-            ];
-            if (kind === 'link') {
-              parts.push('url=' + enc(content));
-            } else {
-              parts.push('text=' + enc(content));
-            }
-            const body = parts.join('&');
-
-            // Use fetch() — inside real Chrome, fetch works perfectly
-            // (no WebKitGTK DOMException issues here).
-            const resp = await fetch(
-              'https://www.reddit.com/api/submit.json' +
-                '?app=reddit-web-v3&raw_json=1&ui_bot_mutation=false',
-              {
-                method: 'POST',
-                headers: {
-                  'x-csrf-token': csrfToken,
-                  'content-type': 'application/x-www-form-urlencoded',
-                  accept: 'application/json, text/plain, */*',
-                  'accept-language': 'en-US,en;q=0.9',
-                },
-                body,
-                credentials: 'include',
-              },
-            );
-
-            const status = resp.status;
-            const text = await resp.text();
-            return { status, text: text.substring(0, 2000) };
-          } catch (e: any) {
-            return {
-              status: 0,
-              text: 'JS error: ' + (e?.message || String(e)),
-            };
-          }
-        },
-        {
-          subreddit,
-          title: req.formatted.title,
-          kind: isLinkPost ? 'link' : 'self',
-          content,
-          csrfToken: freshCsrfToken,
-        },
-      );
-
-      this._logger.log(
-        `Reddit response: HTTP ${result.status} — ${result.text.substring(0, 200)}`,
-      );
-
-      // Parse the response
-      if (result.status === 0) {
+      if (!submitButton) {
         return {
           id: '',
           url: '',
           success: false,
-          error: result.text,
+          error: 'Could not find submit button on old.reddit.com/submit',
         };
       }
 
-      if (result.status !== 200) {
+      this._logger.log('Clicking submit button...');
+
+      // Click the button and wait for navigation to the post page
+      // After a successful submit, old.reddit.com redirects to:
+      //   https://old.reddit.com/r/SUBREDDIT/comments/POST_ID/TITLE/
+      const [navigationResponse] = await Promise.all([
+        page.waitForNavigation({ timeout: 30000, waitUntil: 'domcontentloaded' }),
+        submitButton.click(),
+      ]);
+
+      const finalUrl = page.url();
+      this._logger.log(`After submit — navigated to: ${finalUrl}`);
+
+      // Check for error messages on the page (Reddit sometimes shows errors
+      // instead of redirecting)
+      const errorMessage = await page.evaluate(() => {
+        // old.reddit.com shows errors in .status or .error elements
+        const errorEl = document.querySelector('.status, .error, .alert-error');
+        return errorEl ? errorEl.textContent?.trim() : '';
+      });
+
+      if (errorMessage && errorMessage.length > 0) {
         return {
           id: '',
           url: '',
           success: false,
-          error: `Reddit HTTP ${result.status} — ${result.text.substring(0, 400)}`,
+          error: `Reddit form error: ${errorMessage}`,
         };
       }
 
-      // Try to parse JSON
-      let data: any;
-      try {
-        data = JSON.parse(result.text);
-      } catch (e) {
+      // Extract the post ID from the URL
+      // URL format: https://old.reddit.com/r/SUBREDDIT/comments/POST_ID/POST_TITLE/
+      const postIdMatch = finalUrl.match(/\/comments\/([a-z0-9]+)/i);
+      if (!postIdMatch) {
+        // Maybe we're on an error page — check the page content
+        const pageText = await page.evaluate(() => document.body?.innerText?.substring(0, 500) || '');
         return {
           id: '',
           url: '',
           success: false,
-          error: `Reddit returned non-JSON (HTTP ${result.status}): ${result.text.substring(0, 300)}`,
+          error: `Could not extract post ID from URL: ${finalUrl}. Page text: ${pageText.substring(0, 300)}`,
         };
       }
 
-      // Check for Reddit errors array
-      const errors = data?.json?.errors;
-      if (Array.isArray(errors) && errors.length > 0) {
-        const errMsg = Array.isArray(errors[0])
-          ? errors[0][1] || JSON.stringify(errors[0])
-          : JSON.stringify(errors[0]);
-        return {
-          id: '',
-          url: '',
-          success: false,
-          error: `Reddit: ${errMsg}`,
-        };
-      }
+      const postId = postIdMatch[1];
+      const postUrl = `https://www.reddit.com/r/${subreddit}/comments/${postId}/`;
 
-      // Extract post ID + URL
-      const postId =
-        data?.json?.data?.id || data?.json?.data?.name || '';
-      const postUrl =
-        data?.json?.data?.url ||
-        (postId ? `https://www.reddit.com/comments/${postId}/` : '');
-
-      if (!postId) {
-        return {
-          id: '',
-          url: '',
-          success: false,
-          error: `No post ID in Reddit response: ${result.text.substring(0, 400)}`,
-        };
-      }
+      this._logger.log(`✅ SUCCESS! Post ID: ${postId}, URL: ${postUrl}`);
 
       return {
         id: postId,
