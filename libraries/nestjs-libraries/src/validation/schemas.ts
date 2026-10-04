@@ -237,20 +237,20 @@ export const CONNECT_REDDIT_COOKIE_SCHEMA = z.object({
       /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/,
       'token_v2 must be a JWT with 3 dot-separated parts (header.payload.signature)'
     ),
+  // Reddit's csrf_token is a 32-char alphanumeric string (a-z, 0-9).
+  // NOT hex — it can contain any letter, not just a-f. Previous regex
+  // /^[a-f0-9]{32}$/i was rejecting valid csrf_tokens containing g-z.
   csrfToken: z
     .string()
     .min(32, 'csrf_token must be 32 chars')
     .max(32, 'csrf_token must be 32 chars')
-    .regex(/^[a-f0-9]{32}$/i, 'csrf_token must be 32 hex chars (0-9, a-f)'),
-  // Optional legacy `reddit_session` cookie (improves browser fingerprint, has no scopes alone)
+    .regex(/^[a-z0-9]{32}$/i, 'csrf_token must be 32 alphanumeric chars (0-9, a-z)'),
+  // Optional legacy `reddit_session` cookie. Some Reddit accounts have it,
+  // some don't. Be lenient — just require a reasonable min length if present.
   redditSession: z
     .string()
-    .min(100, 'reddit_session (legacy JWT, optional) looks too short — copy the full value or leave blank')
+    .min(50, 'reddit_session looks too short — copy the full value or leave blank')
     .max(5000, 'reddit_session is too long (max 5000 chars)')
-    .regex(
-      /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/,
-      'reddit_session (legacy JWT, optional) must have 3 dot-separated parts'
-    )
     .optional()
     .or(z.literal('').optional()),
 });

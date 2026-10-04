@@ -129,7 +129,7 @@ const platformConfig: Record<string, PlatformConfig> = {
   REDDIT_COOKIE: {
     fields: [
       { key: 'tokenV2', label: 'token_v2 cookie (JWT, REQUIRED)', placeholder: 'eyJhbGciOiJ... (long string with 2 dots)' },
-      { key: 'csrfToken', label: 'csrf_token cookie (REQUIRED)', placeholder: '32-char hex string (0-9, a-f)' },
+      { key: 'csrfToken', label: 'csrf_token cookie (REQUIRED)', placeholder: '32-char alphanumeric string (0-9, a-z)' },
       { key: 'redditSession', label: 'reddit_session cookie (legacy, OPTIONAL)', placeholder: 'eyJhbGciOiJ... or leave blank' },
     ],
     steps: [
@@ -414,7 +414,7 @@ export function ConnectChecklist() {
                     </div>
                     {isConnected ? (
                       <div className="flex gap-2">
-                        {(conn.platform === 'TWITTER_COOKIE' || conn.platform === 'REDDIT_COOKIE') && isTauri() && (
+                        {(conn.platform === 'TWITTER_COOKIE' || conn.platform === 'REDDIT_COOKIE') && (
                           <Button
                             size="sm"
                             onClick={() => handleTestPublish(conn.platform as 'REDDIT_COOKIE' | 'TWITTER_COOKIE')}
