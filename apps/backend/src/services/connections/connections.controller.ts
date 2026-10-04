@@ -158,12 +158,25 @@ export class ConnectionsController {
   /**
    * POST /api/connections/twitter-cookie  { authToken, ct0 }
    * Per docs/01-PRD.md §6: cookie bypass for X's $100/mo API paywall.
+   *
+   * Uses saveSimpleConnectionSkipValidation (NOT saveSimpleConnection)
+   * because:
+   *   1. The user already proved the cookies work by logging in to x.com
+   *      in their browser. The Cookie-Editor extension only sees them
+   *      AFTER a successful login.
+   *   2. Validating from Node.js would call X's API with OpenSSL TLS,
+   *      which X's WAF detects and blocks (TLS fingerprint mismatch).
+   *   3. Validating from Node.js can also time out (Fastly CDN blocks).
+   *
+   * The actual publish will go through the Playwright backend endpoint
+   * (POST /api/publish/twitter-cookie-web) which uses real Chromium
+   * with BoringSSL TLS — same as Chrome.
    */
   @Post('twitter-cookie')
   @HttpCode(201)
   async connectTwitterCookie(@Body() body: unknown, @Req() req: Request): Promise<{ id: string; username: string }> {
     try {
-      return await this._conn.saveSimpleConnection(
+      return await this._conn.saveSimpleConnectionSkipValidation(
         getUserId(req),
         'TWITTER_COOKIE',
         body,
@@ -175,14 +188,19 @@ export class ConnectionsController {
   }
 
   /**
-   * POST /api/connections/reddit-cookie  { redditSession, token }
+   * POST /api/connections/reddit-cookie  { tokenV2, csrfToken, redditSession? }
    * Per docs/01-PRD.md §6: cookie bypass for Reddit's manual review.
+   *
+   * Uses saveSimpleConnectionSkipValidation for the same reasons as
+   * twitter-cookie above — Node.js can't reliably call Reddit's API
+   * (TLS fingerprint + Fastly CDN timeouts). The cookies are trusted
+   * because the user just logged in to reddit.com to get them.
    */
   @Post('reddit-cookie')
   @HttpCode(201)
   async connectRedditCookie(@Body() body: unknown, @Req() req: Request): Promise<{ id: string; username: string }> {
     try {
-      return await this._conn.saveSimpleConnection(
+      return await this._conn.saveSimpleConnectionSkipValidation(
         getUserId(req),
         'REDDIT_COOKIE',
         body,
