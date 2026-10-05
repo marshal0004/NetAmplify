@@ -364,20 +364,31 @@ export class PlaywrightPublishService {
 
       this._logger.log('Logged in on old.reddit.com — filling form');
 
-      // Select the post type radio button (text vs link)
-      // old.reddit.com/submit has radio buttons: "text" and "link"
-      // We need to click the right one before the corresponding field becomes active
-      const kindRadio = await page.$(
-        isLinkPost
-          ? 'input[name="kind"][value="link"]'
-          : 'input[name="kind"][value="self"]',
-      );
-      if (kindRadio) {
-        await kindRadio.click();
-        this._logger.log(`Selected post type: ${isLinkPost ? 'link' : 'self'}`);
+      // Select the post type — old.reddit.com uses <input type="radio" name="kind">
+      // but they're hidden (display:none) — wrapped in <label> elements that
+      // act as the visible buttons. We need to click the LABEL, not the input.
+      //
+      // HTML structure:
+      //   <input type="radio" name="kind" value="link" id="link" style="display:none">
+      //   <label for="link">Link</label>
+      //   <input type="radio" name="kind" value="self" id="self" style="display:none">
+      //   <label for="self">Text</label>
+      //
+      // Alternative: set the radio's checked property via JS (bypasses visibility check)
+      const kindValue = isLinkPost ? 'link' : 'self';
+      const kindSet = await page.evaluate((val) => {
+        const radio = document.querySelector(`input[name="kind"][value="${val}"]`) as HTMLInputElement;
+        if (!radio) return false;
+        radio.checked = true;
+        radio.click(); // also fire the click event so any JS listeners run
+        return true;
+      }, kindValue);
+
+      if (kindSet) {
+        this._logger.log(`Selected post type: ${kindValue} (via JS)`);
         await page.waitForTimeout(500); // let the form update
       } else {
-        this._logger.warn('Kind radio button not found — proceeding anyway');
+        this._logger.warn('Kind radio not found — proceeding anyway');
       }
 
       // Fill the subreddit field
@@ -638,6 +649,9 @@ export class PlaywrightPublishService {
       });
 
       // Set X cookies on .x.com
+      // auth_token is httpOnly so JS can't read it — we MUST set it via
+      // context.addCookies (Playwright's API). Once set, it'll be sent
+      // automatically with every request.
       await context.addCookies([
         {
           name: 'auth_token',
@@ -666,7 +680,7 @@ export class PlaywrightPublishService {
         waitUntil: 'domcontentloaded',
         timeout: 30000,
       });
-      await page.waitForTimeout(3000);
+      await page.waitForTimeout(5000); // wait longer for SPA to load + rotate ct0
 
       // Check if redirected to login
       const currentUrl = page.url();
@@ -679,7 +693,11 @@ export class PlaywrightPublishService {
         };
       }
 
-      // Read ct0 from the page (the cookie may have rotated)
+      // Read the FRESH ct0 from the page after navigation.
+      // X rotates ct0 on every page load. The stored ct0 we set via addCookies
+      // may be stale — X replaces it with a fresh one when the page loads.
+      // We MUST use this fresh ct0 in the x-csrf-token header, otherwise
+      // X returns HTTP 401 "Could not authenticate you" (code 32).
       const ct0 = await page.evaluate(() => {
         const match = document.cookie.match(/ct0=([^;]+)/);
         return match ? match[1] : '';
@@ -773,7 +791,10 @@ export class PlaywrightPublishService {
                   'x-csrf-token': ct0,
                   'x-twitter-auth-type': 'OAuth2Session',
                   'x-twitter-active-user': 'yes',
+                  'x-twitter-client-language': 'en',
                   'content-type': 'application/json',
+                  accept: '*/*',
+                  'accept-language': 'en-US,en;q=0.9',
                 },
                 body: JSON.stringify(payload),
                 credentials: 'include',
