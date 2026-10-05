@@ -274,7 +274,8 @@ export function ConnectChecklist() {
         platform === 'TWITTER_COOKIE'
           ? {
               title: 'Test Post from NetAmplify',
-              body: 'Hello from NetAmplify! This is a test post via Playwright (real Chrome TLS).',
+              // Use a unique timestamp so X doesn't reject as duplicate
+              body: `Hello from NetAmplify! This is a test post via Playwright (real Chrome TLS). ${new Date().toISOString()}`,
               url: 'https://github.com/marshal0004/NetAmplify',
               hashtags: ['netamplify', 'test'],
             }

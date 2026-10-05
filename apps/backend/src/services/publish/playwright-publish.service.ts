@@ -761,54 +761,91 @@ export class PlaywrightPublishService {
         };
       }
 
-      // Click Post and wait for navigation (X redirects to home after posting)
-      // Use force: true to bypass Playwright's hit-test check — X often has
-      // an overlay <div> that intercepts pointer events even when the button
-      // is visible and enabled. The click still works; it just needs to be
-      // forced past the overlay.
+      // Click the Post button.
+      // Don't use Promise.all with waitForNavigation — if the click is slow
+      // to register (X's overlay), waitForNavigation times out and CANCELS
+      // the click. Instead:
+      //   1. Try force click (bypasses overlay hit-test)
+      //   2. If that fails, use JS click (calls .click() on the DOM element)
+      //   3. Wait and check the page state
+      this._logger.log('Clicking Post button (force + JS fallback)...');
       try {
-        await Promise.all([
-          page.waitForNavigation({ timeout: 15000, waitUntil: 'domcontentloaded' }).catch(() => null),
-          postButton.click({ force: true }),
-        ]);
+        await postButton.click({ force: true, timeout: 5000 });
       } catch (clickErr: any) {
-        // If force click also fails (e.g. element detached), try clicking via JS
-        this._logger.warn(`Force click failed (${clickErr?.message}) — trying JS click...`);
-        await page.evaluate(() => {
-          const btn = document.querySelector('button[data-testid="tweetButton"]') as HTMLButtonElement;
-          if (btn) btn.click();
+        this._logger.warn(`Force click failed: ${clickErr?.message} — using JS click...`);
+      }
+      // Always also do a JS click as a backup — it's idempotent if the
+      // tweet was already posted (the button would be gone).
+      await page.evaluate(() => {
+        const btn = document.querySelector('button[data-testid="tweetButton"]') as HTMLButtonElement;
+        if (btn) btn.click();
+      });
+
+      // Wait for either:
+      //   - URL to change (redirect to home/profile after posting)
+      //   - The compose editor to clear (X clears it after posting)
+      //   - A toast notification to appear ("Your post was sent")
+      // Give X up to 15s to respond.
+      this._logger.log('Waiting for post confirmation...');
+      let posted = false;
+      let duplicateError = false;
+      for (let i = 0; i < 15; i++) {
+        await page.waitForTimeout(1000);
+        const state = await page.evaluate(() => {
+          const url = window.location.href;
+          const bodyText = document.body?.innerText || '';
+          // Success signals:
+          //   1. URL changed away from /compose/post
+          //   2. Toast notification appeared
+          //   3. The tweet editor is now empty (X clears it after posting)
+          const editor = document.querySelector('[data-testid="tweetTextarea_0"]');
+          const editorEmpty = editor ? editor.textContent?.trim() === '' : true;
+          const hasToast = bodyText.includes('Your post was sent')
+            || bodyText.includes('Your Post was sent');
+          // Error signal: X shows "Whoops! You already said that." when
+          // the user tries to post a duplicate tweet (same text as last post)
+          const hasDuplicateError = bodyText.includes('already said that');
+          return { url, hasToast, editorEmpty, hasDuplicateError };
         });
-        await page.waitForTimeout(5000);
+
+        if (state.hasDuplicateError) {
+          this._logger.warn('❌ X rejected: "Whoops! You already said that." (duplicate tweet)');
+          duplicateError = true;
+          break;
+        }
+        if (state.hasToast) {
+          this._logger.log('✅ Success toast detected — tweet posted!');
+          posted = true;
+          break;
+        }
+        if (!state.url.includes('/compose/post')) {
+          this._logger.log(`✅ URL changed to ${state.url} — tweet posted!`);
+          posted = true;
+          break;
+        }
+        if (state.editorEmpty) {
+          this._logger.log('✅ Editor cleared — tweet likely posted');
+          posted = true;
+          break;
+        }
       }
 
       const afterUrl = page.url();
-      this._logger.log(`After Post click — navigated to: ${afterUrl}`);
+      this._logger.log(`After Post click — current URL: ${afterUrl}`);
 
-      // Wait a bit for the toast notification to appear
-      await page.waitForTimeout(3000);
-
-      // Verify success by checking for the "Your post was sent" toast
-      // OR by checking the user's profile for the new tweet
-      const pageText = await page.evaluate(() => document.body?.innerText || '');
-      const successToast = pageText.includes('Your post was sent')
-        || pageText.includes('Your Post was sent');
-
-      if (successToast) {
-        this._logger.log('✅ Success toast detected — tweet posted!');
-        // We don't have the tweet ID from the UI flow, but we can construct
-        // a profile URL that the user can click to see their tweet.
-        // Returning a generic success URL pointing to the user's profile.
+      if (duplicateError) {
         return {
-          id: 'ui-posted',
-          url: 'https://x.com/neerajrawatdev', // user's profile — they can see the tweet there
-          success: true,
+          id: '',
+          url: '',
+          success: false,
+          error:
+            'X rejected this tweet because it is identical to your most recent post. ' +
+            'X does not allow posting the same text twice in a row. ' +
+            'Modify the post text and try again.',
         };
       }
 
-      // If no toast, check if we ended up on home page (X sometimes redirects
-      // to /home after posting without showing a toast)
-      if (afterUrl === 'https://x.com/' || afterUrl.includes('x.com/home')) {
-        this._logger.log('✅ Redirected to home — tweet likely posted');
+      if (posted) {
         return {
           id: 'ui-posted',
           url: 'https://x.com/neerajrawatdev',
@@ -816,12 +853,18 @@ export class PlaywrightPublishService {
         };
       }
 
-      // If we got here, something unexpected happened
+      // If we got here, the tweet wasn't confirmed posted.
+      // Check if the compose page still has our text (means click didn't fire)
+      const pageText = await page.evaluate(() => document.body?.innerText?.substring(0, 500) || '');
       return {
         id: '',
         url: '',
         success: false,
-        error: `Could not confirm tweet was posted. Final URL: ${afterUrl}. Page text: ${pageText.substring(0, 300)}`,
+        error:
+          `Could not confirm tweet was posted after 15s. ` +
+          `Final URL: ${afterUrl}. ` +
+          `This may mean the Post button click didn't register (X's overlay) ` +
+          `or the tweet was rejected. Page text: ${pageText.substring(0, 300)}`,
       };
     } catch (e: any) {
       this._logger.error(`Playwright X publish failed: ${e?.message}`, e?.stack);
