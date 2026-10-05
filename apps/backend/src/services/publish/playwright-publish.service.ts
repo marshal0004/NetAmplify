@@ -454,52 +454,85 @@ export class PlaywrightPublishService {
         };
       }
 
-      this._logger.log('Clicking submit button...');
+      this._logger.log('Clicking submit button (force + JS fallback)...');
 
-      // Click the button and wait for navigation to the post page
-      // After a successful submit, old.reddit.com redirects to:
-      //   https://old.reddit.com/r/SUBREDDIT/comments/POST_ID/TITLE/
-      // If Reddit rejects, it redirects to /search?q= or shows errors
+      // Use force: true + JS click fallback — same fix as X's Post button.
+      // old.reddit.com's submit button can also be hidden behind overlays.
       try {
-        await Promise.all([
-          page.waitForNavigation({ timeout: 30000, waitUntil: 'domcontentloaded' }),
-          submitButton.click(),
-        ]);
-      } catch (navErr: any) {
-        // Navigation may not happen if the form has client-side validation errors
-        const pageText = await page.evaluate(() => document.body?.innerText?.substring(0, 500) || '');
-        return {
-          id: '',
-          url: '',
-          success: false,
-          error: `Form submission failed: ${navErr?.message}. Page text: ${pageText.substring(0, 300)}`,
-        };
+        await submitButton.click({ force: true, timeout: 5000 });
+      } catch (clickErr: any) {
+        this._logger.warn(`Force click failed: ${clickErr?.message} — using JS click...`);
+      }
+      // Always also do a JS click as backup
+      await page.evaluate(() => {
+        const btn = document.querySelector(
+          'form#newlink button[type="submit"], ' +
+          'form#newlink input[type="submit"], ' +
+          'div.formtabs button[type="submit"], ' +
+          'button.c-btn-primary[name="submit"], ' +
+          'button.btn[name="submit"]'
+        ) as HTMLButtonElement;
+        if (btn) btn.click();
+      });
+
+      // Poll for confirmation — same approach as X
+      // Reddit redirects to the new post's comments page on success,
+      // or to /search on silent rejection
+      let posted = false;
+      let redirectedToSearch = false;
+      let errorOnPage = '';
+      for (let i = 0; i < 15; i++) {
+        await page.waitForTimeout(1000);
+        const state = await page.evaluate(() => {
+          const url = window.location.href;
+          const bodyText = document.body?.innerText || '';
+          // Success: URL contains /comments/ (redirected to the new post)
+          const onCommentsPage = url.includes('/comments/');
+          // Failure: redirected to /search (silent rejection)
+          const onSearchPage = url.includes('/search');
+          // Failure: error message visible on form page
+          const errorEl = document.querySelector('.status, .error, .alert-error');
+          const errorMsg = errorEl ? errorEl.textContent?.trim() || '' : '';
+          return { url, onCommentsPage, onSearchPage, errorMsg };
+        });
+
+        if (state.onCommentsPage) {
+          this._logger.log(`✅ Redirected to comments page: ${state.url}`);
+          posted = true;
+          break;
+        }
+        if (state.onSearchPage) {
+          this._logger.warn(`❌ Redirected to /search — Reddit silently rejected the post`);
+          redirectedToSearch = true;
+          break;
+        }
+        if (state.errorMsg) {
+          this._logger.warn(`❌ Reddit form error: ${state.errorMsg}`);
+          errorOnPage = state.errorMsg;
+          break;
+        }
       }
 
       const finalUrl = page.url();
-      this._logger.log(`After submit — navigated to: ${finalUrl}`);
+      this._logger.log(`After submit — final URL: ${finalUrl}`);
 
-      // Check for error messages on the page (Reddit sometimes shows errors
-      // instead of redirecting)
-      const errorMessage = await page.evaluate(() => {
-        // old.reddit.com shows errors in .status or .error elements
-        const errorEl = document.querySelector('.status, .error, .alert-error');
-        return errorEl ? errorEl.textContent?.trim() : '';
-      });
-
-      if (errorMessage && errorMessage.length > 0) {
+      if (posted) {
+        // Extract the post ID from the URL
+        // URL format: https://old.reddit.com/r/SUBREDDIT/comments/POST_ID/POST_TITLE/
+        const postIdMatch = finalUrl.match(/\/comments\/([a-z0-9]+)/i);
+        const postId = postIdMatch ? postIdMatch[1] : 'reddit-posted';
+        const postUrl = postIdMatch
+          ? `https://www.reddit.com/r/${subreddit}/comments/${postId}/`
+          : finalUrl;
+        this._logger.log(`✅ SUCCESS! Post ID: ${postId}, URL: ${postUrl}`);
         return {
-          id: '',
-          url: '',
-          success: false,
-          error: `Reddit form error: ${errorMessage}`,
+          id: postId,
+          url: postUrl,
+          success: true,
         };
       }
 
-      // Check if we ended up on /search — this means Reddit rejected the post
-      // silently and redirected to search instead of showing an error
-      if (finalUrl.includes('/search')) {
-        const pageText = await page.evaluate(() => document.body?.innerText?.substring(0, 500) || '');
+      if (redirectedToSearch) {
         return {
           id: '',
           url: '',
@@ -513,29 +546,24 @@ export class PlaywrightPublishService {
         };
       }
 
-      // Extract the post ID from the URL
-      // URL format: https://old.reddit.com/r/SUBREDDIT/comments/POST_ID/POST_TITLE/
-      const postIdMatch = finalUrl.match(/\/comments\/([a-z0-9]+)/i);
-      if (!postIdMatch) {
-        // Maybe we're on an error page — check the page content
-        const pageText = await page.evaluate(() => document.body?.innerText?.substring(0, 500) || '');
+      if (errorOnPage) {
         return {
           id: '',
           url: '',
           success: false,
-          error: `Could not extract post ID from URL: ${finalUrl}. Page text: ${pageText.substring(0, 300)}`,
+          error: `Reddit form error: ${errorOnPage}`,
         };
       }
 
-      const postId = postIdMatch[1];
-      const postUrl = `https://www.reddit.com/r/${subreddit}/comments/${postId}/`;
-
-      this._logger.log(`✅ SUCCESS! Post ID: ${postId}, URL: ${postUrl}`);
-
+      // No clear signal — check page text for clues
+      const pageText = await page.evaluate(() => document.body?.innerText?.substring(0, 500) || '');
       return {
-        id: postId,
-        url: postUrl,
-        success: true,
+        id: '',
+        url: '',
+        success: false,
+        error:
+          `Could not confirm Reddit post was created after 15s. ` +
+          `Final URL: ${finalUrl}. Page text: ${pageText.substring(0, 300)}`,
       };
     } catch (e: any) {
       this._logger.error(`Playwright publish failed: ${e?.message}`, e?.stack);
