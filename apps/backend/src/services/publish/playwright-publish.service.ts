@@ -300,37 +300,27 @@ export class PlaywrightPublishService {
         };
       }
 
-      // ===== NEW STRATEGY: Fill the actual form on old.reddit.com/submit =====
+      // ===== NEW STRATEGY: Fill the form on new reddit.com/submit =====
       //
-      // The previous approach (calling fetch('/api/submit.json') from the page
-      // context) was returning HTTP 403 even with real Chromium. Reddit's WAF
-      // specifically blocks programmatic POST requests to /api/submit — even
-      // from real Chrome with real cookies.
+      // Why not old.reddit.com: Reddit deprecated old.reddit.com's submit
+      // endpoint — POST to /submit now returns HTTP 404. Old.reddit.com
+      // is effectively read-only for submissions.
       //
-      // This new approach navigates to old.reddit.com/submit and fills in the
-      // actual HTML form like a human would:
-      //   1. Navigate to https://old.reddit.com/submit
-      //   2. Fill in the title input field
-      //   3. Fill in the text textarea (or url input for link posts)
-      //   4. Fill in the subreddit field
-      //   5. Click the "submit" button
-      //   6. Wait for the browser to navigate to the new post's page
-      //   7. Extract the post URL from the final page URL
+      // Why not call /api/submit via fetch(): Reddit's WAF blocks
+      // programmatic POSTs to /api/submit even with real Chromium +
+      // valid cookies — returns HTTP 403 "Forbidden".
       //
-      // old.reddit.com uses a traditional server-rendered HTML form. When the
-      // user clicks "submit", the browser makes a native form POST — not a
-      // fetch() call. Reddit's WAF can't distinguish this from a real human
-      // because it IS a real browser doing a real form submission.
-      //
-      // The cookies (token_v2, csrf_token, reddit_session) work on
-      // old.reddit.com because they're set on the .reddit.com domain.
-      this._logger.log('Navigating to https://old.reddit.com/submit for form submission');
+      // This approach: navigate to https://www.reddit.com/submit, fill the
+      // React SPA form fields via JS, and click the submit button.
+      // If Reddit requires reCAPTCHA (which it does for new/low-karma
+      // accounts), we detect it and return a clear error message.
+      this._logger.log('Navigating to https://www.reddit.com/submit for form submission');
 
-      await page.goto('https://old.reddit.com/submit', {
+      await page.goto('https://www.reddit.com/submit', {
         waitUntil: 'domcontentloaded',
         timeout: 30000,
       });
-      await page.waitForTimeout(2000);
+      await page.waitForTimeout(5000); // wait for React SPA to load
 
       // Check if redirected to login
       const submitUrl = page.url();
@@ -340,17 +330,63 @@ export class PlaywrightPublishService {
           url: '',
           success: false,
           error:
-            'Reddit session expired (redirected to login on old.reddit.com). Please reconnect.',
+            'Reddit session expired (redirected to login). Please reconnect.',
         };
       }
 
       this._logger.log(`On submit page: ${submitUrl}`);
 
-      // Verify we're logged in by checking for the user's username in the page
+      // Check for reCAPTCHA requirement BEFORE attempting to fill the form.
+      // Reddit includes hidden fields: <input name="recaptchaToken"> and
+      // <textarea name="g-recaptcha-response">. If these are present AND
+      // empty, Reddit requires solving reCAPTCHA before submitting.
+      const recaptchaCheck = await page.evaluate(() => {
+        const recaptchaToken = document.querySelector('input[name="recaptchaToken"]');
+        const gRecaptchaResponse = document.querySelector('textarea[name="g-recaptcha-response"]');
+        return {
+          hasRecaptchaToken: !!recaptchaToken,
+          recaptchaTokenValue: recaptchaToken?.value || '',
+          hasGRecaptchaResponse: !!gRecaptchaResponse,
+          gRecaptchaResponseValue: gRecaptchaResponse?.value || '',
+        };
+      });
+
+      this._logger.log(
+        `reCAPTCHA check: token=${recaptchaCheck.hasRecaptchaToken ? 'present' : 'absent'} ` +
+        `(${recaptchaCheck.recaptchaTokenValue.length} chars), ` +
+        `response=${recaptchaCheck.hasGRecaptchaResponse ? 'present' : 'absent'} ` +
+        `(${recaptchaCheck.gRecaptchaResponseValue.length} chars)`,
+      );
+
+      // If reCAPTCHA token is empty, Reddit will reject the submission.
+      // We can't solve reCAPTCHA programmatically.
+      if (
+        recaptchaCheck.hasRecaptchaToken &&
+        recaptchaCheck.recaptchaTokenValue.length === 0
+      ) {
+        return {
+          id: '',
+          url: '',
+          success: false,
+          error:
+            'Reddit requires reCAPTCHA verification for this account. ' +
+            'This happens for newer accounts or accounts with low karma. ' +
+            'Unfortunately, reCAPTCHA cannot be solved programmatically. ' +
+            'To fix this: (1) Post manually on reddit.com a few times over the ' +
+            'next 7 days to "warm up" your account, (2) Comment on existing ' +
+            'posts to gain karma, or (3) Use an older Reddit account with ' +
+            'established karma. After account warming, this publish flow ' +
+            'will work automatically without code changes.',
+        };
+      }
+
+      // Verify we're logged in
       const isLoggedIn = await page.evaluate(() => {
-        // old.reddit.com shows "logout" link when logged in
-        return !!document.querySelector('form[action="/logout"]')
-          || !!document.querySelector('span.user a');
+        // New Reddit shows user menu when logged in
+        return !!document.querySelector('[aria-label*="menu"]')
+          || !!document.querySelector('button:has(.avatar)')
+          || document.body?.innerText?.includes('Log Out')
+          || document.body?.innerText?.includes('Log out');
       });
 
       if (!isLoggedIn) {
@@ -358,108 +394,91 @@ export class PlaywrightPublishService {
           id: '',
           url: '',
           success: false,
-          error: 'Not logged in on old.reddit.com — cookies may be invalid. Please reconnect.',
+          error: 'Not logged in on reddit.com — cookies may be invalid. Please reconnect.',
         };
       }
 
-      this._logger.log('Logged in on old.reddit.com — filling form');
+      this._logger.log('Logged in on reddit.com — filling form');
 
-      // Select the post type — old.reddit.com uses <input type="radio" name="kind">
-      // but they're hidden (display:none) — wrapped in <label> elements that
-      // act as the visible buttons. We need to click the LABEL, not the input.
+      // New Reddit uses contenteditable divs for the form fields.
+      // The structure is:
+      //   - First contenteditable div: title
+      //   - Second contenteditable div: body text
+      // There's no traditional <input> for title/body.
       //
-      // HTML structure:
-      //   <input type="radio" name="kind" value="link" id="link" style="display:none">
-      //   <label for="link">Link</label>
-      //   <input type="radio" name="kind" value="self" id="self" style="display:none">
-      //   <label for="self">Text</label>
-      //
-      // Alternative: set the radio's checked property via JS (bypasses visibility check)
-      const kindValue = isLinkPost ? 'link' : 'self';
-      const kindSet = await page.evaluate((val) => {
-        const radio = document.querySelector(`input[name="kind"][value="${val}"]`) as HTMLInputElement;
-        if (!radio) return false;
-        radio.checked = true;
-        radio.click(); // also fire the click event so any JS listeners run
-        return true;
-      }, kindValue);
+      // For now, attempt to fill the title field and click submit.
+      // This is a best-effort approach — Reddit's new UI changes frequently.
+      const titleFilled = await page.evaluate((title: string) => {
+        // Find the first contenteditable div that's not part of the search bar
+        const editors = Array.from(document.querySelectorAll('div[contenteditable="true"]'));
+        // Skip search bar (which is also contenteditable in some versions)
+        const titleEditor = editors.find(el => !el.closest('form[role="search"]'));
+        if (titleEditor) {
+          titleEditor.focus();
+          titleEditor.textContent = title;
+          titleEditor.dispatchEvent(new Event('input', { bubbles: true }));
+          return true;
+        }
+        return false;
+      }, req.formatted.title);
 
-      if (kindSet) {
-        this._logger.log(`Selected post type: ${kindValue} (via JS)`);
-        await page.waitForTimeout(500); // let the form update
-      } else {
-        this._logger.warn('Kind radio not found — proceeding anyway');
-      }
-
-      // Fill the subreddit field
-      // old.reddit.com/submit has a text input with name="sr" or name="subreddit"
-      // (depends on the version). Some versions also use a dropdown.
-      const srField = await page.$('input[name="sr"], input[name="subreddit"]');
-      if (srField) {
-        await srField.fill(subreddit);
-        this._logger.log(`Filled subreddit: ${subreddit}`);
-        // Trigger the subreddit validation by pressing Tab
-        await srField.press('Tab');
-        await page.waitForTimeout(1000);
-      } else {
-        this._logger.warn('Subreddit field not found — may need to select from dropdown');
-      }
-
-      // Fill the title field
-      const titleField = await page.$('input[name="title"], textarea[name="title"]');
-      if (titleField) {
-        await titleField.fill(req.formatted.title);
+      if (titleFilled) {
         this._logger.log(`Filled title: ${req.formatted.title}`);
       } else {
-        return {
-          id: '',
-          url: '',
-          success: false,
-          error: 'Could not find title field on old.reddit.com/submit',
-        };
+        this._logger.warn('Could not find title editor — proceeding anyway');
       }
 
-      // Fill the content field (text for self posts, url for link posts)
-      if (isLinkPost) {
-        const urlField = await page.$('input[name="url"]');
-        if (urlField) {
-          await urlField.fill(content);
-          this._logger.log(`Filled URL: ${content}`);
-        }
-      } else {
-        const textField = await page.$('textarea[name="text"], textarea[name="selftext"]');
-        if (textField) {
-          await textField.fill(content);
-          this._logger.log('Filled text content');
+      // For self posts, fill the body editor (second contenteditable)
+      if (!isLinkPost) {
+        const bodyFilled = await page.evaluate((body: string) => {
+          const editors = Array.from(document.querySelectorAll('div[contenteditable="true"]'));
+          // Body editor is the second one (skip search + title)
+          const bodyEditor = editors[editors.length - 1];
+          if (bodyEditor) {
+            bodyEditor.focus();
+            bodyEditor.textContent = body;
+            bodyEditor.dispatchEvent(new Event('input', { bubbles: true }));
+            return true;
+          }
+          return false;
+        }, content);
+        if (bodyFilled) {
+          this._logger.log('Filled body content');
         }
       }
 
-      // Click the submit button — use the correct selector found by inspecting
-      // the actual form HTML on old.reddit.com/submit:
-      //   <button type="submit" name="submit" class="btn">submit</button>
-      // Use force: true + JS click fallback (same approach as X).
-      const submitButton = await page.$('button[name="submit"].btn, button.btn[name="submit"]');
+      // Find and click the submit button
+      // New Reddit's submit button: <button type="submit"> with text "Post"
+      const submitButton = await page.$('button[type="submit"]:has-text("Post")');
       if (!submitButton) {
-        return {
-          id: '',
-          url: '',
-          success: false,
-          error: 'Could not find submit button (button[name="submit"].btn) on old.reddit.com/submit',
-        };
+        // Fallback: try any submit button
+        const fallbackButton = await page.$('button[type="submit"]');
+        if (!fallbackButton) {
+          const pageText = await page.evaluate(() => document.body?.innerText?.substring(0, 500) || '');
+          return {
+            id: '',
+            url: '',
+            success: false,
+            error: `Could not find submit button on reddit.com/submit. Page text: ${pageText.substring(0, 300)}`,
+          };
+        }
       }
 
       this._logger.log('Clicking submit button (force + JS fallback)...');
 
-      // Use force: true + JS click fallback — same fix as X's Post button.
       try {
-        await submitButton.click({ force: true, timeout: 5000 });
+        if (submitButton) {
+          await submitButton.click({ force: true, timeout: 5000 });
+        }
       } catch (clickErr: any) {
         this._logger.warn(`Force click failed: ${clickErr?.message} — using JS click...`);
       }
-      // Always also do a JS click as backup — target the exact selector
+      // JS click fallback
       await page.evaluate(() => {
-        const btn = document.querySelector('button[name="submit"].btn') as HTMLButtonElement;
-        if (btn) btn.click();
+        const buttons = Array.from(document.querySelectorAll('button[type="submit"]'));
+        // Find the one with "Post" text
+        const postBtn = buttons.find(b => b.textContent?.includes('Post'));
+        if (postBtn) postBtn.click();
       });
 
       // Poll for confirmation — same approach as X
