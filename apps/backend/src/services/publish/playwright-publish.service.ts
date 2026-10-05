@@ -434,53 +434,41 @@ export class PlaywrightPublishService {
         }
       }
 
-      // Click the submit button — but make sure we click the RIGHT one.
-      // old.reddit.com/submit has multiple buttons (sidebar search, etc).
-      // The actual submit button is inside the main form#newlink
-      // with name="submit" or type="submit" inside div.formtabs.
-      const submitButton = await page.$(
-        'form#newlink button[type="submit"], ' +
-        'form#newlink input[type="submit"], ' +
-        'div.formtabs button[type="submit"], ' +
-        'button.c-btn-primary[name="submit"], ' +
-        'button.btn[name="submit"]',
-      );
+      // Click the submit button — use the correct selector found by inspecting
+      // the actual form HTML on old.reddit.com/submit:
+      //   <button type="submit" name="submit" class="btn">submit</button>
+      // Use force: true + JS click fallback (same approach as X).
+      const submitButton = await page.$('button[name="submit"].btn, button.btn[name="submit"]');
       if (!submitButton) {
         return {
           id: '',
           url: '',
           success: false,
-          error: 'Could not find submit button on old.reddit.com/submit form',
+          error: 'Could not find submit button (button[name="submit"].btn) on old.reddit.com/submit',
         };
       }
 
       this._logger.log('Clicking submit button (force + JS fallback)...');
 
       // Use force: true + JS click fallback — same fix as X's Post button.
-      // old.reddit.com's submit button can also be hidden behind overlays.
       try {
         await submitButton.click({ force: true, timeout: 5000 });
       } catch (clickErr: any) {
         this._logger.warn(`Force click failed: ${clickErr?.message} — using JS click...`);
       }
-      // Always also do a JS click as backup
+      // Always also do a JS click as backup — target the exact selector
       await page.evaluate(() => {
-        const btn = document.querySelector(
-          'form#newlink button[type="submit"], ' +
-          'form#newlink input[type="submit"], ' +
-          'div.formtabs button[type="submit"], ' +
-          'button.c-btn-primary[name="submit"], ' +
-          'button.btn[name="submit"]'
-        ) as HTMLButtonElement;
+        const btn = document.querySelector('button[name="submit"].btn') as HTMLButtonElement;
         if (btn) btn.click();
       });
 
       // Poll for confirmation — same approach as X
       // Reddit redirects to the new post's comments page on success,
-      // or to /search on silent rejection
+      // or to /search on silent rejection, or shows errors on the form
       let posted = false;
       let redirectedToSearch = false;
       let errorOnPage = '';
+      let recaptchaRequired = false;
       for (let i = 0; i < 15; i++) {
         await page.waitForTimeout(1000);
         const state = await page.evaluate(() => {
@@ -493,7 +481,10 @@ export class PlaywrightPublishService {
           // Failure: error message visible on form page
           const errorEl = document.querySelector('.status, .error, .alert-error');
           const errorMsg = errorEl ? errorEl.textContent?.trim() || '' : '';
-          return { url, onCommentsPage, onSearchPage, errorMsg };
+          // Check for reCAPTCHA requirement — Reddit shows this for new accounts
+          const hasRecaptcha = !!document.querySelector('.g-recaptcha, #g-recaptcha-response')
+            && bodyText.toLowerCase().includes('recaptcha');
+          return { url, onCommentsPage, onSearchPage, errorMsg, hasRecaptcha };
         });
 
         if (state.onCommentsPage) {
@@ -511,14 +502,33 @@ export class PlaywrightPublishService {
           errorOnPage = state.errorMsg;
           break;
         }
+        if (state.hasRecaptcha && i > 3) {
+          // Give Reddit 3s to navigate before checking reCAPTCHA
+          this._logger.warn(`❌ Reddit is requesting reCAPTCHA verification`);
+          recaptchaRequired = true;
+          break;
+        }
       }
 
       const finalUrl = page.url();
       this._logger.log(`After submit — final URL: ${finalUrl}`);
 
+      if (recaptchaRequired) {
+        return {
+          id: '',
+          url: '',
+          success: false,
+          error:
+            'Reddit requires reCAPTCHA verification to submit this post. ' +
+            'This happens for newer accounts or accounts with low karma. ' +
+            'To fix: (1) post manually on reddit.com first to "warm up" your account, ' +
+            'or (2) gain more karma by commenting on other posts, or ' +
+            '(3) wait 7+ days for your account to age.',
+        };
+      }
+
       if (posted) {
         // Extract the post ID from the URL
-        // URL format: https://old.reddit.com/r/SUBREDDIT/comments/POST_ID/POST_TITLE/
         const postIdMatch = finalUrl.match(/\/comments\/([a-z0-9]+)/i);
         const postId = postIdMatch ? postIdMatch[1] : 'reddit-posted';
         const postUrl = postIdMatch
