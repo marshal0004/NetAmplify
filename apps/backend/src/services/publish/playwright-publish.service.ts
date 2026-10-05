@@ -762,10 +762,24 @@ export class PlaywrightPublishService {
       }
 
       // Click Post and wait for navigation (X redirects to home after posting)
-      await Promise.all([
-        page.waitForNavigation({ timeout: 15000, waitUntil: 'domcontentloaded' }).catch(() => null),
-        postButton.click(),
-      ]);
+      // Use force: true to bypass Playwright's hit-test check — X often has
+      // an overlay <div> that intercepts pointer events even when the button
+      // is visible and enabled. The click still works; it just needs to be
+      // forced past the overlay.
+      try {
+        await Promise.all([
+          page.waitForNavigation({ timeout: 15000, waitUntil: 'domcontentloaded' }).catch(() => null),
+          postButton.click({ force: true }),
+        ]);
+      } catch (clickErr: any) {
+        // If force click also fails (e.g. element detached), try clicking via JS
+        this._logger.warn(`Force click failed (${clickErr?.message}) — trying JS click...`);
+        await page.evaluate(() => {
+          const btn = document.querySelector('button[data-testid="tweetButton"]') as HTMLButtonElement;
+          if (btn) btn.click();
+        });
+        await page.waitForTimeout(5000);
+      }
 
       const afterUrl = page.url();
       this._logger.log(`After Post click — navigated to: ${afterUrl}`);
