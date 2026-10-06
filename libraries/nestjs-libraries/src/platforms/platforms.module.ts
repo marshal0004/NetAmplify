@@ -1,8 +1,8 @@
 // /home/z/my-project/netamplify-app/libraries/nestjs-libraries/src/platforms/platforms.module.ts
 // NetAmplify — PlatformsModule.
 //
-// Wires the AdapterRegistry + all 8 platform adapters as NestJS providers.
-// Imported by the AuthModule + (future) ConnectionsModule + PublishModule.
+// Wires the AdapterRegistry + all 14 platform adapters as NestJS providers.
+// Imported by the AuthModule + ConnectionsModule + PublishModule.
 
 import { Module } from '@nestjs/common';
 import { AdapterRegistry } from './registry';
@@ -18,6 +18,8 @@ import { XCookieAdapter } from './x/x-cookie.adapter';
 import { RedditCookieAdapter } from './reddit/reddit-cookie.adapter';
 import { MastodonAdapter } from './mastodon/mastodon.adapter';
 import { WordPressAdapter } from './wordpress/wordpress.adapter';
+import { FacebookAdapter } from './facebook/facebook.adapter';
+import { InstagramAdapter } from './instagram/instagram.adapter';
 
 @Module({
   providers: [
@@ -34,6 +36,8 @@ import { WordPressAdapter } from './wordpress/wordpress.adapter';
     RedditCookieAdapter,
     MastodonAdapter,
     WordPressAdapter,
+    FacebookAdapter,
+    InstagramAdapter,
   ],
   exports: [
     AdapterRegistry,
@@ -49,6 +53,8 @@ import { WordPressAdapter } from './wordpress/wordpress.adapter';
     RedditCookieAdapter,
     MastodonAdapter,
     WordPressAdapter,
+    FacebookAdapter,
+    InstagramAdapter,
   ],
 })
 export class PlatformsModule {}

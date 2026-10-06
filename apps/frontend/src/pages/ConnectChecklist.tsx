@@ -22,6 +22,8 @@ const trustCopy: Record<string, string> = {
   WORDPRESS: 'WordPress Application Passwords are separate from your real password and only work via the REST API. They can\'t be used to log in to wp-admin. Revoke instantly from your WordPress profile page.',
   TWITTER_COOKIE: 'Your X session cookies are stored encrypted (AES-256-GCM) — we never see your X password. The cookies only allow posting tweets; we can\'t read your DMs, change your password, or take over your account. Log out of x.com on any device to instantly invalidate them.',
   REDDIT_COOKIE: 'Your Reddit session cookies are stored encrypted (AES-256-GCM) — we never see your Reddit password. The cookies only allow submitting posts; we can\'t read your DMs, change your password, or take over your account. Log out of reddit.com on any device to instantly invalidate them.',
+  FACEBOOK: 'You\'ll log in on Facebook\'s official page — NetAmplify never sees your password. We receive only a limited permission to post to your Facebook Page, and you can revoke it anytime in your Facebook settings.',
+  INSTAGRAM: 'You\'ll log in on Meta\'s official page — NetAmplify never sees your password. We receive only a limited permission to post to your Instagram Business account, and you can revoke it anytime in your Meta settings.',
 };
 
 interface FieldConfig {
@@ -564,6 +566,8 @@ function platformName(platform: string): string {
     WORDPRESS: 'WordPress',
     TWITTER_COOKIE: 'X (Twitter) — Cookie',
     REDDIT_COOKIE: 'Reddit — Cookie',
+    FACEBOOK: 'Facebook',
+    INSTAGRAM: 'Instagram',
   };
   return names[platform] ?? platform;
 }

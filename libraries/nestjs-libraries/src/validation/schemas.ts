@@ -134,6 +134,8 @@ export const PLATFORM_SCHEMA = z.enum([
   'WORDPRESS',
   'TWITTER_COOKIE',
   'REDDIT_COOKIE',
+  'FACEBOOK',
+  'INSTAGRAM',
 ]);
 
 export const PUBLISH_SCHEMA = z.object({

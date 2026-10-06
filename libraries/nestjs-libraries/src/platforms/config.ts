@@ -143,6 +143,24 @@ export const PLATFORM_CONFIG: Record<Platform, PlatformConfig> = {
     imageSupported: false,
     maxImages: 0,
   },
+  FACEBOOK: {
+    platform: 'FACEBOOK',
+    name: 'Facebook',
+    charLimit: 63206, // FB post body limit
+    rateLimitPerMinute: 200, // Graph API rate limit per app per user per hour
+    markdownSupported: false, // plain text only via Graph API
+    imageSupported: true,
+    maxImages: 1, // single image per post via /photos
+  },
+  INSTAGRAM: {
+    platform: 'INSTAGRAM',
+    name: 'Instagram',
+    charLimit: 2200, // IG caption limit
+    rateLimitPerMinute: 25, // 25 posts/24h per IG account via Graph API
+    markdownSupported: false, // hashtags + mentions only
+    imageSupported: true,
+    maxImages: 1, // IG requires an image/video for every post
+  },
 };
 
 /**

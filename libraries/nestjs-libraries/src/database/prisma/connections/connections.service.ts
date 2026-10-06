@@ -401,10 +401,16 @@ export class ConnectionsService {
 /**
  * Tier A = live in MVP (instant setup): Reddit, Discord, Dev.to, Telegram,
  *   Bluesky, Hashnode, Mastodon, WordPress, TWITTER_COOKIE, REDDIT_COOKIE
- * Tier B = bonus attempts (work if creds configured): X (OAuth), LinkedIn (OAuth)
+ * Tier B = bonus attempts (work if creds configured):
+ *   X (OAuth), LinkedIn (OAuth), Facebook (OAuth), Instagram (OAuth)
  */
 function isTierB(platform: Platform): boolean {
-  return platform === 'TWITTER' || platform === 'LINKEDIN';
+  return (
+    platform === 'TWITTER' ||
+    platform === 'LINKEDIN' ||
+    platform === 'FACEBOOK' ||
+    platform === 'INSTAGRAM'
+  );
 }
 
 /**
@@ -417,6 +423,8 @@ function connectionTypeFor(
     case 'REDDIT':
     case 'TWITTER':
     case 'LINKEDIN':
+    case 'FACEBOOK':
+    case 'INSTAGRAM':
       return 'OAUTH';
     case 'DEVTO':
     case 'HASHNODE':
