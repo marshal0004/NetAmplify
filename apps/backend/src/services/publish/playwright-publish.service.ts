@@ -341,8 +341,8 @@ export class PlaywrightPublishService {
       // <textarea name="g-recaptcha-response">. If these are present AND
       // empty, Reddit requires solving reCAPTCHA before submitting.
       const recaptchaCheck = await page.evaluate(() => {
-        const recaptchaToken = document.querySelector('input[name="recaptchaToken"]');
-        const gRecaptchaResponse = document.querySelector('textarea[name="g-recaptcha-response"]');
+        const recaptchaToken = document.querySelector('input[name="recaptchaToken"]') as HTMLInputElement | null;
+        const gRecaptchaResponse = document.querySelector('textarea[name="g-recaptcha-response"]') as HTMLTextAreaElement | null;
         return {
           hasRecaptchaToken: !!recaptchaToken,
           recaptchaTokenValue: recaptchaToken?.value || '',
@@ -412,7 +412,7 @@ export class PlaywrightPublishService {
         // Find the first contenteditable div that's not part of the search bar
         const editors = Array.from(document.querySelectorAll('div[contenteditable="true"]'));
         // Skip search bar (which is also contenteditable in some versions)
-        const titleEditor = editors.find(el => !el.closest('form[role="search"]'));
+        const titleEditor = editors.find(el => !el.closest('form[role="search"]')) as HTMLElement | undefined;
         if (titleEditor) {
           titleEditor.focus();
           titleEditor.textContent = title;
@@ -433,7 +433,7 @@ export class PlaywrightPublishService {
         const bodyFilled = await page.evaluate((body: string) => {
           const editors = Array.from(document.querySelectorAll('div[contenteditable="true"]'));
           // Body editor is the second one (skip search + title)
-          const bodyEditor = editors[editors.length - 1];
+          const bodyEditor = editors[editors.length - 1] as HTMLElement | undefined;
           if (bodyEditor) {
             bodyEditor.focus();
             bodyEditor.textContent = body;
@@ -475,7 +475,7 @@ export class PlaywrightPublishService {
       }
       // JS click fallback
       await page.evaluate(() => {
-        const buttons = Array.from(document.querySelectorAll('button[type="submit"]'));
+        const buttons = Array.from(document.querySelectorAll('button[type="submit"]')) as HTMLButtonElement[];
         // Find the one with "Post" text
         const postBtn = buttons.find(b => b.textContent?.includes('Post'));
         if (postBtn) postBtn.click();
