@@ -77,19 +77,17 @@ export class InstagramAdapter implements PlatformAdapter {
     if (!this.configured()) {
       throw new Error('Instagram adapter not configured (missing FACEBOOK_APP_ID/SECRET)');
     }
-    // Use FB OAuth URL (same flow) — we discover IG account during getIdentity
-    // These scopes are all visible in the user's Meta dashboard under
-    // App Review → Permissions and Features:
-    //   - instagram_basic             (legacy IG read scope)
-    //   - instagram_business_basic    (new IG Business read scope)
-    //   - instagram_content_publish   (publish to IG)
-    //   - pages_show_list, pages_read_engagement (for FB Page discovery)
-    //   - business_management         (manage linked business assets)
+    // Use FB OAuth URL (same flow) — minimal scope (public_profile only).
+    // This proves the OAuth flow works. Instagram account discovery requires
+    // pages_show_list + pages_read_engagement but those need to be added
+    // to the app's "Use Case" in the Meta dashboard first.
+    // For now, we authenticate with public_profile only — the connection
+    // will succeed, but IG account discovery will be skipped.
     const params = new URLSearchParams({
       client_id: process.env.FACEBOOK_APP_ID!,
       redirect_uri: redirectUri,
       state,
-      scope: 'instagram_basic,instagram_business_basic,instagram_content_publish,pages_show_list,pages_read_engagement,business_management',
+      scope: 'public_profile',
       response_type: 'code',
       auth_type: 'rerequest',
     });
@@ -130,7 +128,7 @@ export class InstagramAdapter implements PlatformAdapter {
       expiresAt: data.expires_in
         ? Math.floor(Date.now() / 1000) + data.expires_in
         : undefined,
-      scopes: ['instagram_basic', 'instagram_business_basic', 'instagram_content_publish', 'pages_show_list', 'pages_read_engagement', 'business_management'],
+      scopes: ['public_profile'],
     };
   }
 

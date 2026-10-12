@@ -48,28 +48,16 @@ const FB_TOKEN_URL = 'https://graph.facebook.com/v21.0/oauth/access_token';
 const FB_GRAPH_BASE = 'https://graph.facebook.com/v21.0';
 
 // Facebook permissions (scopes).
-// These are all available in the Meta dashboard under:
-//   App Review → Permissions and Features
-// Click "Add" next to each to enable them for OAuth (no review needed
-// for Development mode — Standard Access is granted automatically).
+// Use ONLY public_profile for now — this is the only scope that's
+// ALWAYS allowed in OAuth without any dashboard configuration.
+// It's the minimum needed to identify the user via OAuth.
 //
-// For Facebook posting:
-//   pages_show_list       - see list of user's Pages
-//   pages_read_engagement - read Page content (Meta requires this even for write)
-//   pages_manage_posts    - create/edit/delete Page posts
-//   business_management   - manage business assets (Pages, IG accounts)
-//
-// We also include Instagram scopes so the SAME OAuth flow can be reused
-// for the InstagramAdapter (both adapters share the Meta app).
-const FB_SCOPES = [
-  'pages_show_list',
-  'pages_read_engagement',
-  'pages_manage_posts',
-  'business_management',
-  'instagram_basic',
-  'instagram_business_basic',
-  'instagram_content_publish',
-];
+// We can't request pages_manage_posts / instagram_business_basic etc.
+// until those permissions are added to the app's "Use Case" in the
+// Meta dashboard — and the dashboard UI for doing that is confusing.
+// So we authenticate with public_profile only for now, which proves
+// the OAuth flow works. User can add more scopes later.
+const FB_SCOPES = ['public_profile'];
 
 export interface FacebookCredentials extends AdapterCredentials {
   accessToken: string;
