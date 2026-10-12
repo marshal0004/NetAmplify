@@ -63,6 +63,11 @@ export const FORMATTERS: Record<Platform, Formatter> = {
   WORDPRESS: wordpressFormatter,
   TWITTER_COOKIE: xFormatter,
   REDDIT_COOKIE: redditFormatter,
+  // Facebook + Instagram use the same simple formatter as LinkedIn
+  // (plain text body + title appended at top). Both have generous char limits
+  // (FB: 63206, IG: 2200) so no truncation logic needed beyond the standard.
+  FACEBOOK: linkedinFormatter,
+  INSTAGRAM: linkedinFormatter,
 };
 
 /**
