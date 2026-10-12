@@ -77,17 +77,14 @@ export class InstagramAdapter implements PlatformAdapter {
     if (!this.configured()) {
       throw new Error('Instagram adapter not configured (missing FACEBOOK_APP_ID/SECRET)');
     }
-    // Use FB OAuth URL (same flow) — minimal scope (public_profile only).
-    // This proves the OAuth flow works. Instagram account discovery requires
-    // pages_show_list + pages_read_engagement but those need to be added
-    // to the app's "Use Case" in the Meta dashboard first.
-    // For now, we authenticate with public_profile only — the connection
-    // will succeed, but IG account discovery will be skipped.
+    // Use FB OAuth URL (same flow) — Instagram uses Meta's unified login.
+    // Permissions must be added in the Meta dashboard → Use cases →
+    // Instagram API use case → "Add required permissions".
     const params = new URLSearchParams({
       client_id: process.env.FACEBOOK_APP_ID!,
       redirect_uri: redirectUri,
       state,
-      scope: 'public_profile',
+      scope: 'pages_show_list,pages_read_engagement,business_management',
       response_type: 'code',
       auth_type: 'rerequest',
     });
@@ -128,7 +125,7 @@ export class InstagramAdapter implements PlatformAdapter {
       expiresAt: data.expires_in
         ? Math.floor(Date.now() / 1000) + data.expires_in
         : undefined,
-      scopes: ['public_profile'],
+      scopes: ['pages_show_list', 'pages_read_engagement', 'business_management'],
     };
   }
 

@@ -48,16 +48,23 @@ const FB_TOKEN_URL = 'https://graph.facebook.com/v21.0/oauth/access_token';
 const FB_GRAPH_BASE = 'https://graph.facebook.com/v21.0';
 
 // Facebook permissions (scopes).
-// Use ONLY public_profile for now — this is the only scope that's
-// ALWAYS allowed in OAuth without any dashboard configuration.
-// It's the minimum needed to identify the user via OAuth.
+// These permissions MUST be added to the app's "Use Case" in the Meta
+// dashboard BEFORE the OAuth flow will work. Without them, Facebook
+// shows "This app needs at least one supported permission" error.
 //
-// We can't request pages_manage_posts / instagram_business_basic etc.
-// until those permissions are added to the app's "Use Case" in the
-// Meta dashboard — and the dashboard UI for doing that is confusing.
-// So we authenticate with public_profile only for now, which proves
-// the OAuth flow works. User can add more scopes later.
-const FB_SCOPES = ['public_profile'];
+// To add permissions:
+//   1. Meta dashboard → left sidebar → "Use cases"
+//   2. Click on the "Authentication"/"Facebook Login" use case
+//   3. Click "Add" next to each permission below
+//
+// Once added, these scopes work in Development mode (Standard Access).
+// For Live mode (any user), submit for App Review.
+const FB_SCOPES = [
+  'pages_show_list',
+  'pages_read_engagement',
+  'pages_manage_posts',
+  'business_management',
+];
 
 export interface FacebookCredentials extends AdapterCredentials {
   accessToken: string;
