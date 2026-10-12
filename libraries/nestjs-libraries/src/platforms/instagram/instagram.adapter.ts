@@ -78,19 +78,19 @@ export class InstagramAdapter implements PlatformAdapter {
       throw new Error('Instagram adapter not configured (missing FACEBOOK_APP_ID/SECRET)');
     }
     // Use FB OAuth URL (same flow) — we discover IG account during getIdentity
-    // Use only instagram_business_basic for now — this is the only IG scope
-    // that's available in Standard Access (Development mode) without
-    // explicit App Review. We also need pages_show_list to discover the
-    // user's FB Pages (IG Business accounts are linked to FB Pages).
+    // Use only scopes available in Development mode. The user's Meta dashboard
+    // shows these permissions as auto-enabled in Standard Access:
+    //   - pages_show_list, pages_read_engagement, business_management
+    //   - threads_basic (for Threads, but also covers IG discovery)
     //
-    // instagram_business_content_publish requires Advanced Access which
-    // must be requested via App Review. For Development mode testing,
-    // we authenticate with basic access only.
+    // 'instagram_business_basic' is not available as a standalone scope in
+    // new Meta apps — IG account discovery happens through the FB Page's
+    // instagram_business_account field (needs pages_show_list + pages_read_engagement).
     const params = new URLSearchParams({
       client_id: process.env.FACEBOOK_APP_ID!,
       redirect_uri: redirectUri,
       state,
-      scope: 'instagram_business_basic,pages_show_list,pages_read_engagement',
+      scope: 'pages_show_list,pages_read_engagement,business_management',
       response_type: 'code',
       auth_type: 'rerequest',
     });
@@ -131,7 +131,7 @@ export class InstagramAdapter implements PlatformAdapter {
       expiresAt: data.expires_in
         ? Math.floor(Date.now() / 1000) + data.expires_in
         : undefined,
-      scopes: ['instagram_business_basic', 'pages_show_list', 'pages_read_engagement'],
+      scopes: ['pages_show_list', 'pages_read_engagement', 'business_management'],
     };
   }
 

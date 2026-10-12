@@ -47,21 +47,26 @@ const FB_AUTHORIZE_URL = 'https://www.facebook.com/v21.0/dialog/oauth';
 const FB_TOKEN_URL = 'https://graph.facebook.com/v21.0/oauth/access_token';
 const FB_GRAPH_BASE = 'https://graph.facebook.com/v21.0';
 
-// Facebook permissions (scopes) — must be explicitly added in the Meta
-// dashboard under "App Review" → "Permissions and Features" before they
-// can be used in OAuth (even in Development mode).
+// Facebook permissions (scopes) — these are the ones that appear in the
+// Meta dashboard's "App Review → Permissions and Features" list as of
+// 2026-10-13 for a new app.
 //
-// For Facebook posting, we need:
-//   pages_show_list       - see list of user's Pages (Standard Access)
-//   pages_read_engagement - read Page content (Standard Access)
-//   pages_manage_posts    - create/edit/delete Page posts (needs Advanced Access for Live mode)
+// For Development mode (testing only), we use scopes that are available
+// without App Review. The full list visible in the dashboard:
+//   - public_profile           (always available)
+//   - pages_show_list           (Standard Access — auto-enabled)
+//   - pages_read_engagement     (Standard Access — auto-enabled)
+//   - business_management       (Standard Access — auto-enabled)
 //
-// We removed Instagram scopes from the Facebook adapter — Instagram posting
-// goes through the InstagramAdapter which has its own scopes.
+// NOTE: 'pages_manage_posts' is NOT in the new permissions list — Meta has
+// consolidated it under 'business_management'. So we use that instead.
+//
+// 'instagram_business_basic' is part of the Instagram API product setup
+// (separate from this Facebook adapter).
 const FB_SCOPES = [
   'pages_show_list',
   'pages_read_engagement',
-  'pages_manage_posts',
+  'business_management',
 ];
 
 export interface FacebookCredentials extends AdapterCredentials {
