@@ -78,11 +78,14 @@ export class InstagramAdapter implements PlatformAdapter {
       throw new Error('Instagram adapter not configured (missing FACEBOOK_APP_ID/SECRET)');
     }
     // Use FB OAuth URL (same flow) — we discover IG account during getIdentity
+    // IMPORTANT: Use the NEW Instagram scope names (renamed in API v18+):
+    //   instagram_basic            → instagram_business_basic
+    //   instagram_content_publish  → instagram_business_content_publish
     const params = new URLSearchParams({
       client_id: process.env.FACEBOOK_APP_ID!,
       redirect_uri: redirectUri,
       state,
-      scope: 'instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement',
+      scope: 'instagram_business_basic,instagram_business_content_publish,pages_show_list,pages_read_engagement',
       response_type: 'code',
       auth_type: 'rerequest',
     });
@@ -123,7 +126,7 @@ export class InstagramAdapter implements PlatformAdapter {
       expiresAt: data.expires_in
         ? Math.floor(Date.now() / 1000) + data.expires_in
         : undefined,
-      scopes: ['instagram_basic', 'instagram_content_publish'],
+      scopes: ['instagram_business_basic', 'instagram_business_content_publish'],
     };
   }
 

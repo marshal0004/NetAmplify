@@ -48,17 +48,22 @@ const FB_TOKEN_URL = 'https://graph.facebook.com/v21.0/oauth/access_token';
 const FB_GRAPH_BASE = 'https://graph.facebook.com/v21.0';
 
 // Facebook permissions (scopes) — minimal per Meta's policy:
-//   pages_show_list       - see list of user's Pages
-//   pages_read_engagement - read Page content (Meta requires this even for write)
-//   pages_manage_posts    - create/edit/delete Page posts
-//   instagram_basic       - read IG account info (linked to FB Page)
-//   instagram_content_publish - publish to IG (used by InstagramAdapter)
+//   pages_show_list                    - see list of user's Pages
+//   pages_read_engagement              - read Page content (Meta requires this even for write)
+//   pages_manage_posts                 - create/edit/delete Page posts
+//   instagram_business_basic            - read IG account info (linked to FB Page) — NEW name (was instagram_basic)
+//   instagram_business_content_publish  - publish to IG (used by InstagramAdapter) — NEW name (was instagram_content_publish)
+//
+// IMPORTANT: Meta renamed Instagram scopes in API v18+:
+//   instagram_basic            → instagram_business_basic
+//   instagram_content_publish   → instagram_business_content_publish
+// Using the OLD names results in "Invalid Scopes" error during OAuth.
 const FB_SCOPES = [
   'pages_show_list',
   'pages_read_engagement',
   'pages_manage_posts',
-  'instagram_basic',
-  'instagram_content_publish',
+  'instagram_business_basic',
+  'instagram_business_content_publish',
 ];
 
 export interface FacebookCredentials extends AdapterCredentials {
