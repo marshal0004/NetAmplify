@@ -47,26 +47,28 @@ const FB_AUTHORIZE_URL = 'https://www.facebook.com/v21.0/dialog/oauth';
 const FB_TOKEN_URL = 'https://graph.facebook.com/v21.0/oauth/access_token';
 const FB_GRAPH_BASE = 'https://graph.facebook.com/v21.0';
 
-// Facebook permissions (scopes) — these are the ones that appear in the
-// Meta dashboard's "App Review → Permissions and Features" list as of
-// 2026-10-13 for a new app.
+// Facebook permissions (scopes).
+// These are all available in the Meta dashboard under:
+//   App Review → Permissions and Features
+// Click "Add" next to each to enable them for OAuth (no review needed
+// for Development mode — Standard Access is granted automatically).
 //
-// For Development mode (testing only), we use scopes that are available
-// without App Review. The full list visible in the dashboard:
-//   - public_profile           (always available)
-//   - pages_show_list           (Standard Access — auto-enabled)
-//   - pages_read_engagement     (Standard Access — auto-enabled)
-//   - business_management       (Standard Access — auto-enabled)
+// For Facebook posting:
+//   pages_show_list       - see list of user's Pages
+//   pages_read_engagement - read Page content (Meta requires this even for write)
+//   pages_manage_posts    - create/edit/delete Page posts
+//   business_management   - manage business assets (Pages, IG accounts)
 //
-// NOTE: 'pages_manage_posts' is NOT in the new permissions list — Meta has
-// consolidated it under 'business_management'. So we use that instead.
-//
-// 'instagram_business_basic' is part of the Instagram API product setup
-// (separate from this Facebook adapter).
+// We also include Instagram scopes so the SAME OAuth flow can be reused
+// for the InstagramAdapter (both adapters share the Meta app).
 const FB_SCOPES = [
   'pages_show_list',
   'pages_read_engagement',
+  'pages_manage_posts',
   'business_management',
+  'instagram_basic',
+  'instagram_business_basic',
+  'instagram_content_publish',
 ];
 
 export interface FacebookCredentials extends AdapterCredentials {
