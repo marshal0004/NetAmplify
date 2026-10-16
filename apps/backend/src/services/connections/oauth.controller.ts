@@ -1,15 +1,21 @@
 // /home/z/my-project/netamplify-app/apps/backend/src/services/connections/oauth.controller.ts
-// NetAmplify — OAuthController (Reddit, X, LinkedIn OAuth 2.0 + PKCE flows).
+// NetAmplify — OAuthController (Reddit, X, LinkedIn, Facebook, Instagram OAuth 2.0 flows).
 //
 // Per docs/05-API-SPEC.md:
-//   GET /api/oauth/:platform/start    → 302 redirect to platform authorize URL
-//   GET /api/oauth/:platform/callback → 302 to /dashboard/connections?connected=<platform>
+//   GET /api/oauth/:platform/start?token={jwt}    → 302 redirect to platform authorize URL
+//   GET /api/oauth/:platform/callback?code=...&state=... → 302 to /dashboard/connections?connected=<platform>
 //
-// PKCE state + code_verifier are stored in a signed short-lived cookie (10
-// min, single-use, httpOnly). On callback, we validate state, exchange
-// code, fetch identity, encrypt + upsert Connection.
-//
-// Tier B (X, LinkedIn) platforms render "Setup pending" if env vars missing.
+// FLOW:
+//   1. Frontend redirects browser to /api/oauth/{platform}/start?token={jwt}
+//   2. Backend verifies JWT, extracts userId, generates PKCE + state
+//   3. Backend stores {state, codeVerifier, platform, userId, returnTo} in a
+//      signed httpOnly cookie (10-min TTL)
+//   4. Backend redirects to platform authorize URL
+//   5. User logs in on platform, authorizes
+//   6. Platform redirects to /api/oauth/{platform}/callback?code=...&state=...
+//   7. Backend reads cookie, validates state, exchanges code for tokens
+//   8. Backend fetches user identity, encrypts + upserts Connection
+//   9. Backend redirects to frontend /dashboard/connections?connected={platform}
 
 import {
   Controller,
@@ -19,7 +25,8 @@ import {
   Req,
   Res,
   HttpCode,
-  BadRequestException, Inject } from '@nestjs/common';
+  Inject } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import type { Request, Response } from 'express';
 import { ConnectionsService } from '@netamplify/nestjs-libraries/database/prisma/connections/connections.service';
 import { AdapterRegistry } from '@netamplify/nestjs-libraries/platforms/registry';
@@ -33,20 +40,14 @@ import { errorMapper, ServiceError } from '@netamplify/nestjs-libraries/services
 import { PLATFORM_SCHEMA } from '@netamplify/nestjs-libraries/validation/schemas';
 import type { Platform } from '@prisma/client';
 
-/**
- * Cookie name for OAuth state + code_verifier.
- */
 const OAUTH_COOKIE_NAME = 'netamplify_oauth_state';
-
-/**
- * Cookie TTL: 10 minutes per docs/02-SRS.md FR-005.
- */
 const OAUTH_COOKIE_TTL_MS = 10 * 60 * 1000;
 
 interface OAuthCookiePayload {
   state: string;
   codeVerifier: string;
   platform: Platform;
+  userId: string;
   returnTo: string;
 }
 
@@ -54,19 +55,23 @@ interface OAuthCookiePayload {
 export class OAuthController {
   constructor(
     @Inject(AdapterRegistry) private readonly _adapters: AdapterRegistry,
-    private readonly _conn: ConnectionsService
+    private readonly _conn: ConnectionsService,
+    private readonly _jwt: JwtService,
   ) {}
 
   /**
-   * GET /api/oauth/:platform/start
-   * 1. Generate PKCE pair + state
-   * 2. Store both in signed short-lived cookie
-   * 3. Redirect to platform authorize URL
+   * GET /api/oauth/:platform/start?token={jwt}
+   *
+   * 1. Verify the JWT from the query param → extract userId
+   * 2. Generate PKCE pair + state
+   * 3. Store {state, codeVerifier, platform, userId, returnTo} in signed cookie
+   * 4. Redirect to platform authorize URL
    */
   @Get(':platform/start')
   @HttpCode(302)
   async start(
     @Param('platform') platformParam: string,
+    @Query('token') token: string,
     @Req() req: Request,
     @Res() res: Response
   ): Promise<void> {
@@ -75,36 +80,60 @@ export class OAuthController {
       if (!['REDDIT', 'TWITTER', 'LINKEDIN', 'FACEBOOK', 'INSTAGRAM'].includes(platform)) {
         throw new ServiceError(
           'VALIDATION_ERROR',
-          `${platform} does not support OAuth via this endpoint (use POST /api/connections/${platform.toLowerCase()} instead)`
+          `${platform} does not support OAuth via this endpoint`
         );
+      }
+
+      // Step 1: Verify JWT from query param — this is how we know which user
+      // initiated the OAuth flow. The frontend passes the JWT as ?token=xxx.
+      // Without this, the callback has no way to know which user to save the
+      // connection for (Facebook's redirect doesn't include the JWT).
+      if (!token) {
+        throw new ServiceError('UNAUTHENTICATED', 'OAuth start requires ?token={jwt} query parameter');
+      }
+
+      let userId: string;
+      try {
+        const payload = this._jwt.verify(token) as { sub: string };
+        userId = payload.sub;
+      } catch {
+        throw new ServiceError('UNAUTHENTICATED', 'OAuth start: JWT invalid or expired — please log in again');
+      }
+      if (!userId) {
+        throw new ServiceError('UNAUTHENTICATED', 'OAuth start: JWT missing sub (user id)');
       }
 
       const adapter = this._adapters.requireConfigured(platform);
       if (adapter.kind !== 'OAUTH' || !adapter.getAuthUrl || !adapter.exchangeCode || !adapter.getIdentity) {
-        throw new ServiceError(
-          'INTERNAL',
-          `${platform} adapter missing OAuth methods`
-        );
+        throw new ServiceError('INTERNAL', `${platform} adapter missing OAuth methods`);
       }
 
       const pkce = generatePkcePair();
       const state = generateState();
       const redirectUri = this.buildRedirectUri(req, platform);
 
+      // Build the returnTo URL from the request origin (preserves port 4200
+      // when proxied through Vite, or the PUBLIC_APP_URL if set)
+      const returnTo = this.buildFrontendUrl(req);
+
       const payload: OAuthCookiePayload = {
         state,
         codeVerifier: pkce.code_verifier,
         platform,
-        returnTo: process.env.PUBLIC_APP_URL || 'http://localhost:3000',
+        userId,
+        returnTo,
       };
 
-      // Signed httpOnly cookie — per docs/07-SECURITY-ACCESS.md §3 R6
+      // Signed httpOnly cookie — secure only when on HTTPS.
+      // On localhost (HTTP), secure:true would prevent the browser from
+      // storing the cookie, which breaks the entire OAuth flow.
+      const isHttps = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https';
       res.cookie(OAUTH_COOKIE_NAME, JSON.stringify(payload), {
         httpOnly: true,
         sameSite: 'lax',
         signed: true,
         maxAge: OAUTH_COOKIE_TTL_MS,
-        secure: process.env.NOT_SECURED !== 'true',
+        secure: isHttps,
       });
 
       const authUrl = adapter.getAuthUrl(pkce, state, redirectUri);
@@ -119,11 +148,12 @@ export class OAuthController {
 
   /**
    * GET /api/oauth/:platform/callback?code=...&state=...
-   * 1. Read + verify the state cookie
-   * 2. Exchange code for tokens (uses PKCE verifier from cookie)
+   *
+   * 1. Read + verify the state cookie (contains userId from start step)
+   * 2. Exchange code for tokens
    * 3. Fetch user identity
-   * 4. Encrypt + upsert Connection
-   * 5. Redirect to /dashboard/connections?connected=<platform>
+   * 4. Encrypt + upsert Connection (using userId from cookie)
+   * 5. Redirect to frontend /dashboard/connections?connected=<platform>
    */
   @Get(':platform/callback')
   @HttpCode(302)
@@ -134,16 +164,18 @@ export class OAuthController {
     @Req() req: Request,
     @Res() res: Response
   ): Promise<void> {
+    let returnTo = this.buildFrontendUrl(req);
+
     try {
       const platform = parsePlatform(platformParam);
       if (!code || !state) {
         throw new ServiceError('BAD_STATE', 'Missing code or state in OAuth callback');
       }
 
-      // Read the cookie (signed, httpOnly)
+      // Read the signed cookie — this contains the userId from the start step
       const cookieRaw = (req.signedCookies ?? {})[OAUTH_COOKIE_NAME];
       if (!cookieRaw) {
-        throw new ServiceError('BAD_STATE', 'OAuth state cookie missing or expired');
+        throw new ServiceError('BAD_STATE', 'OAuth state cookie missing or expired. Please try connecting again.');
       }
       let cookie: OAuthCookiePayload;
       try {
@@ -151,6 +183,8 @@ export class OAuthController {
       } catch {
         throw new ServiceError('BAD_STATE', 'OAuth state cookie is corrupt');
       }
+
+      returnTo = cookie.returnTo;
 
       // Validate state (constant-time compare)
       if (!verifyState(state, cookie.state)) {
@@ -165,7 +199,7 @@ export class OAuthController {
         );
       }
 
-      // Clear the state cookie (single-use per docs/07-SECURITY-ACCESS.md §3 R6)
+      // Clear the state cookie (single-use)
       res.clearCookie(OAUTH_COOKIE_NAME);
 
       const adapter = this._adapters.requireConfigured(platform);
@@ -176,27 +210,19 @@ export class OAuthController {
       const redirectUri = this.buildRedirectUri(req, platform);
       const tokens = await adapter.exchangeCode(code, {
         code_verifier: cookie.codeVerifier,
-        code_challenge: '', // not needed on callback
+        code_challenge: '',
         code_challenge_method: 'S256',
       }, redirectUri);
       const identity = await adapter.getIdentity(tokens);
 
-      // Get user id from session — for the callback flow, we use a query
-      // parameter ?userId=xxx (signed cookie would be the proper way; for
-      // MVP, the AuthMiddleware on /api/oauth/:platform/* would have set
-      // req.user. This controller is JWT-guarded in Phase 4 by adding
-      // @UseGuards(JwtAuthGuard) — for now we accept the userId from a
-      // query param to keep the flow simple).
-      //
-      // IMPORTANT: This is acceptable for MVP because the OAuth code is
-      // one-time-use + tied to the state cookie + PKCE verifier. Even if
-      // an attacker knows the userId, they can't replay the flow.
-      const userId = (req as Request & { user?: { id?: string } }).user?.id
-        || (req.query.userId as string | undefined);
+      // Use the userId from the cookie — this was set during the start step
+      // after verifying the JWT. This is the link between the OAuth flow and
+      // the NetAmplify user account.
+      const userId = cookie.userId;
       if (!userId) {
         throw new ServiceError(
           'UNAUTHENTICATED',
-          'OAuth callback requires authentication — login first, then connect'
+          'OAuth callback: userId missing from state cookie — please try connecting again'
         );
       }
 
@@ -211,24 +237,35 @@ export class OAuthController {
         },
       });
 
-      const redirectUrl = `${cookie.returnTo}/dashboard/connections?connected=${platform.toLowerCase()}&username=${encodeURIComponent(saved.platformUsername)}`;
+      const redirectUrl = `${returnTo}/dashboard/connections?connected=${platform.toLowerCase()}&username=${encodeURIComponent(saved.platformUsername)}`;
       res.redirect(302, redirectUrl);
     } catch (e) {
-      // Redirect to error page on failure
       const errorMsg = e instanceof ServiceError ? e.message : 'OAuth callback failed';
-      const returnTo = process.env.PUBLIC_APP_URL || 'http://localhost:3000';
       res.redirect(302, `${returnTo}/dashboard/connections?error=oauth_failed&message=${encodeURIComponent(errorMsg)}`);
     }
   }
 
   /**
-   * Build the redirect URI for the OAuth flow. Uses the PUBLIC_APP_URL env
-   * var if set; otherwise falls back to the request origin.
+   * Build the OAuth redirect URI (where the platform sends the callback).
+   * This MUST match what's configured in the platform's app dashboard.
+   *
+   * Uses the request origin so it works behind Vite proxy (port 4200 → 3000)
+   * or directly on the backend port (3000).
    */
   private buildRedirectUri(req: Request, platform: Platform): string {
     const baseUrl = process.env.PUBLIC_APP_URL
       || `${req.protocol}://${req.get('host')}`;
     return `${baseUrl}/api/oauth/${platform.toLowerCase()}/callback`;
+  }
+
+  /**
+   * Build the frontend URL for post-OAuth redirect.
+   * When behind Vite proxy, req.get('host') is the frontend port (4200).
+   * Falls back to PUBLIC_APP_URL or localhost:4200.
+   */
+  private buildFrontendUrl(req: Request): string {
+    return process.env.PUBLIC_APP_URL
+      || `http://${req.get('host') || 'localhost:4200'}`;
   }
 }
 

@@ -2,6 +2,7 @@
 // NetAmplify — ConnectionsModule.
 
 import { Module } from '@nestjs/common';
+import { JwtModule } from '@nestjs/jwt';
 import { ConnectionsController } from './connections.controller';
 import { OAuthController } from './oauth.controller';
 import { ConnectionsService } from '@netamplify/nestjs-libraries/database/prisma/connections/connections.service';
@@ -12,7 +13,16 @@ import { PlatformsModule } from '@netamplify/nestjs-libraries/platforms/platform
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Module({
-  imports: [PlatformsModule],
+  imports: [
+    PlatformsModule,
+    // JwtModule is needed by OAuthController to verify the JWT passed
+    // as ?token=xxx in the OAuth start endpoint. This allows the OAuth
+    // flow to identify which user initiated the connection.
+    JwtModule.register({
+      secret: process.env.JWT_SECRET || 'netamplify-dev-secret',
+      signOptions: { expiresIn: '7d' },
+    }),
+  ],
   controllers: [ConnectionsController, OAuthController],
   providers: [
     ConnectionsService,

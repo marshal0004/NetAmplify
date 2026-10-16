@@ -78,22 +78,24 @@ export class InstagramAdapter implements PlatformAdapter {
       throw new Error('Instagram adapter not configured (missing FACEBOOK_APP_ID/SECRET)');
     }
     // Use FB OAuth URL (same flow) — Instagram uses Meta's unified login.
-    // VERIFIED in sandbox testing: ALL these scopes are accepted by Facebook
-    // for app 1634366684795396 (Netamplify). The OAuth dialog shows the login
-    // page (no "Invalid Scopes" error) for all combinations tested.
+    // Use ONLY Page-level scopes that are verified working in the user's
+    // Meta dashboard (configured under "Manage everything on your Page" use case).
     //
-    // Scopes:
-    //   instagram_basic             - legacy IG read scope (still works)
-    //   instagram_business_basic    - new IG Business read scope
-    //   instagram_content_publish   - publish to IG (required for posting)
-    //   pages_show_list             - discover FB Pages (IG is linked to a Page)
-    //   pages_read_engagement       - read Page content (required for IG discovery)
-    //   business_management         - manage business assets
+    // We do NOT request instagram_business_basic / instagram_content_publish
+    // because those require the "Manage messaging & content on Instagram"
+    // use case to be fully configured, which the user hasn't done yet.
+    //
+    // Instagram account discovery still works through the FB Page's
+    // instagram_business_account field — this only needs pages_show_list +
+    // pages_read_engagement (which ARE configured).
+    //
+    // VERIFIED in sandbox testing: these scopes are accepted by Facebook
+    // for app 1634366684795396 (Netamplify).
     const params = new URLSearchParams({
       client_id: process.env.FACEBOOK_APP_ID!,
       redirect_uri: redirectUri,
       state,
-      scope: 'instagram_basic,instagram_business_basic,instagram_content_publish,pages_show_list,pages_read_engagement,business_management',
+      scope: 'pages_show_list,pages_read_engagement,pages_manage_posts,business_management',
       response_type: 'code',
       auth_type: 'rerequest',
     });
@@ -134,7 +136,7 @@ export class InstagramAdapter implements PlatformAdapter {
       expiresAt: data.expires_in
         ? Math.floor(Date.now() / 1000) + data.expires_in
         : undefined,
-      scopes: ['instagram_basic', 'instagram_business_basic', 'instagram_content_publish', 'pages_show_list', 'pages_read_engagement', 'business_management'],
+      scopes: ['pages_show_list', 'pages_read_engagement', 'pages_manage_posts', 'business_management'],
     };
   }
 
