@@ -146,7 +146,7 @@ export class InstagramAdapter implements PlatformAdapter {
    * the /{page-id}?fields=instagram_business_account endpoint.
    */
   async getIdentity(tokens: OAuthTokens): Promise<PlatformIdentity> {
-    // Step 1: Get FB user ID
+    // Step 1: Get FB user ID + name
     const meResp = await fetch(
       `${FB_GRAPH_BASE}/me?fields=id,name&access_token=${encodeURIComponent(tokens.accessToken)}`,
     );
@@ -164,22 +164,23 @@ export class InstagramAdapter implements PlatformAdapter {
       `${FB_GRAPH_BASE}/${me.id}/accounts?fields=id,name,access_token&access_token=${encodeURIComponent(tokens.accessToken)}`,
     );
     if (!pagesResp.ok) {
-      throw new PublishError(
-        'VALIDATION',
-        'No Facebook Pages found. Instagram requires a linked Facebook Page. ' +
-        'Create a Page at facebook.com/pages/create and link your IG Business account.',
-      );
+      // User has no Pages — save the connection with the FB user identity.
+      // They can create a Page later at facebook.com/pages/create.
+      return {
+        id: me.id,
+        username: `${me.name} (no FB Page linked)`,
+      };
     }
     const pagesData = (await pagesResp.json()) as {
       data: Array<{ id: string; name: string; access_token: string }>;
     };
 
     if (!pagesData.data || pagesData.data.length === 0) {
-      throw new PublishError(
-        'VALIDATION',
-        'No Facebook Pages found. Instagram API requires your IG account to be ' +
-        'Business and linked to a Facebook Page.',
-      );
+      // No Pages — save with FB user identity (user can create Page later)
+      return {
+        id: me.id,
+        username: `${me.name} (no FB Page linked)`,
+      };
     }
 
     // Step 3: For each Page, check if there's a linked IG Business account
@@ -213,13 +214,14 @@ export class InstagramAdapter implements PlatformAdapter {
       }
     }
 
-    // No IG Business account found on any Page
-    throw new PublishError(
-      'VALIDATION',
-      'No Instagram Business account found. Convert your IG to Business ' +
-      '(Instagram app → Settings → Account type → Switch to Business) and ' +
-      'link it to a Facebook Page (Instagram app → Settings → Linked Accounts).',
-    );
+    // No IG Business account found on any Page — save the connection anyway
+    // with the FB user identity. The user will need to convert their IG to
+    // Business + link it to a FB Page before they can actually post to IG.
+    // But the OAuth connection is saved so they don't have to re-authorize.
+    return {
+      id: me.id,
+      username: `${me.name} (convert IG to Business to enable posting)`,
+    };
   }
 
   /**

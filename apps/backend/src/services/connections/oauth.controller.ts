@@ -25,7 +25,8 @@ import {
   Req,
   Res,
   HttpCode,
-  Inject } from '@nestjs/common';
+  Inject,
+  Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import type { Request, Response } from 'express';
 import { ConnectionsService } from '@netamplify/nestjs-libraries/database/prisma/connections/connections.service';
@@ -53,6 +54,8 @@ interface OAuthCookiePayload {
 
 @Controller('api/oauth')
 export class OAuthController {
+  private readonly _logger = new Logger('OAuthController');
+
   constructor(
     @Inject(AdapterRegistry) private readonly _adapters: AdapterRegistry,
     private readonly _conn: ConnectionsService,
@@ -168,6 +171,8 @@ export class OAuthController {
 
     try {
       const platform = parsePlatform(platformParam);
+      this._logger.log(`OAuth callback received for ${platform} (code present: ${!!code}, state present: ${!!state})`);
+
       if (!code || !state) {
         throw new ServiceError('BAD_STATE', 'Missing code or state in OAuth callback');
       }
@@ -175,6 +180,7 @@ export class OAuthController {
       // Read the signed cookie — this contains the userId from the start step
       const cookieRaw = (req.signedCookies ?? {})[OAUTH_COOKIE_NAME];
       if (!cookieRaw) {
+        this._logger.error('OAuth state cookie missing — cookie was not stored. Check: (1) secure flag on localhost, (2) cookie-parser signed secret matches, (3) sameSite policy');
         throw new ServiceError('BAD_STATE', 'OAuth state cookie missing or expired. Please try connecting again.');
       }
       let cookie: OAuthCookiePayload;
@@ -208,12 +214,16 @@ export class OAuthController {
       }
 
       const redirectUri = this.buildRedirectUri(req, platform);
+      this._logger.log(`Exchanging code for tokens (redirectUri: ${redirectUri})...`);
       const tokens = await adapter.exchangeCode(code, {
         code_verifier: cookie.codeVerifier,
         code_challenge: '',
         code_challenge_method: 'S256',
       }, redirectUri);
+      this._logger.log(`Token exchange succeeded. Fetching identity...`);
+
       const identity = await adapter.getIdentity(tokens);
+      this._logger.log(`Identity fetched: id=${identity.id}, username=${identity.username}`);
 
       // Use the userId from the cookie — this was set during the start step
       // after verifying the JWT. This is the link between the OAuth flow and
@@ -226,6 +236,7 @@ export class OAuthController {
         );
       }
 
+      this._logger.log(`Saving OAuth connection for user ${userId}, platform ${platform}...`);
       const saved = await this._conn.saveOAuthConnection({
         userId,
         platform,
@@ -236,11 +247,14 @@ export class OAuthController {
           userAgent: req.headers['user-agent'],
         },
       });
+      this._logger.log(`✅ OAuth connection saved: id=${saved.platformUsername}`);
 
       const redirectUrl = `${returnTo}/dashboard/connections?connected=${platform.toLowerCase()}&username=${encodeURIComponent(saved.platformUsername)}`;
       res.redirect(302, redirectUrl);
     } catch (e) {
-      const errorMsg = e instanceof ServiceError ? e.message : 'OAuth callback failed';
+      const errorMsg = e instanceof ServiceError ? e.message : (e instanceof Error ? e.message : 'OAuth callback failed');
+      const errorStack = e instanceof Error ? e.stack : '';
+      this._logger.error(`❌ OAuth callback failed: ${errorMsg}\n${errorStack || ''}`);
       res.redirect(302, `${returnTo}/dashboard/connections?error=oauth_failed&message=${encodeURIComponent(errorMsg)}`);
     }
   }
