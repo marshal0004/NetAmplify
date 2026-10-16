@@ -78,13 +78,22 @@ export class InstagramAdapter implements PlatformAdapter {
       throw new Error('Instagram adapter not configured (missing FACEBOOK_APP_ID/SECRET)');
     }
     // Use FB OAuth URL (same flow) — Instagram uses Meta's unified login.
-    // Permissions must be added in the Meta dashboard → Use cases →
-    // Instagram API use case → "Add required permissions".
+    // VERIFIED in sandbox testing: ALL these scopes are accepted by Facebook
+    // for app 1634366684795396 (Netamplify). The OAuth dialog shows the login
+    // page (no "Invalid Scopes" error) for all combinations tested.
+    //
+    // Scopes:
+    //   instagram_basic             - legacy IG read scope (still works)
+    //   instagram_business_basic    - new IG Business read scope
+    //   instagram_content_publish   - publish to IG (required for posting)
+    //   pages_show_list             - discover FB Pages (IG is linked to a Page)
+    //   pages_read_engagement       - read Page content (required for IG discovery)
+    //   business_management         - manage business assets
     const params = new URLSearchParams({
       client_id: process.env.FACEBOOK_APP_ID!,
       redirect_uri: redirectUri,
       state,
-      scope: 'pages_show_list,pages_read_engagement,business_management',
+      scope: 'instagram_basic,instagram_business_basic,instagram_content_publish,pages_show_list,pages_read_engagement,business_management',
       response_type: 'code',
       auth_type: 'rerequest',
     });
@@ -125,7 +134,7 @@ export class InstagramAdapter implements PlatformAdapter {
       expiresAt: data.expires_in
         ? Math.floor(Date.now() / 1000) + data.expires_in
         : undefined,
-      scopes: ['pages_show_list', 'pages_read_engagement', 'business_management'],
+      scopes: ['instagram_basic', 'instagram_business_basic', 'instagram_content_publish', 'pages_show_list', 'pages_read_engagement', 'business_management'],
     };
   }
 
