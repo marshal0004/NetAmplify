@@ -261,14 +261,15 @@ export class OAuthController {
 
   /**
    * Build the OAuth redirect URI (where the platform sends the callback).
-   * This MUST match what's configured in the platform's app dashboard.
-   *
-   * Uses the request origin so it works behind Vite proxy (port 4200 → 3000)
-   * or directly on the backend port (3000).
+   * Instagram uses a different redirect URI path (/instagram/callback)
+   * because it uses Instagram's own OAuth endpoint (not Facebook's).
    */
   private buildRedirectUri(req: Request, platform: Platform): string {
     const baseUrl = process.env.PUBLIC_APP_URL
       || `${req.protocol}://${req.get('host')}`;
+    if (platform === 'INSTAGRAM') {
+      return `${baseUrl}/api/oauth/instagram/callback`;
+    }
     return `${baseUrl}/api/oauth/${platform.toLowerCase()}/callback`;
   }
 
