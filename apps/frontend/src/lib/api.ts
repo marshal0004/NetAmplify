@@ -234,6 +234,7 @@ export const postcardApi = {
     techStack: string[];
     repoUrl?: string;
     liveUrl?: string;
+    imageUrl?: string;
   }): Promise<PostCard> {
     return request('/postcards', {
       method: 'POST',
@@ -248,6 +249,7 @@ export const postcardApi = {
     techStack: string[];
     repoUrl: string | null;
     liveUrl: string | null;
+    imageUrl: string | null;
   }>): Promise<PostCard> {
     return request(`/postcards/${id}`, {
       method: 'PATCH',

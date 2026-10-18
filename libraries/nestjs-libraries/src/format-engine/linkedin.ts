@@ -44,6 +44,8 @@ export const linkedinFormatter: Formatter = (
     body: truncatedBody,
     url,
     hashtags,
+    // Pass imageUrl through for platforms that need it (Instagram, Facebook)
+    options: postCard.imageUrl ? { imageUrl: postCard.imageUrl } : undefined,
     charCount: truncatedBody.length,
     limit: LINKEDIN_LIMIT,
   };

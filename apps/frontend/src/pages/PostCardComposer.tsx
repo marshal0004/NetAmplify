@@ -19,6 +19,7 @@ export function PostCardComposer() {
   const [techInput, setTechInput] = useState('');
   const [repoUrl, setRepoUrl] = useState('');
   const [liveUrl, setLiveUrl] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
   const [showPreview, setShowPreview] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -41,6 +42,7 @@ export function PostCardComposer() {
       const card = await postcardApi.create({
         title, summary, description, techStack,
         repoUrl: repoUrl || undefined, liveUrl: liveUrl || undefined,
+        imageUrl: imageUrl || undefined,
       });
       navigate(`/dashboard/postcards/${card.id}`);
     } catch (err) {
@@ -158,6 +160,12 @@ export function PostCardComposer() {
                 <Input id="liveUrl" type="url" value={liveUrl} onChange={(e) => setLiveUrl(e.target.value)} placeholder="https://example.com"
                   className="mt-1 border-white/10 bg-white/5 text-white placeholder:text-white/20 focus:border-indigo-500/50" />
                 {errors.liveUrl && <p className="text-xs text-red-400">{errors.liveUrl}</p>}
+              </div>
+              <div>
+                <Label htmlFor="imageUrl" className="text-white/60">Image URL <span className="text-white/30">(required for Instagram)</span></Label>
+                <Input id="imageUrl" type="url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://example.com/image.jpg"
+                  className="mt-1 border-white/10 bg-white/5 text-white placeholder:text-white/20 focus:border-indigo-500/50" />
+                <p className="mt-1 text-xs text-white/30">Instagram requires an image for every post. Paste a publicly accessible image URL.</p>
               </div>
             </CardContent>
           </Card>
