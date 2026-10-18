@@ -298,19 +298,55 @@ export class FacebookAdapter implements PlatformAdapter {
     let resp: Response;
 
     if (imageUrl) {
-      // POST to /{page-id}/photos — creates a photo post with caption
-      // The image is fetched by Meta's servers from the URL
+      // Download the image locally first — the backend CAN access localhost
+      // (uploaded files are at http://localhost:3000/uploads/xxx.jpg).
+      // Meta's servers CANNOT access localhost, so we must download the
+      // image and upload the raw data to Meta's API.
+      const imgDownloadResp = await fetch(imageUrl);
+      if (!imgDownloadResp.ok) {
+        throw new PublishError(
+          'NETWORK',
+          `Failed to download image from ${imageUrl} (${imgDownloadResp.status})`,
+        );
+      }
+      const imgBuffer = await imgDownloadResp.arrayBuffer();
+      const imgContentType = imgDownloadResp.headers.get('content-type') || 'image/jpeg';
+
+      // Upload image directly to Meta via multipart/form-data
+      // POST /{page-id}/photos with 'source' field (file upload)
+      // instead of 'url' field (which Meta fetches — fails on localhost)
       const photosUrl = `${FB_GRAPH_BASE}/${page.id}/photos`;
-      const postBody = new URLSearchParams({
-        url: imageUrl,
-        caption: message,
-        access_token: page.access_token,
-      });
+
+      // Build multipart/form-data manually
+      const boundary = `----NetAmplify${Date.now()}`;
+      const formDataParts: Buffer[] = [];
+
+      // Add 'caption' field
+      formDataParts.push(
+        Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="caption"\r\n\r\n${message}\r\n`),
+      );
+
+      // Add 'access_token' field
+      formDataParts.push(
+        Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="access_token"\r\n\r\n${page.access_token}\r\n`),
+      );
+
+      // Add 'source' field (the image file)
+      const filename = `upload.${imgContentType.split('/')[1] || 'jpg'}`;
+      formDataParts.push(
+        Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="source"; filename="${filename}"\r\nContent-Type: ${imgContentType}\r\n\r\n`),
+      );
+      formDataParts.push(Buffer.from(imgBuffer));
+      formDataParts.push(Buffer.from(`\r\n--${boundary}--\r\n`));
+
+      const body = Buffer.concat(formDataParts);
 
       resp = await fetch(photosUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: postBody.toString(),
+        headers: {
+          'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        },
+        body: body,
       });
     } else {
       // No image — POST to /{page-id}/feed (text-only post)

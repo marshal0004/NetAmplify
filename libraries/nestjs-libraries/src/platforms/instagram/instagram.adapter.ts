@@ -246,55 +246,52 @@ export class InstagramAdapter implements PlatformAdapter {
       throw new PublishError('AUTH', 'Instagram access token missing — user must reconnect');
     }
 
-    // The IG Business account ID may be stored as igUserId, userId, or memberId
-    // (saveOAuthConnection stores identity.id as userId/memberId).
-    // If not available, re-discover it from FB Pages.
-    let igUserId = creds.igUserId || (creds.userId as string) || (creds.memberId as string) || '';
+    // ALWAYS re-discover the IG Business account ID from FB Pages.
+    // The stored userId/memberId is the FB user ID — NOT the IG Business
+    // account ID. Using the FB user ID with /media endpoint causes:
+    //   "Object with ID 'xxx' does not exist"
+    // The IG Business account ID must be discovered via the FB Page's
+    // instagram_business_account field.
+    const meResp = await fetch(
+      `${FB_GRAPH_BASE}/me?fields=id,name&access_token=${encodeURIComponent(creds.accessToken)}`,
+    );
+    if (!meResp.ok) {
+      throw new PublishError('AUTH', 'Meta access token expired — user must reconnect');
+    }
+    const me = (await meResp.json()) as { id: string; name: string };
 
-    // If we don't have an IG user ID, try to discover it from FB Pages
-    if (!igUserId || igUserId.length < 10) {
-      const meResp = await fetch(
-        `${FB_GRAPH_BASE}/me?fields=id,name&access_token=${encodeURIComponent(creds.accessToken)}`,
+    const pagesResp = await fetch(
+      `${FB_GRAPH_BASE}/${me.id}/accounts?fields=id,name,access_token&access_token=${encodeURIComponent(creds.accessToken)}`,
+    );
+    if (!pagesResp.ok) {
+      throw new PublishError('VALIDATION', 'No Facebook Pages found. Instagram requires a linked FB Page.');
+    }
+    const pagesData = (await pagesResp.json()) as {
+      data: Array<{ id: string; name: string; access_token: string }>;
+    };
+
+    if (!pagesData.data || pagesData.data.length === 0) {
+      throw new PublishError('VALIDATION', 'No Facebook Pages found. Create a Page and link your IG Business account.');
+    }
+
+    let igUserId = '';
+    for (const page of pagesData.data) {
+      const igResp = await fetch(
+        `${FB_GRAPH_BASE}/${page.id}?fields=instagram_business_account&access_token=${encodeURIComponent(page.access_token)}`,
       );
-      if (!meResp.ok) {
-        throw new PublishError('AUTH', 'Meta access token expired — user must reconnect');
+      if (!igResp.ok) continue;
+      const igData = (await igResp.json()) as { instagram_business_account?: { id: string } };
+      if (igData.instagram_business_account?.id) {
+        igUserId = igData.instagram_business_account.id;
+        break;
       }
-      const me = (await meResp.json()) as { id: string; name: string };
+    }
 
-      const pagesResp = await fetch(
-        `${FB_GRAPH_BASE}/${me.id}/accounts?fields=id,name,access_token&access_token=${encodeURIComponent(creds.accessToken)}`,
+    if (!igUserId) {
+      throw new PublishError(
+        'VALIDATION',
+        'No Instagram Business account found. Convert your IG to Business and link it to a Facebook Page.',
       );
-      if (!pagesResp.ok) {
-        throw new PublishError('VALIDATION', 'No Facebook Pages found. Instagram requires a linked FB Page.');
-      }
-      const pagesData = (await pagesResp.json()) as {
-        data: Array<{ id: string; name: string; access_token: string }>;
-      };
-
-      if (!pagesData.data || pagesData.data.length === 0) {
-        throw new PublishError('VALIDATION', 'No Facebook Pages found. Create a Page and link your IG Business account.');
-      }
-
-      let found = false;
-      for (const page of pagesData.data) {
-        const igResp = await fetch(
-          `${FB_GRAPH_BASE}/${page.id}?fields=instagram_business_account&access_token=${encodeURIComponent(page.access_token)}`,
-        );
-        if (!igResp.ok) continue;
-        const igData = (await igResp.json()) as { instagram_business_account?: { id: string } };
-        if (igData.instagram_business_account?.id) {
-          igUserId = igData.instagram_business_account.id;
-          found = true;
-          break;
-        }
-      }
-
-      if (!found) {
-        throw new PublishError(
-          'VALIDATION',
-          'No Instagram Business account found. Convert your IG to Business and link it to a Facebook Page.',
-        );
-      }
     }
 
     // Get image URL from options — IG REQUIRES an image
