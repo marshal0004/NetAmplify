@@ -237,6 +237,35 @@ export class XCookieAdapter implements PlatformAdapter {
       await page.keyboard.type(tweetText, { delay: 50 });
       await page.waitForTimeout(1000);
 
+      // If an image URL is provided, download it and attach it to the tweet
+      const imageUrl = formatted.options?.imageUrl as string | undefined;
+      if (imageUrl) {
+        try {
+          // Download the image to a temp file
+          const imgResp = await fetch(imageUrl);
+          if (imgResp.ok) {
+            const imgBuffer = await imgResp.arrayBuffer();
+            const tmpDir = os.tmpdir();
+            const tmpPath = path.join(tmpDir, `tweet-img-${Date.now()}.jpg`);
+            fs.writeFileSync(tmpPath, Buffer.from(imgBuffer));
+
+            // Find the file input element (hidden) and set the file
+            // X uses a hidden <input type="file"> for image uploads
+            const fileInput = await page.$('input[type="file"][accept*="image"]');
+            if (fileInput) {
+              await fileInput.setInputFiles(tmpPath);
+              // Wait for the image to upload + preview to appear
+              await page.waitForTimeout(3000);
+            }
+
+            // Clean up temp file
+            try { fs.unlinkSync(tmpPath); } catch { /* ignore */ }
+          }
+        } catch {
+          // If image download fails, proceed with text-only tweet
+        }
+      }
+
       // Find and click the Post button
       const postButton = await page.$('button[data-testid="tweetButton"]');
       if (!postButton) {

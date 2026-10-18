@@ -292,18 +292,40 @@ export class FacebookAdapter implements PlatformAdapter {
     const urlLine = formatted.url ? `\n${formatted.url}` : '';
     const message = `${formatted.title}\n\n${formatted.body}${urlLine}${tagsLine}`;
 
-    // Step 3: POST to /{page-id}/feed
-    const feedUrl = `${FB_GRAPH_BASE}/${page.id}/feed`;
-    const postBody = new URLSearchParams({
-      message,
-      access_token: page.access_token,
-    });
+    // Step 3: Check if an image URL was provided
+    const imageUrl = formatted.options?.imageUrl as string | undefined;
 
-    const resp = await fetch(feedUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: postBody.toString(),
-    });
+    let resp: Response;
+
+    if (imageUrl) {
+      // POST to /{page-id}/photos — creates a photo post with caption
+      // The image is fetched by Meta's servers from the URL
+      const photosUrl = `${FB_GRAPH_BASE}/${page.id}/photos`;
+      const postBody = new URLSearchParams({
+        url: imageUrl,
+        caption: message,
+        access_token: page.access_token,
+      });
+
+      resp = await fetch(photosUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: postBody.toString(),
+      });
+    } else {
+      // No image — POST to /{page-id}/feed (text-only post)
+      const feedUrl = `${FB_GRAPH_BASE}/${page.id}/feed`;
+      const postBody = new URLSearchParams({
+        message,
+        access_token: page.access_token,
+      });
+
+      resp = await fetch(feedUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: postBody.toString(),
+      });
+    }
 
     if (resp.status === 401) {
       throw new PublishError('AUTH', 'Facebook page token invalid — user must reconnect');
