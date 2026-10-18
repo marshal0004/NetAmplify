@@ -56,6 +56,9 @@ export const xFormatter: Formatter = (
     body: truncatedBody,
     url,
     hashtags,
+    // Pass imageUrl through for adapters that need it (X cookie adapter
+    // downloads the image and attaches it via Playwright's setInputFiles)
+    options: postCard.imageUrl ? { imageUrl: postCard.imageUrl } : undefined,
     charCount: truncatedBody.length + reserved,
     limit: X_LIMIT,
   };

@@ -55,6 +55,11 @@ export function PostCardView() {
                 {card.liveUrl && <a href={card.liveUrl} target="_blank" rel="noreferrer" className="text-indigo-400 hover:underline">🌐 Live</a>}
               </div>
             )}
+            {card.imageUrl && (
+              <div className="mt-6">
+                <img src={card.imageUrl} alt={card.title} className="max-w-full rounded-lg border border-white/10" />
+              </div>
+            )}
             <div className="mt-8 border-t border-white/5 pt-6">
               <div className="prose prose-sm prose-invert max-w-none whitespace-pre-wrap text-white/70">{card.description}</div>
             </div>
