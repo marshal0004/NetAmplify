@@ -2,6 +2,9 @@ import compression from 'compression';
 
 import { loadSwagger } from '@netamplify/helpers/swagger/load.swagger';
 import { json } from 'express';
+import { static as expressStatic } from 'express';
+import { existsSync, mkdirSync } from 'fs';
+import { join } from 'path';
 
 process.env.TZ = 'UTC';
 
@@ -51,6 +54,18 @@ async function start() {
 
   app.use(cookieParser(process.env.JWT_SECRET || 'netamplify-cookie-secret'));
   app.use(compression());
+
+  // Create uploads directory if it doesn't exist
+  const uploadsDir = join(process.cwd(), 'public', 'uploads');
+  if (!existsSync(uploadsDir)) {
+    mkdirSync(uploadsDir, { recursive: true });
+  }
+
+  // Serve uploaded files as static (e.g. /uploads/image-123.jpg)
+  app.use('/uploads', expressStatic(join(process.cwd(), 'public', 'uploads'), {
+    maxAge: 86400000, // 1 day cache
+  }));
+
   app.useGlobalFilters(new GlobalExceptionFilter());
   app.useGlobalFilters(new HttpExceptionFilter());
 

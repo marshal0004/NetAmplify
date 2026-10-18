@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { postcardApi } from '@/lib/api';
@@ -20,6 +20,9 @@ export function PostCardComposer() {
   const [repoUrl, setRepoUrl] = useState('');
   const [liveUrl, setLiveUrl] = useState('');
   const [imageUrl, setImageUrl] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [imagePreview, setImagePreview] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -30,6 +33,52 @@ export function PostCardComposer() {
     if (tag && !techStack.includes(tag) && techStack.length < 10) {
       setTechStack([...techStack, tag]);
       setTechInput('');
+    }
+  }
+
+  async function handleFileUpload(file: File) {
+    setUploading(true);
+    setFormError(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const jwtToken = localStorage.getItem('netamplify_token');
+      const resp = await fetch('/api/upload', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${jwtToken}`,
+        },
+        body: formData,
+      });
+
+      if (!resp.ok) {
+        const errText = await resp.text();
+        throw new Error(`Upload failed: ${errText}`);
+      }
+
+      const data = await resp.json() as { url: string; filename: string; mimeType: string };
+      setImageUrl(data.url);
+      setImagePreview(data.url);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleFileUpload(file);
+    }
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      handleFileUpload(file);
     }
   }
 
@@ -162,10 +211,43 @@ export function PostCardComposer() {
                 {errors.liveUrl && <p className="text-xs text-red-400">{errors.liveUrl}</p>}
               </div>
               <div>
-                <Label htmlFor="imageUrl" className="text-white/60">Image URL <span className="text-white/30">(required for Instagram)</span></Label>
-                <Input id="imageUrl" type="url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://example.com/image.jpg"
-                  className="mt-1 border-white/10 bg-white/5 text-white placeholder:text-white/20 focus:border-indigo-500/50" />
-                <p className="mt-1 text-xs text-white/30">Instagram requires an image for every post. Paste a publicly accessible image URL.</p>
+                <Label className="text-white/60">Image / Video <span className="text-white/30">(required for Instagram, recommended for all)</span></Label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/gif,image/webp,video/mp4"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+                {imagePreview ? (
+                  <div className="mt-2 relative">
+                    <img src={imagePreview} alt="Preview" className="max-h-48 rounded-lg border border-white/10" />
+                    <button
+                      type="button"
+                      onClick={() => { setImageUrl(''); setImagePreview(''); }}
+                      className="absolute top-2 right-2 bg-red-500/80 hover:bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => !uploading && fileInputRef.current?.click()}
+                    onDrop={handleDrop}
+                    onDragOver={(e) => e.preventDefault()}
+                    className="mt-2 border-2 border-dashed border-white/10 rounded-lg p-8 text-center cursor-pointer hover:border-indigo-500/50 transition-colors"
+                  >
+                    {uploading ? (
+                      <p className="text-white/40">Uploading...</p>
+                    ) : (
+                      <>
+                        <p className="text-white/40">Drag & drop an image or video here</p>
+                        <p className="text-white/20 text-sm mt-1">or click to browse</p>
+                        <p className="text-white/20 text-xs mt-2">JPG, PNG, GIF, WebP, MP4 — max 50MB</p>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

@@ -10,6 +10,7 @@ import { ConnectionsModule } from '@netamplify/backend/services/connections/conn
 import { PostCardsModule } from '@netamplify/backend/services/postcards/postcards.module';
 import { PublishModule } from '@netamplify/backend/services/publish/publish.module';
 import { QueueModule } from '@netamplify/nestjs-libraries/queue/queue.module';
+import { UploadModule } from '@netamplify/backend/services/upload/upload.module';
 
 /**
  * Phase 4 ApiModule:
@@ -20,6 +21,7 @@ import { QueueModule } from '@netamplify/nestjs-libraries/queue/queue.module';
  *   - PostCardsModule: /api/postcards/* (Phase 4 — CRUD + preview)
  *   - PublishModule: /api/postcards/:id/publish + /api/posts/* + retry (Phase 4)
  *   - QueueModule: BullMQ publish queue + worker (Phase 4)
+ *   - UploadModule: /api/upload (file upload for PostCard images/videos)
  */
 @Module({
   imports: [
@@ -28,6 +30,7 @@ import { QueueModule } from '@netamplify/nestjs-libraries/queue/queue.module';
     PostCardsModule,
     PublishModule,
     QueueModule,
+    UploadModule,
   ],
   controllers: [RootController, HealthController],
   providers: [IntegrationManager],
