@@ -55,10 +55,19 @@ export class InstagramAdapter implements PlatformAdapter {
   }
 
   /**
-   * Build the Instagram Standalone OAuth URL.
-   * Uses Instagram's own authorize endpoint — NOT Facebook's.
-   * Redirect URI must be configured in Meta dashboard under:
-   *   Instagram API → Set up Instagram business login → Redirect URIs
+   * Build the Instagram OAuth URL.
+   *
+   * Uses Facebook's OAuth endpoint (facebook.com/dialog/oauth) because
+   * Instagram's own endpoint (instagram.com/oauth/authorize) rejects
+   * localhost redirect URIs. Facebook's OAuth accepts localhost in
+   * Development mode.
+   *
+   * The redirect URI must be configured in Facebook Login → Settings →
+   * Valid OAuth Redirect URIs (NOT in Instagram business login).
+   *
+   * Uses INSTAGRAM_APP_ID (which is different from FACEBOOK_APP_ID).
+   * The Instagram app ID is shown in the Meta dashboard under:
+   *   Use cases → Instagram API → Instagram app ID
    */
   getAuthUrl(_pkce: PkcePair, state: string, redirectUri: string): string {
     if (!this.configured()) {
@@ -71,7 +80,8 @@ export class InstagramAdapter implements PlatformAdapter {
       scope: 'instagram_basic,instagram_content_publish',
       response_type: 'code',
     });
-    return `https://www.instagram.com/oauth/authorize?${params.toString()}`;
+    // Use Facebook's OAuth endpoint — it accepts localhost in Development mode
+    return `https://www.facebook.com/v21.0/dialog/oauth?${params.toString()}`;
   }
 
   /**
