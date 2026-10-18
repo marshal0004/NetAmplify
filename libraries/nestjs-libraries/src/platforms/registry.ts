@@ -15,7 +15,6 @@ import type { PlatformAdapter } from './adapter.interface';
 import { AdapterNotFoundError, PlatformNotConfiguredError } from './adapter.interface';
 import type { Platform } from '@prisma/client';
 
-import { RedditAdapter } from './reddit/reddit.adapter';
 import { XAdapter } from './x/x.adapter';
 import { LinkedInAdapter } from './linkedin/linkedin.adapter';
 import { DiscordAdapter } from './discord/discord.adapter';
@@ -24,14 +23,13 @@ import { HashnodeAdapter } from './hashnode/hashnode.adapter';
 import { TelegramAdapter } from './telegram/telegram.adapter';
 import { BlueskyAdapter } from './bluesky/bluesky.adapter';
 import { XCookieAdapter } from './x/x-cookie.adapter';
-import { RedditCookieAdapter } from './reddit/reddit-cookie.adapter';
 import { MastodonAdapter } from './mastodon/mastodon.adapter';
 import { WordPressAdapter } from './wordpress/wordpress.adapter';
 import { FacebookAdapter } from './facebook/facebook.adapter';
 import { InstagramAdapter } from './instagram/instagram.adapter';
 
 /**
- * Registry of all 14 NetAmplify platform adapters.
+ * Registry of all 12 NetAmplify platform adapters.
  *
  * The registry is a Map<Platform, PlatformAdapter>. Lookup is O(1).
  * Adapters are singletons (NestJS injectable); the registry holds one
@@ -42,7 +40,6 @@ export class AdapterRegistry {
   private readonly adapters: Map<Platform, PlatformAdapter>;
 
   constructor(
-    @Inject(RedditAdapter) private readonly _reddit: RedditAdapter,
     @Inject(XAdapter) private readonly _x: XAdapter,
     @Inject(LinkedInAdapter) private readonly _linkedin: LinkedInAdapter,
     @Inject(DiscordAdapter) private readonly _discord: DiscordAdapter,
@@ -51,14 +48,12 @@ export class AdapterRegistry {
     @Inject(TelegramAdapter) private readonly _telegram: TelegramAdapter,
     @Inject(BlueskyAdapter) private readonly _bluesky: BlueskyAdapter,
     @Inject(XCookieAdapter) private readonly _xCookie: XCookieAdapter,
-    @Inject(RedditCookieAdapter) private readonly _redditCookie: RedditCookieAdapter,
     @Inject(MastodonAdapter) private readonly _mastodon: MastodonAdapter,
     @Inject(WordPressAdapter) private readonly _wordpress: WordPressAdapter,
     @Inject(FacebookAdapter) private readonly _facebook: FacebookAdapter,
     @Inject(InstagramAdapter) private readonly _instagram: InstagramAdapter,
   ) {
     this.adapters = new Map<Platform, PlatformAdapter>([
-      ['REDDIT', this._reddit],
       ['TWITTER', this._x],
       ['LINKEDIN', this._linkedin],
       ['DISCORD', this._discord],
@@ -67,7 +62,6 @@ export class AdapterRegistry {
       ['TELEGRAM', this._telegram],
       ['BLUESKY', this._bluesky],
       ['TWITTER_COOKIE', this._xCookie],
-      ['REDDIT_COOKIE', this._redditCookie],
       ['MASTODON', this._mastodon],
       ['WORDPRESS', this._wordpress],
       ['FACEBOOK', this._facebook],

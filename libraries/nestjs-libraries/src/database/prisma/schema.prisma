@@ -36,12 +36,11 @@ datasource db {
 // Enums
 // ============================================================================
 
-/// NetAmplify supports 14 platforms in MVP per docs/01-PRD.md §4:
-///   Tier A (live): REDDIT, DISCORD, DEVTO, TELEGRAM, BLUESKY, HASHNODE, MASTODON, WORDPRESS
-///   Tier A (cookie variant): TWITTER_COOKIE, REDDIT_COOKIE (bypass paywall via session cookies)
+/// NetAmplify supports 12 platforms in MVP per docs/01-PRD.md §4:
+///   Tier A (live): DISCORD, DEVTO, TELEGRAM, BLUESKY, HASHNODE, MASTODON, WORDPRESS
+///   Tier A (cookie variant): TWITTER_COOKIE (bypass paywall via session cookies)
 ///   Tier B (bonus OAuth): TWITTER (X), LINKEDIN, FACEBOOK, INSTAGRAM
 enum Platform {
-  REDDIT
   DISCORD
   DEVTO
   TELEGRAM
@@ -52,7 +51,6 @@ enum Platform {
   MASTODON
   WORDPRESS
   TWITTER_COOKIE
-  REDDIT_COOKIE
   FACEBOOK
   INSTAGRAM
 }

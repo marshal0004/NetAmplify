@@ -32,7 +32,6 @@ import type {
   FormattedPost,
   FormatResult,
 } from './types';
-import { redditFormatter } from './reddit';
 import { xFormatter } from './x';
 import { linkedinFormatter } from './linkedin';
 import { discordFormatter } from './discord';
@@ -51,7 +50,6 @@ import { wordpressFormatter } from './wordpress';
  * title + markdown body submissions.
  */
 export const FORMATTERS: Record<Platform, Formatter> = {
-  REDDIT: redditFormatter,
   TWITTER: xFormatter,
   LINKEDIN: linkedinFormatter,
   DISCORD: discordFormatter,
@@ -62,7 +60,6 @@ export const FORMATTERS: Record<Platform, Formatter> = {
   MASTODON: mastodonFormatter,
   WORDPRESS: wordpressFormatter,
   TWITTER_COOKIE: xFormatter,
-  REDDIT_COOKIE: redditFormatter,
   // Facebook + Instagram use the same simple formatter as LinkedIn
   // (plain text body + title appended at top). Both have generous char limits
   // (FB: 63206, IG: 2200) so no truncation logic needed beyond the standard.

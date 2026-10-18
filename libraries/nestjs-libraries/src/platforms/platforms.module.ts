@@ -6,7 +6,6 @@
 
 import { Module } from '@nestjs/common';
 import { AdapterRegistry } from './registry';
-import { RedditAdapter } from './reddit/reddit.adapter';
 import { XAdapter } from './x/x.adapter';
 import { LinkedInAdapter } from './linkedin/linkedin.adapter';
 import { DiscordAdapter } from './discord/discord.adapter';
@@ -15,7 +14,6 @@ import { HashnodeAdapter } from './hashnode/hashnode.adapter';
 import { TelegramAdapter } from './telegram/telegram.adapter';
 import { BlueskyAdapter } from './bluesky/bluesky.adapter';
 import { XCookieAdapter } from './x/x-cookie.adapter';
-import { RedditCookieAdapter } from './reddit/reddit-cookie.adapter';
 import { MastodonAdapter } from './mastodon/mastodon.adapter';
 import { WordPressAdapter } from './wordpress/wordpress.adapter';
 import { FacebookAdapter } from './facebook/facebook.adapter';
@@ -24,7 +22,6 @@ import { InstagramAdapter } from './instagram/instagram.adapter';
 @Module({
   providers: [
     AdapterRegistry,
-    RedditAdapter,
     XAdapter,
     LinkedInAdapter,
     DiscordAdapter,
@@ -33,7 +30,6 @@ import { InstagramAdapter } from './instagram/instagram.adapter';
     TelegramAdapter,
     BlueskyAdapter,
     XCookieAdapter,
-    RedditCookieAdapter,
     MastodonAdapter,
     WordPressAdapter,
     FacebookAdapter,
@@ -41,7 +37,6 @@ import { InstagramAdapter } from './instagram/instagram.adapter';
   ],
   exports: [
     AdapterRegistry,
-    RedditAdapter,
     XAdapter,
     LinkedInAdapter,
     DiscordAdapter,
@@ -50,7 +45,6 @@ import { InstagramAdapter } from './instagram/instagram.adapter';
     TelegramAdapter,
     BlueskyAdapter,
     XCookieAdapter,
-    RedditCookieAdapter,
     MastodonAdapter,
     WordPressAdapter,
     FacebookAdapter,

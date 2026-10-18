@@ -122,7 +122,6 @@ export const POSTCARD_UPDATE_SCHEMA = POSTCARD_CREATE_SCHEMA.partial();
 // ============================================================================
 
 export const PLATFORM_SCHEMA = z.enum([
-  'REDDIT',
   'DISCORD',
   'DEVTO',
   'TELEGRAM',
@@ -133,7 +132,6 @@ export const PLATFORM_SCHEMA = z.enum([
   'MASTODON',
   'WORDPRESS',
   'TWITTER_COOKIE',
-  'REDDIT_COOKIE',
   'FACEBOOK',
   'INSTAGRAM',
 ]);

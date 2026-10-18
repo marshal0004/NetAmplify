@@ -35,7 +35,6 @@ import {
   CONNECT_BLUESKY_SCHEMA,
   CONNECT_HASHNODE_SCHEMA,
   CONNECT_TWITTER_COOKIE_SCHEMA,
-  CONNECT_REDDIT_COOKIE_SCHEMA,
   CONNECT_MASTODON_SCHEMA,
   CONNECT_WORDPRESS_SCHEMA,
 } from '@netamplify/nestjs-libraries/validation/schemas';
@@ -220,9 +219,6 @@ export class ConnectionsService {
       case 'TWITTER_COOKIE':
         parsedInput = CONNECT_TWITTER_COOKIE_SCHEMA.parse(rawInput) as Record<string, string>;
         break;
-      case 'REDDIT_COOKIE':
-        parsedInput = CONNECT_REDDIT_COOKIE_SCHEMA.parse(rawInput) as Record<string, string>;
-        break;
       case 'MASTODON':
         parsedInput = CONNECT_MASTODON_SCHEMA.parse(rawInput) as Record<string, string>;
         break;
@@ -301,8 +297,8 @@ export class ConnectionsService {
    *
    * # Arguments
    * * `userId` — the authenticated user's ID
-   * * `platform` — "TWITTER_COOKIE" or "REDDIT_COOKIE"
-   * * `rawInput` — the mapped cookie values (authToken/ct0 or tokenV2/csToken)
+   * * `platform` — "TWITTER_COOKIE"
+   * * `rawInput` — the mapped cookie values (authToken/ct0)
    * * `audit` — IP + User-Agent for the audit log
    */
   async saveSimpleConnectionSkipValidation(
@@ -324,9 +320,6 @@ export class ConnectionsService {
     switch (platform) {
       case 'TWITTER_COOKIE':
         parsedInput = CONNECT_TWITTER_COOKIE_SCHEMA.parse(rawInput) as Record<string, string>;
-        break;
-      case 'REDDIT_COOKIE':
-        parsedInput = CONNECT_REDDIT_COOKIE_SCHEMA.parse(rawInput) as Record<string, string>;
         break;
       default:
         throw new ServiceError(
@@ -399,8 +392,8 @@ export class ConnectionsService {
 }
 
 /**
- * Tier A = live in MVP (instant setup): Reddit, Discord, Dev.to, Telegram,
- *   Bluesky, Hashnode, Mastodon, WordPress, TWITTER_COOKIE, REDDIT_COOKIE
+ * Tier A = live in MVP (instant setup): Discord, Dev.to, Telegram,
+ *   Bluesky, Hashnode, Mastodon, WordPress, TWITTER_COOKIE
  * Tier B = bonus attempts (work if creds configured):
  *   X (OAuth), LinkedIn (OAuth), Facebook (OAuth), Instagram (OAuth)
  */
@@ -420,7 +413,6 @@ function connectionTypeFor(
   platform: Platform
 ): 'OAUTH' | 'API_KEY' | 'WEBHOOK' | 'BOT_TOKEN' | 'APP_PASSWORD' | 'COOKIE' {
   switch (platform) {
-    case 'REDDIT':
     case 'TWITTER':
     case 'LINKEDIN':
     case 'FACEBOOK':
@@ -438,7 +430,6 @@ function connectionTypeFor(
     case 'WORDPRESS':
       return 'APP_PASSWORD';
     case 'TWITTER_COOKIE':
-    case 'REDDIT_COOKIE':
       return 'COOKIE';
     default:
       // Exhaustiveness check — TypeScript will error if a new platform is added

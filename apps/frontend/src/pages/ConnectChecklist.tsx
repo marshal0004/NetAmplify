@@ -10,7 +10,6 @@ import { Badge } from '@/components/ui/badge';
 import { isTauri, captureAndConnect } from '@/lib/tauri';
 
 const trustCopy: Record<string, string> = {
-  REDDIT: 'You\'ll log in on Reddit\'s official page — NetAmplify never sees your password. We receive only a limited permission to submit posts, and you can revoke it anytime in your Reddit settings.',
   DISCORD: 'A webhook can only post to ONE channel in your server. Even in a worst case, it can\'t read messages, DMs, or touch your account. Delete the webhook in your server settings anytime and it\'s dead instantly.',
   DEVTO: 'You generate this key yourself in your account\'s settings. It can only manage content — and you can regenerate or delete it whenever you want.',
   TELEGRAM: 'The bot is YOURS — you create it with @BotFather and control it. We only get the ability to send messages to the one channel where you made it an admin. Remove the bot anytime.',
@@ -21,7 +20,6 @@ const trustCopy: Record<string, string> = {
   MASTODON: 'You create this access token yourself in your Mastodon instance\'s settings. It only has the `write:statuses` scope — meaning it can only post statuses, nothing else. Revoke it in one click from your instance settings.',
   WORDPRESS: 'WordPress Application Passwords are separate from your real password and only work via the REST API. They can\'t be used to log in to wp-admin. Revoke instantly from your WordPress profile page.',
   TWITTER_COOKIE: 'Your X session cookies are stored encrypted (AES-256-GCM) — we never see your X password. The cookies only allow posting tweets; we can\'t read your DMs, change your password, or take over your account. Log out of x.com on any device to instantly invalidate them.',
-  REDDIT_COOKIE: 'Your Reddit session cookies are stored encrypted (AES-256-GCM) — we never see your Reddit password. The cookies only allow submitting posts; we can\'t read your DMs, change your password, or take over your account. Log out of reddit.com on any device to instantly invalidate them.',
   FACEBOOK: 'You\'ll log in on Facebook\'s official page — NetAmplify never sees your password. We receive only a limited permission to post to your Facebook Page, and you can revoke it anytime in your Facebook settings.',
   INSTAGRAM: 'You\'ll log in on Meta\'s official page — NetAmplify never sees your password. We receive only a limited permission to post to your Instagram Business account, and you can revoke it anytime in your Meta settings.',
 };
@@ -101,9 +99,6 @@ const platformConfig: Record<string, PlatformConfig> = {
     ],
     docsLink: 'https://atproto.com/specs/xrpc#app-password',
   },
-  REDDIT: {
-    steps: [{ text: 'Click "Connect via OAuth" to log in on Reddit\'s official page.' }],
-  },
   TWITTER: {
     steps: [{ text: 'Click "Connect via OAuth" to log in on X\'s official page.' }],
   },
@@ -125,23 +120,6 @@ const platformConfig: Record<string, PlatformConfig> = {
       { text: 'Find the "auth_token" cookie — copy its value (40 hex chars)' },
       { text: 'Find the "ct0" cookie — copy its value (32 hex chars)' },
       { text: 'Paste both values above and click Connect' },
-    ],
-    docsLink: 'https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies',
-  },
-  REDDIT_COOKIE: {
-    fields: [
-      { key: 'tokenV2', label: 'token_v2 cookie (JWT, REQUIRED)', placeholder: 'eyJhbGciOiJ... (long string with 2 dots)' },
-      { key: 'csrfToken', label: 'csrf_token cookie (REQUIRED)', placeholder: '32-char alphanumeric string (0-9, a-z)' },
-      { key: 'redditSession', label: 'reddit_session cookie (legacy, OPTIONAL)', placeholder: 'eyJhbGciOiJ... or leave blank' },
-    ],
-    steps: [
-      { text: 'Install the Cookie-Editor extension (opens in new tab)', link: 'https://chromewebstore.google.com/detail/cookie-editor/hlkenndednhonkehodjpanfjoadhacee', linkText: 'Install Cookie-Editor' },
-      { text: 'Log in to reddit.com in your browser' },
-      { text: 'Click the Cookie-Editor icon in your browser toolbar' },
-      { text: 'Find the "token_v2" cookie — copy its full value (long JWT, ~1500+ chars)' },
-      { text: 'Find the "csrf_token" cookie — copy its value (32 hex chars)' },
-      { text: 'Find the "reddit_session" cookie (legacy) — copy its value (optional, but recommended)' },
-      { text: 'Paste token_v2 + csrf_token above (required), and reddit_session if you have it' },
     ],
     docsLink: 'https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies',
   },
@@ -233,7 +211,7 @@ export function ConnectChecklist() {
     }
   }
 
-  async function handleAutoCapture(platform: 'REDDIT_COOKIE' | 'TWITTER_COOKIE') {
+  async function handleAutoCapture(platform: 'TWITTER_COOKIE') {
     setCapturingPlatform(platform);
     setErrors({});
     try {
@@ -252,7 +230,7 @@ export function ConnectChecklist() {
     }
   }
 
-  async function handleTestPublish(platform: 'REDDIT_COOKIE' | 'TWITTER_COOKIE') {
+  async function handleTestPublish(platform: 'TWITTER_COOKIE') {
     setPublishingPlatform(platform);
     setErrors({});
     setPublishResult({});
@@ -417,10 +395,10 @@ export function ConnectChecklist() {
                     </div>
                     {isConnected ? (
                       <div className="flex gap-2">
-                        {(conn.platform === 'TWITTER_COOKIE' || conn.platform === 'REDDIT_COOKIE') && (
+                        {conn.platform === 'TWITTER_COOKIE' && (
                           <Button
                             size="sm"
-                            onClick={() => handleTestPublish(conn.platform as 'REDDIT_COOKIE' | 'TWITTER_COOKIE')}
+                            onClick={() => handleTestPublish(conn.platform as 'TWITTER_COOKIE')}
                             disabled={publishingPlatform !== null}
                             className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 border-0"
                           >
@@ -439,10 +417,10 @@ export function ConnectChecklist() {
                       </div>
                     ) : isTierB && !isConfigured ? (
                       <Button variant="outline" size="sm" disabled className="border-white/5 text-white/20">Coming soon</Button>
-                    ) : (conn.platform === 'TWITTER_COOKIE' || conn.platform === 'REDDIT_COOKIE') && isTauri() ? (
+                    ) : conn.platform === 'TWITTER_COOKIE' && isTauri() ? (
                       <Button
                         size="sm"
-                        onClick={() => handleAutoCapture(conn.platform as 'REDDIT_COOKIE' | 'TWITTER_COOKIE')}
+                        onClick={() => handleAutoCapture(conn.platform as 'TWITTER_COOKIE')}
                         disabled={capturingPlatform !== null}
                         className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 border-0"
                       >
@@ -554,7 +532,6 @@ export function ConnectChecklist() {
 
 function platformName(platform: string): string {
   const names: Record<string, string> = {
-    REDDIT: 'Reddit',
     DISCORD: 'Discord',
     DEVTO: 'Dev.to',
     TELEGRAM: 'Telegram',
@@ -565,7 +542,6 @@ function platformName(platform: string): string {
     MASTODON: 'Mastodon',
     WORDPRESS: 'WordPress',
     TWITTER_COOKIE: 'X (Twitter) — Cookie',
-    REDDIT_COOKIE: 'Reddit — Cookie',
     FACEBOOK: 'Facebook',
     INSTAGRAM: 'Instagram',
   };

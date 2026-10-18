@@ -187,30 +187,6 @@ export class ConnectionsController {
     }
   }
 
-  /**
-   * POST /api/connections/reddit-cookie  { tokenV2, csrfToken, redditSession? }
-   * Per docs/01-PRD.md §6: cookie bypass for Reddit's manual review.
-   *
-   * Uses saveSimpleConnectionSkipValidation for the same reasons as
-   * twitter-cookie above — Node.js can't reliably call Reddit's API
-   * (TLS fingerprint + Fastly CDN timeouts). The cookies are trusted
-   * because the user just logged in to reddit.com to get them.
-   */
-  @Post('reddit-cookie')
-  @HttpCode(201)
-  async connectRedditCookie(@Body() body: unknown, @Req() req: Request): Promise<{ id: string; username: string }> {
-    try {
-      return await this._conn.saveSimpleConnectionSkipValidation(
-        getUserId(req),
-        'REDDIT_COOKIE',
-        body,
-        getAuditContext(req)
-      );
-    } catch (e) {
-      throw errorMapper(e);
-    }
-  }
-
   // ==========================================================================
   // New OAuth / API-key platforms (Mastodon + WordPress)
   // ==========================================================================
@@ -295,10 +271,10 @@ export class ConnectionsController {
       const platform = parsePlatformParam(platformParam);
 
       // Only cookie-based platforms support auto-capture.
-      if (platform !== 'TWITTER_COOKIE' && platform !== 'REDDIT_COOKIE') {
+      if (platform !== 'TWITTER_COOKIE') {
         throw new ServiceError(
           'VALIDATION_ERROR',
-          `Auto-capture is only supported for TWITTER_COOKIE and REDDIT_COOKIE (got ${platform})`
+          `Auto-capture is only supported for TWITTER_COOKIE (got ${platform})`
         );
       }
 
@@ -352,10 +328,10 @@ export class ConnectionsController {
   ): Promise<{ cookies: Record<string, string> }> {
     try {
       const platform = parsePlatformParam(platformParam);
-      if (platform !== 'TWITTER_COOKIE' && platform !== 'REDDIT_COOKIE') {
+      if (platform !== 'TWITTER_COOKIE') {
         throw new ServiceError(
           'VALIDATION_ERROR',
-          `Cookie retrieval is only supported for TWITTER_COOKIE and REDDIT_COOKIE`
+          `Cookie retrieval is only supported for TWITTER_COOKIE`
         );
       }
       const creds = await this._conn.getDecryptedCredentials(getUserId(req), platform);
@@ -367,10 +343,6 @@ export class ConnectionsController {
       if (platform === 'TWITTER_COOKIE') {
         if (credMap.authToken) cookies.auth_token = String(credMap.authToken);
         if (credMap.ct0) cookies.ct0 = String(credMap.ct0);
-      } else if (platform === 'REDDIT_COOKIE') {
-        if (credMap.tokenV2) cookies.token_v2 = String(credMap.tokenV2);
-        if (credMap.csrfToken) cookies.csrf_token = String(credMap.csrfToken);
-        if (credMap.redditSession) cookies.reddit_session = String(credMap.redditSession);
       }
       return { cookies };
     } catch (e) {
@@ -383,15 +355,9 @@ export class ConnectionsController {
  * Map captured cookie names to the adapter's expected input field names.
  *
  * The Tauri WebView captures cookies by their actual names (e.g.,
- * `token_v2`, `csrf_token`, `auth_token`, `ct0`). But the Zod validation
- * schemas in the backend use camelCase field names (e.g., `tokenV2`,
- * `csrfToken`, `authToken`, `ct0`). This function translates between
- * the two.
- *
- * For Reddit:
- *   token_v2 (cookie) → tokenV2 (input field)
- *   csrf_token (cookie) → csrfToken (input field)
- *   token (cookie) → token (input field, optional)
+ * `auth_token`, `ct0`). But the Zod validation schemas in the backend use
+ * camelCase field names (e.g., `authToken`, `ct0`). This function translates
+ * between the two.
  *
  * For X:
  *   auth_token (cookie) → authToken (input field)
@@ -402,13 +368,6 @@ function mapCookiesToInput(
   cookies: Record<string, string>
 ): Record<string, string> {
   switch (platform) {
-    case 'REDDIT_COOKIE': {
-      const input: Record<string, string> = {};
-      if (cookies.token_v2) input.tokenV2 = cookies.token_v2;
-      if (cookies.csrf_token) input.csrfToken = cookies.csrf_token;
-      if (cookies.reddit_session) input.redditSession = cookies.reddit_session;
-      return input;
-    }
     case 'TWITTER_COOKIE': {
       const input: Record<string, string> = {};
       if (cookies.auth_token) input.authToken = cookies.auth_token;
@@ -432,7 +391,7 @@ function parsePlatformParam(raw: string): Platform {
   if (!parsed.success) {
     throw new ServiceError(
       'VALIDATION_ERROR',
-      `Unknown platform: "${raw}". Must be one of: REDDIT, DISCORD, DEVTO, TELEGRAM, BLUESKY, HASHNODE, TWITTER, LINKEDIN, MASTODON, WORDPRESS, TWITTER_COOKIE, REDDIT_COOKIE.`
+      `Unknown platform: "${raw}". Must be one of: DISCORD, DEVTO, TELEGRAM, BLUESKY, HASHNODE, TWITTER, LINKEDIN, MASTODON, WORDPRESS, TWITTER_COOKIE, FACEBOOK, INSTAGRAM.`
     );
   }
   return parsed.data;

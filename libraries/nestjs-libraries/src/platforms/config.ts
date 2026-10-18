@@ -35,15 +35,6 @@ export interface PlatformConfig {
  * (Phase 5) for char-limit enforcement and publish-time validation.
  */
 export const PLATFORM_CONFIG: Record<Platform, PlatformConfig> = {
-  REDDIT: {
-    platform: 'REDDIT',
-    name: 'Reddit',
-    charLimit: 300, // title limit; body is 40000
-    rateLimitPerMinute: 60, // per-user OAuth token — generous
-    markdownSupported: true,
-    imageSupported: false,
-    maxImages: 0,
-  },
   DISCORD: {
     platform: 'DISCORD',
     name: 'Discord',
@@ -132,15 +123,6 @@ export const PLATFORM_CONFIG: Record<Platform, PlatformConfig> = {
     rateLimitPerMinute: 30, // cookies use the per-user web rate limit (lower than API)
     markdownSupported: false,
     imageSupported: false, // MVP: text only via cookie method
-    maxImages: 0,
-  },
-  REDDIT_COOKIE: {
-    platform: 'REDDIT_COOKIE',
-    name: 'Reddit — Cookie',
-    charLimit: 300, // same as REDDIT (title limit)
-    rateLimitPerMinute: 30, // cookies use the per-user web rate limit
-    markdownSupported: true, // self-post markdown
-    imageSupported: false,
     maxImages: 0,
   },
   FACEBOOK: {
