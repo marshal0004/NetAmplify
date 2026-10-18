@@ -126,20 +126,28 @@ export class InstagramAdapter implements PlatformAdapter {
 
     const tokenData = (await tokenResp.json()) as {
       access_token: string;
-      user_id: string;
+      user_id?: string; // Only present with Instagram's own OAuth, NOT Facebook's
       expires_in?: number;
+      token_type?: string;
     };
 
-    if (!tokenData.access_token || !tokenData.user_id) {
-      throw new PublishError('AUTH', 'Instagram returned no access_token or user_id');
+    if (!tokenData.access_token) {
+      throw new PublishError('AUTH', 'Instagram/Facebook returned no access_token');
     }
 
-    // Step 2: Exchange for long-lived token (60 days)
+    // Note: user_id is only returned by Instagram's own OAuth endpoint.
+    // When using Facebook's OAuth endpoint (which we do for localhost),
+    // user_id is NOT in the response — we discover the IG account ID
+    // in getIdentity() instead.
+
+    // Step 2: Try to exchange for long-lived token (60 days)
+    // This may fail with Facebook user tokens (ig_exchange_token only works
+    // with Instagram-specific tokens). If it fails, use the short-lived token.
     const longLivedResp = await fetch(
       `${FB_GRAPH_BASE}/access_token?grant_type=ig_exchange_token&client_secret=${appSecret}&access_token=${tokenData.access_token}`,
-    );
+    ).catch(() => null);
 
-    if (longLivedResp.ok) {
+    if (longLivedResp && longLivedResp.ok) {
       const longLived = (await longLivedResp.json()) as {
         access_token: string;
         token_type: string;
@@ -152,7 +160,7 @@ export class InstagramAdapter implements PlatformAdapter {
       };
     }
 
-    // Fallback to short-lived if long-lived fails
+    // Fallback to short-lived token (works for 1-2 hours — enough for testing)
     return {
       accessToken: tokenData.access_token,
       expiresAt: tokenData.expires_in
@@ -163,27 +171,79 @@ export class InstagramAdapter implements PlatformAdapter {
   }
 
   /**
-   * Get the Instagram user's identity (ID + username).
-   * Uses the /me endpoint with the IG access token — returns the IG
-   * Business account ID directly (NOT the FB user ID).
+   * Get the Instagram user's identity.
+   *
+   * When using Facebook's OAuth endpoint (for localhost compatibility),
+   * the access token is a Facebook user token — NOT an Instagram-specific
+   * token. So /me returns the FB user ID, not the IG account ID.
+   *
+   * To get the IG account ID, we:
+   *   1. Call /me to get the FB user ID + name
+   *   2. Call /{fb-user-id}/accounts to get FB Pages
+   *   3. For each Page, check for instagram_business_account
+   *   4. Return the IG Business account ID + username
+   *
+   * This requires the IG account to be linked to a FB Page (as Business).
+   * If not linked, returns a fallback identity with the FB user info.
    */
   async getIdentity(tokens: OAuthTokens): Promise<PlatformIdentity> {
+    // Step 1: Get FB user ID + name
     const meResp = await fetch(
-      `${FB_GRAPH_BASE}/me?fields=id,username&access_token=${encodeURIComponent(tokens.accessToken)}`,
+      `${FB_GRAPH_BASE}/me?fields=id,name&access_token=${encodeURIComponent(tokens.accessToken)}`,
     );
     if (meResp.status === 401) {
-      throw new PublishError('AUTH', 'Instagram access token invalid or expired');
+      throw new PublishError('AUTH', 'Meta access token invalid or expired');
     }
     if (!meResp.ok) {
       const text = await meResp.text();
       throw new PublishError('NETWORK', `Instagram /me failed (${meResp.status}): ${text}`);
     }
+    const me = (await meResp.json()) as { id: string; name: string };
 
-    const me = (await meResp.json()) as { id: string; username?: string };
+    // Step 2: Get FB Pages
+    const pagesResp = await fetch(
+      `${FB_GRAPH_BASE}/${me.id}/accounts?fields=id,name,access_token&access_token=${encodeURIComponent(tokens.accessToken)}`,
+    );
+    if (!pagesResp.ok) {
+      return { id: me.id, username: `${me.name} (no FB Page linked)` };
+    }
+    const pagesData = (await pagesResp.json()) as {
+      data: Array<{ id: string; name: string; access_token: string }>;
+    };
 
+    if (!pagesData.data || pagesData.data.length === 0) {
+      return { id: me.id, username: `${me.name} (no FB Page linked)` };
+    }
+
+    // Step 3: For each Page, check for linked IG Business account
+    for (const page of pagesData.data) {
+      const igResp = await fetch(
+        `${FB_GRAPH_BASE}/${page.id}?fields=instagram_business_account&access_token=${encodeURIComponent(page.access_token)}`,
+      );
+      if (!igResp.ok) continue;
+      const igData = (await igResp.json()) as { instagram_business_account?: { id: string } };
+      if (igData.instagram_business_account?.id) {
+        const igUserId = igData.instagram_business_account.id;
+        // Fetch IG username for display
+        const profileResp = await fetch(
+          `${FB_GRAPH_BASE}/${igUserId}?fields=username&access_token=${encodeURIComponent(page.access_token)}`,
+        );
+        let igUsername = '';
+        if (profileResp.ok) {
+          const profile = (await profileResp.json()) as { username?: string };
+          igUsername = profile.username || '';
+        }
+        return {
+          id: igUserId,
+          username: igUsername ? `@${igUsername}` : `IG Business ${igUserId}`,
+        };
+      }
+    }
+
+    // No IG Business account found — save with FB user identity
     return {
       id: me.id,
-      username: me.username ? `@${me.username}` : `IG ${me.id}`,
+      username: `${me.name} (link IG to FB Page to enable posting)`,
     };
   }
 
@@ -210,11 +270,48 @@ export class InstagramAdapter implements PlatformAdapter {
       throw new PublishError('AUTH', 'Instagram access token missing — user must reconnect');
     }
 
-    // The IG user ID is stored by saveOAuthConnection as userId/memberId
-    // (it stores identity.id as userId/memberId in the encrypted credentials)
-    const igUserId = creds.igUserId || (creds.userId as string) || (creds.memberId as string) || '';
+    // The stored credential userId/memberId may be the FB user ID (not IG account ID).
+    // ALWAYS re-discover the IG Business account ID from FB Pages at publish time.
+    const meResp = await fetch(
+      `${FB_GRAPH_BASE}/me?fields=id,name&access_token=${encodeURIComponent(creds.accessToken)}`,
+    );
+    if (!meResp.ok) {
+      throw new PublishError('AUTH', 'Meta access token expired — user must reconnect');
+    }
+    const me = (await meResp.json()) as { id: string; name: string };
+
+    const pagesResp = await fetch(
+      `${FB_GRAPH_BASE}/${me.id}/accounts?fields=id,name,access_token&access_token=${encodeURIComponent(creds.accessToken)}`,
+    );
+    if (!pagesResp.ok) {
+      throw new PublishError('VALIDATION', 'No Facebook Pages found. Instagram requires a linked FB Page.');
+    }
+    const pagesData = (await pagesResp.json()) as {
+      data: Array<{ id: string; name: string; access_token: string }>;
+    };
+
+    if (!pagesData.data || pagesData.data.length === 0) {
+      throw new PublishError('VALIDATION', 'No Facebook Pages found. Create a Page and link your IG Business account.');
+    }
+
+    let igUserId = '';
+    for (const page of pagesData.data) {
+      const igResp = await fetch(
+        `${FB_GRAPH_BASE}/${page.id}?fields=instagram_business_account&access_token=${encodeURIComponent(page.access_token)}`,
+      );
+      if (!igResp.ok) continue;
+      const igData = (await igResp.json()) as { instagram_business_account?: { id: string } };
+      if (igData.instagram_business_account?.id) {
+        igUserId = igData.instagram_business_account.id;
+        break;
+      }
+    }
+
     if (!igUserId) {
-      throw new PublishError('AUTH', 'Instagram user ID missing — user must reconnect');
+      throw new PublishError(
+        'VALIDATION',
+        'No Instagram Business account found. Link your IG to a Facebook Page in the Accounts Center at https://accountscenter.facebook.com',
+      );
     }
 
     // Get image URL from options — IG REQUIRES an image
