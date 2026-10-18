@@ -47,38 +47,45 @@ export class InstagramAdapter implements PlatformAdapter {
   readonly kind = 'OAUTH' as const;
 
   configured(): boolean {
-    // Standalone Instagram uses INSTAGRAM_APP_ID + INSTAGRAM_APP_SECRET
-    // (separate from Facebook's FACEBOOK_APP_ID + FACEBOOK_APP_SECRET)
+    // Instagram standalone uses INSTAGRAM_APP_ID + INSTAGRAM_APP_SECRET.
+    // But for OAuth redirect URI validation, we fall back to FACEBOOK_APP_ID
+    // because the redirect URIs are configured under the Facebook Login
+    // product (not Instagram business login — which rejects localhost).
+    // If INSTAGRAM_APP_ID is not set, we use FACEBOOK_APP_ID.
     return Boolean(
-      process.env.INSTAGRAM_APP_ID && process.env.INSTAGRAM_APP_SECRET,
+      (process.env.INSTAGRAM_APP_ID || process.env.FACEBOOK_APP_ID) &&
+      (process.env.INSTAGRAM_APP_SECRET || process.env.FACEBOOK_APP_SECRET),
     );
   }
 
   /**
    * Build the Instagram OAuth URL.
    *
-   * Uses Facebook's OAuth endpoint (facebook.com/dialog/oauth) because
-   * Instagram's own endpoint (instagram.com/oauth/authorize) rejects
-   * localhost redirect URIs. Facebook's OAuth accepts localhost in
-   * Development mode.
+   * Uses Facebook's OAuth endpoint with the Facebook App ID (NOT the
+   * Instagram App ID) because:
+   *   - The redirect URIs are configured under Facebook Login → Settings
+   *   - The Instagram App ID doesn't have its own redirect URI config
+   *   - Facebook's OAuth accepts localhost in Development mode
    *
-   * The redirect URI must be configured in Facebook Login → Settings →
-   * Valid OAuth Redirect URIs (NOT in Instagram business login).
+   * Uses Instagram-specific scopes (instagram_basic, instagram_content_publish)
+   * so the user authorizes Instagram access (not just Facebook Page access).
    *
-   * Uses INSTAGRAM_APP_ID (which is different from FACEBOOK_APP_ID).
-   * The Instagram app ID is shown in the Meta dashboard under:
-   *   Use cases → Instagram API → Instagram app ID
+   * The token exchange uses INSTAGRAM_APP_SECRET (if available) or
+   * FACEBOOK_APP_SECRET — both work because they're part of the same
+   * Meta app.
    */
   getAuthUrl(_pkce: PkcePair, state: string, redirectUri: string): string {
-    if (!this.configured()) {
-      throw new Error('Instagram adapter not configured (missing INSTAGRAM_APP_ID/SECRET)');
+    const appId = process.env.INSTAGRAM_APP_ID || process.env.FACEBOOK_APP_ID;
+    if (!appId) {
+      throw new Error('Instagram adapter not configured (missing INSTAGRAM_APP_ID or FACEBOOK_APP_ID)');
     }
     const params = new URLSearchParams({
-      client_id: process.env.INSTAGRAM_APP_ID!,
+      client_id: appId,
       redirect_uri: redirectUri,
       state,
       scope: 'instagram_basic,instagram_content_publish',
       response_type: 'code',
+      auth_type: 'rerequest',
     });
     // Use Facebook's OAuth endpoint — it accepts localhost in Development mode
     return `https://www.facebook.com/v21.0/dialog/oauth?${params.toString()}`;
@@ -93,7 +100,9 @@ export class InstagramAdapter implements PlatformAdapter {
     _pkce: PkcePair,
     redirectUri: string,
   ): Promise<OAuthTokens> {
-    if (!this.configured()) {
+    const appId = process.env.INSTAGRAM_APP_ID || process.env.FACEBOOK_APP_ID;
+    const appSecret = process.env.INSTAGRAM_APP_SECRET || process.env.FACEBOOK_APP_SECRET;
+    if (!appId || !appSecret) {
       throw new Error('Instagram adapter not configured');
     }
 
@@ -102,8 +111,8 @@ export class InstagramAdapter implements PlatformAdapter {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        client_id: process.env.INSTAGRAM_APP_ID!,
-        client_secret: process.env.INSTAGRAM_APP_SECRET!,
+        client_id: appId,
+        client_secret: appSecret,
         grant_type: 'authorization_code',
         redirect_uri: redirectUri,
         code,
@@ -127,7 +136,7 @@ export class InstagramAdapter implements PlatformAdapter {
 
     // Step 2: Exchange for long-lived token (60 days)
     const longLivedResp = await fetch(
-      `${FB_GRAPH_BASE}/access_token?grant_type=ig_exchange_token&client_secret=${process.env.INSTAGRAM_APP_SECRET!}&access_token=${tokenData.access_token}`,
+      `${FB_GRAPH_BASE}/access_token?grant_type=ig_exchange_token&client_secret=${appSecret}&access_token=${tokenData.access_token}`,
     );
 
     if (longLivedResp.ok) {
