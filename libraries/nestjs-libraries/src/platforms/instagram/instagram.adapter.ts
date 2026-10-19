@@ -356,13 +356,25 @@ export class InstagramAdapter implements PlatformAdapter {
     }
 
     // Get image URL from options — IG REQUIRES an image
-    const imageUrl = formatted.options?.imageUrl as string | undefined;
-    if (!imageUrl) {
+    const rawImageUrl = formatted.options?.imageUrl as string | undefined;
+    if (!rawImageUrl) {
       throw new PublishError(
         'VALIDATION',
         'Instagram posts require an image. Upload an image in the PostCard editor.',
       );
     }
+
+    // Instagram's servers MUST be able to fetch the image_url over the public
+    // internet. If the URL points to localhost (which happens when:
+    //   (a) the PostCard was created before PUBLIC_APP_URL was set, OR
+    //   (b) the upload controller wasn't read with PUBLIC_APP_URL), Meta's
+    // servers cannot reach localhost and the publish fails with:
+    //   "Timeout" / error_subcode 2207003 (media download took too long).
+    //
+    // Fix: rewrite any localhost URL to use PUBLIC_APP_URL (typically the
+    // ngrok HTTPS tunnel URL). If PUBLIC_APP_URL is not set, throw a clear
+    // error — Instagram publishing cannot work without a public URL.
+    const imageUrl = rewriteLocalhostUrlForMeta(rawImageUrl);
 
     // Build caption
     const tagsLine =
@@ -461,5 +473,61 @@ export class InstagramAdapter implements PlatformAdapter {
       id: publishData.id,
       url: `https://www.instagram.com/`,
     };
+  }
+}
+
+/**
+ * Rewrite a localhost URL to use PUBLIC_APP_URL (typically ngrok HTTPS).
+ *
+ * Meta's servers (Facebook Graph API + Instagram Graph API) must be able to
+ * fetch image URLs over the public internet. Localhost URLs (e.g.
+ * http://localhost:3000/uploads/xxx.jpg) are unreachable from Meta's cloud
+ * and cause publish failures:
+ *   - Facebook: error 324 "Missing or invalid image file"
+ *   - Instagram: error 2207003 "Timeout — media download took too long"
+ *
+ * This function:
+ *   1. If the URL does NOT contain "localhost" → returns it unchanged.
+ *   2. If the URL contains "localhost" AND PUBLIC_APP_URL is set →
+ *      returns a new URL with the path preserved but the host replaced.
+ *   3. If the URL contains "localhost" AND PUBLIC_APP_URL is NOT set →
+ *      throws a PublishError with a clear message.
+ *
+ * Examples:
+ *   rewriteLocalhostUrlForMeta('http://localhost:3000/uploads/abc.jpg')
+ *     → 'https://abc-xyz.ngrok-free.app/uploads/abc.jpg'
+ *       (when PUBLIC_APP_URL=https://abc-xyz.ngrok-free.app)
+ *
+ *   rewriteLocalhostUrlForMeta('https://example.com/image.jpg')
+ *     → 'https://example.com/image.jpg' (unchanged)
+ *
+ * Exported for unit testing.
+ */
+export function rewriteLocalhostUrlForMeta(url: string): string {
+  if (!url.includes('localhost') && !url.includes('127.0.0.1')) {
+    return url;
+  }
+
+  const publicAppUrl = process.env.PUBLIC_APP_URL;
+  if (!publicAppUrl) {
+    throw new PublishError(
+      'VALIDATION',
+      `Instagram cannot fetch image from localhost URL: ${url}. ` +
+        `Set PUBLIC_APP_URL in .env to an HTTPS tunnel URL (e.g. ngrok) ` +
+        `so Meta's servers can download the image.`,
+    );
+  }
+
+  try {
+    const parsed = new URL(url);
+    const publicParsed = new URL(publicAppUrl);
+    // Preserve the path + query, replace the host/protocol with PUBLIC_APP_URL
+    const rewritten = `${publicParsed.protocol}//${publicParsed.host}${parsed.pathname}${parsed.search}`;
+    return rewritten;
+  } catch {
+    throw new PublishError(
+      'VALIDATION',
+      `Cannot parse image URL: ${url}. Ensure it is a valid URL.`,
+    );
   }
 }

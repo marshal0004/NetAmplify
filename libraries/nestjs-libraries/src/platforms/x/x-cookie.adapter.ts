@@ -210,10 +210,14 @@ export class XCookieAdapter implements PlatformAdapter {
 
       const page = await context.newPage();
 
-      // Navigate to compose page
+      // Navigate to compose page.
+      // 90s timeout (was 30s) — accounts for slow networks where loading
+      // x.com (which downloads MBs of JS bundles) takes longer than 30s.
+      // With 30s, slow-network users see "page.goto: Timeout 30000ms exceeded"
+      // before x.com even finishes loading.
       await page.goto('https://x.com/compose/post', {
         waitUntil: 'domcontentloaded',
-        timeout: 30000,
+        timeout: 90000,
       });
       await page.waitForTimeout(5000);
 

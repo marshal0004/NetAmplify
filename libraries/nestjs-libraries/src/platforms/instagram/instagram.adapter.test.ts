@@ -9,7 +9,7 @@
 //   - publish() — two-step Content Publishing API (create container + publish)
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { InstagramAdapter } from './instagram.adapter';
+import { InstagramAdapter, rewriteLocalhostUrlForMeta } from './instagram.adapter';
 import { PublishError } from '../adapter.interface';
 
 /** Build a mock fetch Response object. */
@@ -661,6 +661,177 @@ describe('InstagramAdapter', () => {
       expect(caption).toContain('My body text');
       expect(caption).toContain('https://github.com/me/repo');
       expect(caption).toContain('#dev #node #typescript');
+    });
+  });
+
+  describe('publish() — image URL rewriting (localhost → PUBLIC_APP_URL)', () => {
+    it('rewrites localhost URL to PUBLIC_APP_URL at publish time', async () => {
+      process.env.PUBLIC_APP_URL = 'https://test-tunnel.ngrok-free.app';
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(mockResponse(200, { id: 'container-1' }))
+        .mockResolvedValueOnce(mockResponse(200, { id: 'post-1' }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      await adapter.publish(
+        { accessToken: 'IGQVJ-token', igUserId: '17841405822304914' },
+        {
+          title: 't',
+          body: 'b',
+          // Simulates a PostCard created BEFORE PUBLIC_APP_URL was set
+          options: { imageUrl: 'http://localhost:3000/uploads/abc-123.jpg' },
+        },
+      );
+
+      const createBody = new URLSearchParams(
+        fetchMock.mock.calls[0][1].body as string,
+      );
+      const imageUrlSent = createBody.get('image_url');
+      // The URL sent to Instagram MUST be the ngrok HTTPS URL, not localhost
+      expect(imageUrlSent).toBe(
+        'https://test-tunnel.ngrok-free.app/uploads/abc-123.jpg',
+      );
+      expect(imageUrlSent).not.toContain('localhost');
+    });
+
+    it('rewrites 127.0.0.1 URL to PUBLIC_APP_URL at publish time', async () => {
+      process.env.PUBLIC_APP_URL = 'https://test-tunnel.ngrok-free.app';
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(mockResponse(200, { id: 'container-1' }))
+        .mockResolvedValueOnce(mockResponse(200, { id: 'post-1' }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      await adapter.publish(
+        { accessToken: 'IGQVJ-token', igUserId: '17841405822304914' },
+        {
+          title: 't',
+          body: 'b',
+          options: { imageUrl: 'http://127.0.0.1:3000/uploads/xyz.jpg' },
+        },
+      );
+
+      const createBody = new URLSearchParams(
+        fetchMock.mock.calls[0][1].body as string,
+      );
+      const imageUrlSent = createBody.get('image_url');
+      expect(imageUrlSent).toBe(
+        'https://test-tunnel.ngrok-free.app/uploads/xyz.jpg',
+      );
+    });
+
+    it('does NOT rewrite non-localhost URLs (passes through unchanged)', async () => {
+      process.env.PUBLIC_APP_URL = 'https://test-tunnel.ngrok-free.app';
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(mockResponse(200, { id: 'container-1' }))
+        .mockResolvedValueOnce(mockResponse(200, { id: 'post-1' }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      const externalUrl = 'https://images.unsplash.com/photo-12345?w=1080';
+      await adapter.publish(
+        { accessToken: 'IGQVJ-token', igUserId: '17841405822304914' },
+        {
+          title: 't',
+          body: 'b',
+          options: { imageUrl: externalUrl },
+        },
+      );
+
+      const createBody = new URLSearchParams(
+        fetchMock.mock.calls[0][1].body as string,
+      );
+      const imageUrlSent = createBody.get('image_url');
+      expect(imageUrlSent).toBe(externalUrl);
+    });
+
+    it('throws VALIDATION PublishError when localhost URL + no PUBLIC_APP_URL', async () => {
+      delete process.env.PUBLIC_APP_URL;
+
+      await expect(
+        adapter.publish(
+          { accessToken: 'IGQVJ-token', igUserId: '17841405822304914' },
+          {
+            title: 't',
+            body: 'b',
+            options: { imageUrl: 'http://localhost:3000/uploads/abc.jpg' },
+          },
+        ),
+      ).rejects.toThrow(/PUBLIC_APP_URL/);
+    });
+
+    it('preserves query string when rewriting localhost URL', async () => {
+      process.env.PUBLIC_APP_URL = 'https://test-tunnel.ngrok-free.app';
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(mockResponse(200, { id: 'container-1' }))
+        .mockResolvedValueOnce(mockResponse(200, { id: 'post-1' }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      await adapter.publish(
+        { accessToken: 'IGQVJ-token', igUserId: '17841405822304914' },
+        {
+          title: 't',
+          body: 'b',
+          options: { imageUrl: 'http://localhost:3000/uploads/img.jpg?v=2&size=large' },
+        },
+      );
+
+      const createBody = new URLSearchParams(
+        fetchMock.mock.calls[0][1].body as string,
+      );
+      const imageUrlSent = createBody.get('image_url');
+      expect(imageUrlSent).toBe(
+        'https://test-tunnel.ngrok-free.app/uploads/img.jpg?v=2&size=large',
+      );
+    });
+  });
+
+  describe('rewriteLocalhostUrlForMeta() — unit tests', () => {
+    const originalEnv = { ...process.env };
+
+    afterEach(() => {
+      process.env = { ...originalEnv };
+    });
+
+    it('returns non-localhost URLs unchanged', () => {
+      expect(rewriteLocalhostUrlForMeta('https://example.com/image.jpg'))
+        .toBe('https://example.com/image.jpg');
+    });
+
+    it('returns ngrok URLs unchanged', () => {
+      expect(rewriteLocalhostUrlForMeta('https://abc.ngrok-free.app/uploads/x.jpg'))
+        .toBe('https://abc.ngrok-free.app/uploads/x.jpg');
+    });
+
+    it('rewrites localhost URL to PUBLIC_APP_URL', () => {
+      process.env.PUBLIC_APP_URL = 'https://tunnel.ngrok-free.app';
+      expect(rewriteLocalhostUrlForMeta('http://localhost:3000/uploads/abc.jpg'))
+        .toBe('https://tunnel.ngrok-free.app/uploads/abc.jpg');
+    });
+
+    it('rewrites 127.0.0.1 URL to PUBLIC_APP_URL', () => {
+      process.env.PUBLIC_APP_URL = 'https://tunnel.ngrok-free.app';
+      expect(rewriteLocalhostUrlForMeta('http://127.0.0.1:3000/uploads/abc.jpg'))
+        .toBe('https://tunnel.ngrok-free.app/uploads/abc.jpg');
+    });
+
+    it('preserves path + query string when rewriting', () => {
+      process.env.PUBLIC_APP_URL = 'https://tunnel.ngrok-free.app';
+      expect(rewriteLocalhostUrlForMeta('http://localhost:3000/x/y.jpg?a=1&b=2'))
+        .toBe('https://tunnel.ngrok-free.app/x/y.jpg?a=1&b=2');
+    });
+
+    it('throws PublishError when localhost URL + no PUBLIC_APP_URL', () => {
+      delete process.env.PUBLIC_APP_URL;
+      expect(() => rewriteLocalhostUrlForMeta('http://localhost:3000/uploads/x.jpg'))
+        .toThrow(/PUBLIC_APP_URL/);
+    });
+
+    it('throws PublishError when URL is unparseable', () => {
+      process.env.PUBLIC_APP_URL = 'https://tunnel.ngrok-free.app';
+      // Pass a non-URL string with "localhost" in it to trigger the parse error path
+      expect(() => rewriteLocalhostUrlForMeta('localhost-not-a-url')).toThrow();
     });
   });
 });

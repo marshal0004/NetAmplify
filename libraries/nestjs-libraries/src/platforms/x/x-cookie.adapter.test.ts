@@ -4,8 +4,18 @@
 // Per docs/09-TESTING-STRATEGY.md Rule #1: "Mock at the HTTP boundary only."
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { XCookieAdapter, XCookieCredentials, _resetQueryIdCacheForTests } from './x-cookie.adapter';
+import { XCookieAdapter, XCookieCredentials } from './x-cookie.adapter';
 import { PublishError } from '../adapter.interface';
+
+// The X cookie adapter was rewritten to use Playwright (UI-based) instead of
+// the old GraphQL API approach (commit 4145fcc). The old _resetQueryIdCacheForTests
+// helper was removed because there's no more queryId caching. The tests below
+// still test the OLD API approach and need to be rewritten to test the Playwright
+// approach — that's a separate task. For now, define a no-op stub so the import
+// doesn't crash the test runner.
+const _resetQueryIdCacheForTests = (): void => {
+  // No-op — queryId cache was removed when the adapter switched to Playwright.
+};
 
 function mockResponse(status: number, body: unknown, headersInit?: Record<string, string>): Response {
   return {
