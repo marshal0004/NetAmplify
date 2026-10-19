@@ -10,7 +10,7 @@
 //   - authToken: the `auth_token` cookie (long-lived, ~1 year)
 //   - ct0:        the `ct0` cookie (CSRF token, rotates per session)
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import type {
   PlatformAdapter,
   PlatformIdentity,
@@ -71,6 +71,7 @@ function findChromiumBinary(): string | undefined {
 
 @Injectable()
 export class XCookieAdapter implements PlatformAdapter {
+  private readonly _logger = new Logger('XCookieAdapter');
   readonly platform: Platform = 'TWITTER_COOKIE';
   readonly name = 'X (Twitter) — Cookie';
   readonly toolTip = 'Paste your x.com session cookies (auth_token + ct0)';
@@ -241,33 +242,94 @@ export class XCookieAdapter implements PlatformAdapter {
       await page.keyboard.type(tweetText, { delay: 50 });
       await page.waitForTimeout(1000);
 
-      // If an image URL is provided, download it and attach it to the tweet
+      // If an image URL is provided, download it and attach it to the tweet.
+      //
+      // X's compose page has a hidden <input type="file"> for image/video
+      // uploads. We use Playwright's setInputFiles() to attach the image.
+      //
+      // X frequently changes the file input's `accept` attribute, so we try
+      // multiple selectors in order. The first one that returns a non-null
+      // element is used.
+      //
+      // Failures here are NOT silently swallowed — we log them clearly so the
+      // user knows why their tweet went out as text-only. We do NOT throw,
+      // because a text-only tweet is still a valid post (better than no post).
       const imageUrl = formatted.options?.imageUrl as string | undefined;
+      let imageAttached = false;
       if (imageUrl) {
+        this._logger.log(`Image URL provided, attempting to attach: ${imageUrl}`);
         try {
-          // Download the image to a temp file
+          // Download the image to a temp file.
+          // The backend CAN fetch localhost URLs (unlike Meta's servers).
+          // For non-localhost URLs (Unsplash, Imgur), this also works.
           const imgResp = await fetch(imageUrl);
-          if (imgResp.ok) {
+          if (!imgResp.ok) {
+            this._logger.warn(`Image download failed (${imgResp.status}): ${imageUrl}`);
+          } else {
             const imgBuffer = await imgResp.arrayBuffer();
+            const imgContentType = imgResp.headers.get('content-type') || 'image/jpeg';
+            // Determine file extension from content-type
+            const ext = imgContentType.includes('png') ? 'png'
+              : imgContentType.includes('gif') ? 'gif'
+              : imgContentType.includes('webp') ? 'webp'
+              : 'jpg';
             const tmpDir = os.tmpdir();
-            const tmpPath = path.join(tmpDir, `tweet-img-${Date.now()}.jpg`);
+            const tmpPath = path.join(tmpDir, `tweet-img-${Date.now()}.${ext}`);
             fs.writeFileSync(tmpPath, Buffer.from(imgBuffer));
+            this._logger.log(`Image downloaded to temp file: ${tmpPath} (${imgBuffer.byteLength} bytes)`);
 
-            // Find the file input element (hidden) and set the file
-            // X uses a hidden <input type="file"> for image uploads
-            const fileInput = await page.$('input[type="file"][accept*="image"]');
-            if (fileInput) {
+            // X's compose page has multiple file inputs. Try them in order:
+            //   1. input[type="file"] with accept containing "image"
+            //   2. input[type="file"] with accept="image/*,video/*"
+            //   3. Any input[type="file"] (last resort)
+            //
+            // The old code only tried #1, which often returns null because X
+            // uses accept="image/*,video/*" (no "image" substring match in
+            // some HTML attribute orderings).
+            const fileInputSelectors = [
+              'input[type="file"][accept*="image"]',
+              'input[type="file"][accept*="video"]',
+              'input[type="file"][accept*="*"]',
+              'input[type="file"]',
+            ];
+            let fileInput: any = null;
+            let usedSelector = '';
+            for (const selector of fileInputSelectors) {
+              fileInput = await page.$(selector);
+              if (fileInput) {
+                usedSelector = selector;
+                this._logger.log(`Found file input using selector: ${selector}`);
+                break;
+              }
+            }
+
+            if (!fileInput) {
+              this._logger.warn(
+                `No file input found on x.com/compose/post. Tried ${fileInputSelectors.length} selectors. ` +
+                  `Tweet will be posted as text-only.`
+              );
+            } else {
               await fileInput.setInputFiles(tmpPath);
-              // Wait for the image to upload + preview to appear
+              this._logger.log(`setInputFiles() called via selector: ${usedSelector}`);
+              // Wait for X to upload the image + show the preview.
+              // X shows a preview thumbnail + removes the "Add image" button
+              // when the upload is complete. 3s is usually enough.
               await page.waitForTimeout(3000);
+              imageAttached = true;
+              this._logger.log(`Image attached successfully`);
             }
 
             // Clean up temp file
             try { fs.unlinkSync(tmpPath); } catch { /* ignore */ }
           }
-        } catch {
-          // If image download fails, proceed with text-only tweet
+        } catch (e) {
+          this._logger.warn(
+            `Image attachment failed: ${e instanceof Error ? e.message : String(e)}. ` +
+              `Tweet will be posted as text-only.`
+          );
         }
+      } else {
+        this._logger.log(`No image URL provided — posting text-only tweet`);
       }
 
       // Find and click the Post button
@@ -322,6 +384,9 @@ export class XCookieAdapter implements PlatformAdapter {
       }
 
       if (posted) {
+        this._logger.log(
+          `Tweet posted successfully (image attached: ${imageAttached ? 'yes' : 'no'})`
+        );
         return {
           id: 'ui-posted',
           url: 'https://x.com/home',
