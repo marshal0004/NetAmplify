@@ -26,6 +26,7 @@ import {
 import type { Request } from 'express';
 import { ConnectionsService, type ConnectionView } from '@netamplify/nestjs-libraries/database/prisma/connections/connections.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { TwitterCaptureService } from './twitter-capture.service';
 import { errorMapper, ServiceError } from '@netamplify/nestjs-libraries/services/error.mapper';
 import { PLATFORM_SCHEMA } from '@netamplify/nestjs-libraries/validation/schemas';
 import type { Platform } from '@prisma/client';
@@ -48,7 +49,10 @@ function getUserId(req: Request): string {
 @Controller('api/connections')
 @UseGuards(JwtAuthGuard)
 export class ConnectionsController {
-  constructor(@Inject(ConnectionsService) private readonly _conn: ConnectionsService) {}
+  constructor(
+    @Inject(ConnectionsService) private readonly _conn: ConnectionsService,
+    @Inject(TwitterCaptureService) private readonly _twitterCapture: TwitterCaptureService,
+  ) {}
 
   /**
    * GET /api/connections
@@ -182,6 +186,62 @@ export class ConnectionsController {
         body,
         getAuditContext(req)
       );
+    } catch (e) {
+      throw errorMapper(e);
+    }
+  }
+
+  /**
+   * POST /api/connections/twitter-cookie/capture
+   *
+   * One-click X (Twitter) connection via headful browser login.
+   *
+   * Flow:
+   *   1. Backend launches a headful Playwright Chromium window to x.com/i/flow/login
+   *   2. User logs in normally (username, password, 2FA if needed)
+   *   3. Backend polls for auth_token + ct0 cookies (every 2s, up to 5 min)
+   *   4. Backend scrapes the user's @username from x.com/home
+   *   5. Backend closes the browser
+   *   6. Backend saves the connection (encrypted cookies) + returns username
+   *
+   * This is the same UX as Postiz: one click → browser opens → user logs in
+   * → "Connected as @username". No manual cookie copy-paste required.
+   *
+   * Requires the backend to run on a machine with a display (X11/Wayland on
+   * Linux, macOS, or Windows). On headless servers, this fails — the user
+   * should use the manual cookie input endpoint instead.
+   *
+   * This endpoint blocks for up to 5 minutes while the user logs in.
+   * The frontend should show a "Please log in to X (Twitter) in the browser
+   * window that opened" modal while waiting.
+   */
+  @Post('twitter-cookie/capture')
+  @HttpCode(201)
+  async captureTwitterLogin(@Req() req: Request): Promise<{ id: string; username: string }> {
+    try {
+      // Step 1-5: Launch browser, wait for login, capture cookies + username
+      const capture = await this._twitterCapture.captureSession();
+
+      // Step 6: Save the connection (encrypted cookies, skip backend validation
+      // because the user already proved the cookies work by logging in)
+      const input = {
+        authToken: capture.authToken,
+        ct0: capture.ct0,
+      };
+      const result = await this._conn.saveSimpleConnectionSkipValidation(
+        getUserId(req),
+        'TWITTER_COOKIE',
+        input,
+        getAuditContext(req),
+      );
+
+      // Override the placeholder username with the real @username we scraped
+      // (saveSimpleConnectionSkipValidation returns "Connected via Auto-Capture"
+      // as the username — we want to return the real @username to the frontend)
+      return {
+        id: result.id,
+        username: capture.username.startsWith('@') ? capture.username : `@${capture.username}`,
+      };
     } catch (e) {
       throw errorMapper(e);
     }

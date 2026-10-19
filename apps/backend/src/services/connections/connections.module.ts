@@ -5,6 +5,7 @@ import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { ConnectionsController } from './connections.controller';
 import { OAuthController } from './oauth.controller';
+import { TwitterCaptureService } from './twitter-capture.service';
 import { ConnectionsService } from '@netamplify/nestjs-libraries/database/prisma/connections/connections.service';
 import { ConnectionRepository } from '@netamplify/nestjs-libraries/database/prisma/connections/connections.repository';
 import { AuditLogService } from '@netamplify/nestjs-libraries/database/prisma/audit/audit.service';
@@ -30,7 +31,8 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
     AuditLogService,
     TokenVault,
     JwtAuthGuard,
+    TwitterCaptureService,
   ],
-  exports: [ConnectionsService, TokenVault],
+  exports: [ConnectionsService, TokenVault, TwitterCaptureService],
 })
 export class ConnectionsModule {}

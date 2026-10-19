@@ -19,7 +19,7 @@ const trustCopy: Record<string, string> = {
   LINKEDIN: 'You\'ll log in on LinkedIn\'s official page — NetAmplify never sees your password. We receive only a limited permission to post on your behalf, and you can revoke it anytime in your LinkedIn settings.',
   MASTODON: 'You create this access token yourself in your Mastodon instance\'s settings. It only has the `write:statuses` scope — meaning it can only post statuses, nothing else. Revoke it in one click from your instance settings.',
   WORDPRESS: 'WordPress Application Passwords are separate from your real password and only work via the REST API. They can\'t be used to log in to wp-admin. Revoke instantly from your WordPress profile page.',
-  TWITTER_COOKIE: 'Your X session cookies are stored encrypted (AES-256-GCM) — we never see your X password. The cookies only allow posting tweets; we can\'t read your DMs, change your password, or take over your account. Log out of x.com on any device to instantly invalidate them.',
+  TWITTER_COOKIE: 'Your X session is stored encrypted (AES-256-GCM) — we never see your X password. The session only allows posting tweets; we can\'t read your DMs, change your password, or take over your account. Log out of x.com on any device to instantly invalidate it.',
   FACEBOOK: 'You\'ll log in on Facebook\'s official page — NetAmplify never sees your password. We receive only a limited permission to post to your Facebook Page, and you can revoke it anytime in your Facebook settings.',
   INSTAGRAM: 'You\'ll log in on Meta\'s official page — NetAmplify never sees your password. We receive only a limited permission to post to your Instagram Business account, and you can revoke it anytime in your Meta settings.',
 };
@@ -109,17 +109,11 @@ const platformConfig: Record<string, PlatformConfig> = {
   // Cookie-based platforms (Option A — bypass X/Reddit paywalls)
   // ==========================================================================
   TWITTER_COOKIE: {
-    fields: [
-      { key: 'authToken', label: 'auth_token cookie', placeholder: '40-char hex string' },
-      { key: 'ct0', label: 'ct0 cookie', placeholder: '32-char hex string' },
-    ],
     steps: [
-      { text: 'Install the Cookie-Editor extension (opens in new tab)', link: 'https://chromewebstore.google.com/detail/cookie-editor/hlkenndednhonkehodjpanfjoadhacee', linkText: 'Install Cookie-Editor' },
-      { text: 'Log in to x.com in your browser' },
-      { text: 'Click the Cookie-Editor icon in your browser toolbar' },
-      { text: 'Find the "auth_token" cookie — copy its value (40 hex chars)' },
-      { text: 'Find the "ct0" cookie — copy its value (32 hex chars)' },
-      { text: 'Paste both values above and click Connect' },
+      { text: 'Click "Connect via Browser Login" — a browser window opens' },
+      { text: 'Log in to X (Twitter) normally (username, password, 2FA if needed)' },
+      { text: 'The browser auto-closes when login completes' },
+      { text: 'Your connection is saved — no copy-paste required!' },
     ],
     docsLink: 'https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies',
   },
@@ -224,6 +218,61 @@ export function ConnectChecklist() {
       queryClient.invalidateQueries({ queryKey: ['connections'] });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Auto-capture failed. Try the manual cookie input below.';
+      setErrors({ global: message });
+    } finally {
+      setCapturingPlatform(null);
+    }
+  }
+
+  /**
+   * One-click X (Twitter) connection via headful browser login.
+   *
+   * Calls POST /api/connections/twitter-cookie/capture which:
+   *   1. Launches a headful Chromium window to x.com/i/flow/login
+   *   2. Waits for the user to log in (up to 5 minutes)
+   *   3. Auto-captures auth_token + ct0 cookies
+   *   4. Scrapes the user's @username
+   *   5. Closes the browser
+   *   6. Saves the connection (encrypted)
+   *
+   * The HTTP request blocks for up to 5 minutes while the user logs in.
+   * We show a modal telling the user to complete login in the browser window.
+   */
+  async function handleBrowserCapture(platform: 'TWITTER_COOKIE') {
+    setCapturingPlatform(platform);
+    setErrors({});
+    try {
+      const jwtToken = localStorage.getItem('netamplify_token');
+      if (!jwtToken) {
+        setErrors({ global: 'You must be logged in to NetAmplify to connect platforms.' });
+        return;
+      }
+
+      // Call the backend capture endpoint. This blocks for up to 5 minutes
+      // while the user logs in to X in the browser window that the backend
+      // opens.
+      const resp = await fetch('/api/connections/twitter-cookie/capture', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${jwtToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!resp.ok) {
+        const errBody = await resp.json().catch(() => ({})) as { message?: string; error?: string };
+        const msg = errBody.message || errBody.error || `Capture failed (${resp.status})`;
+        setErrors({ global: msg });
+        return;
+      }
+
+      const result = (await resp.json()) as { id: string; username: string };
+      setPublishResult((prev) => ({ ...prev, [platform]: `✓ Connected as ${result.username}` }));
+
+      // Refresh the connections list to show the new connection
+      queryClient.invalidateQueries({ queryKey: ['connections'] });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Browser capture failed. Please try again.';
       setErrors({ global: message });
     } finally {
       setCapturingPlatform(null);
@@ -346,6 +395,45 @@ export function ConnectChecklist() {
         )}
       </AnimatePresence>
 
+      {/* Browser capture in-progress banner */}
+      <AnimatePresence>
+        {capturingPlatform === 'TWITTER_COOKIE' && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-5"
+          >
+            <div className="flex items-start gap-4">
+              <div className="flex h-10 w-10 shrink-0 animate-spin items-center justify-center rounded-full border-2 border-emerald-500/30 border-t-emerald-400" />
+              <div className="flex-1">
+                <h3 className="font-semibold text-emerald-300">A browser window is opening…</h3>
+                <p className="mt-1 text-sm text-emerald-400/80">
+                  Please complete the login in the browser window that just opened. Once you're logged in to X (Twitter), the window will auto-close and your connection will be saved.
+                </p>
+                <p className="mt-2 text-xs text-emerald-400/60">
+                  ⏱️ Timeout: 5 minutes. 🔒 We never see your password — only your session is captured (encrypted AES-256-GCM).
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Success banner for browser capture */}
+      <AnimatePresence>
+        {publishResult['TWITTER_COOKIE']?.startsWith('✓') && !capturingPlatform && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="rounded-xl border border-green-500/30 bg-green-500/10 p-4 text-sm text-green-400"
+          >
+            {publishResult['TWITTER_COOKIE']}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Platform cards grid */}
       <div className="grid gap-4 md:grid-cols-2">
         {connections?.map((conn, i) => {
@@ -417,14 +505,14 @@ export function ConnectChecklist() {
                       </div>
                     ) : isTierB && !isConfigured ? (
                       <Button variant="outline" size="sm" disabled className="border-white/5 text-white/20">Coming soon</Button>
-                    ) : conn.platform === 'TWITTER_COOKIE' && isTauri() ? (
+                    ) : conn.platform === 'TWITTER_COOKIE' ? (
                       <Button
                         size="sm"
-                        onClick={() => handleAutoCapture(conn.platform as 'TWITTER_COOKIE')}
+                        onClick={() => handleBrowserCapture(conn.platform as 'TWITTER_COOKIE')}
                         disabled={capturingPlatform !== null}
                         className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 border-0"
                       >
-                        {capturingPlatform === conn.platform ? 'Opening login…' : 'Auto-Capture'}
+                        {capturingPlatform === conn.platform ? 'Waiting for login…' : 'Connect via Browser Login'}
                       </Button>
                     ) : (
                       <Button
@@ -438,8 +526,8 @@ export function ConnectChecklist() {
                     )}
                   </div>
 
-                  {/* Connect form (SIMPLE platforms only) */}
-                  {!isConnected && fields && isConfigured && (
+                  {/* Connect form (SIMPLE platforms only — NOT for TWITTER_COOKIE which uses browser login) */}
+                  {!isConnected && fields && isConfigured && conn.platform !== 'TWITTER_COOKIE' && (
                     <div className="space-y-3">
                       {fields.map((f) => (
                         <div key={f.key}>
@@ -541,7 +629,7 @@ function platformName(platform: string): string {
     LINKEDIN: 'LinkedIn',
     MASTODON: 'Mastodon',
     WORDPRESS: 'WordPress',
-    TWITTER_COOKIE: 'X (Twitter) — Cookie',
+    TWITTER_COOKIE: 'X (Twitter)',
     FACEBOOK: 'Facebook',
     INSTAGRAM: 'Instagram',
   };

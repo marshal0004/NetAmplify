@@ -73,8 +73,8 @@ function findChromiumBinary(): string | undefined {
 export class XCookieAdapter implements PlatformAdapter {
   private readonly _logger = new Logger('XCookieAdapter');
   readonly platform: Platform = 'TWITTER_COOKIE';
-  readonly name = 'X (Twitter) — Cookie';
-  readonly toolTip = 'Paste your x.com session cookies (auth_token + ct0)';
+  readonly name = 'X (Twitter)';
+  readonly toolTip = 'Log in to X (Twitter) — we auto-capture your session securely';
   readonly kind = 'SIMPLE' as const;
 
   configured(): boolean {
