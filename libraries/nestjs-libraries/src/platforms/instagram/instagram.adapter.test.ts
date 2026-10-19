@@ -374,7 +374,7 @@ describe('InstagramAdapter', () => {
       // Verify create call
       const createCall = fetchMock.mock.calls[0];
       expect(createCall[0]).toBe(
-        'https://graph.facebook.com/v21.0/17841405822304914/media',
+        'https://graph.instagram.com/v21.0/17841405822304914/media',
       );
       expect(createCall[1].method).toBe('POST');
       const createBody = createCall[1].body as string;
@@ -388,12 +388,41 @@ describe('InstagramAdapter', () => {
       // Verify publish call (after 3s wait)
       const publishCall = fetchMock.mock.calls[1];
       expect(publishCall[0]).toBe(
-        'https://graph.facebook.com/v21.0/17841405822304914/media_publish',
+        'https://graph.instagram.com/v21.0/17841405822304914/media_publish',
       );
       expect(publishCall[1].method).toBe('POST');
       const publishBody = publishCall[1].body as string;
       expect(publishBody).toContain('creation_id=container-1789');
       expect(publishBody).toContain('access_token=IGQVJ-token');
+    });
+
+    it('publishes to graph.instagram.com (NOT graph.facebook.com) — regression check', async () => {
+      // Per Meta's docs: Instagram Login (standalone) tokens can ONLY be
+      // parsed by graph.instagram.com. Using graph.facebook.com fails with
+      // error 190: "Invalid OAuth access token - Cannot parse access token".
+      // This test ensures we never regress back to graph.facebook.com.
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(mockResponse(200, { id: 'container-1' }))
+        .mockResolvedValueOnce(mockResponse(200, { id: 'post-1' }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      await adapter.publish(
+        { accessToken: 'IGQVJ-token', igUserId: '17841405822304914' },
+        {
+          title: 't',
+          body: 'b',
+          options: { imageUrl: 'https://example.com/image.jpg' },
+        },
+      );
+
+      const createUrl = fetchMock.mock.calls[0][0] as string;
+      const publishUrl = fetchMock.mock.calls[1][0] as string;
+
+      expect(createUrl).toContain('https://graph.instagram.com/v21.0/');
+      expect(createUrl).not.toContain('graph.facebook.com');
+      expect(publishUrl).toContain('https://graph.instagram.com/v21.0/');
+      expect(publishUrl).not.toContain('graph.facebook.com');
     });
 
     it('throws AUTH PublishError when accessToken is missing', async () => {
@@ -571,7 +600,7 @@ describe('InstagramAdapter', () => {
 
       const createCall = fetchMock.mock.calls[0];
       expect(createCall[0]).toBe(
-        'https://graph.facebook.com/v21.0/17841405822304914/media',
+        'https://graph.instagram.com/v21.0/17841405822304914/media',
       );
     });
 
@@ -598,7 +627,7 @@ describe('InstagramAdapter', () => {
 
       const createCall = fetchMock.mock.calls[0];
       expect(createCall[0]).toBe(
-        'https://graph.facebook.com/v21.0/17841405822304914/media',
+        'https://graph.instagram.com/v21.0/17841405822304914/media',
       );
     });
 

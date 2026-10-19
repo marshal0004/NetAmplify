@@ -23,13 +23,18 @@
 //      https://graph.instagram.com/access_token?grant_type=ig_exchange_token
 //   6. Backend fetches username via https://graph.instagram.com/v21.0/me?fields=id,username,account_type
 //
-// Publishing flow (two-step Content Publishing API):
-//   1. POST https://graph.facebook.com/v21.0/{ig-user-id}/media
+// Publishing flow (two-step Content Publishing API on graph.instagram.com):
+//   1. POST https://graph.instagram.com/v21.0/{ig-user-id}/media
 //      → creates a media container (image_url + caption)
-//   2. POST https://graph.facebook.com/v21.0/{ig-user-id}/media_publish?creation_id={container_id}
+//   2. POST https://graph.instagram.com/v21.0/{ig-user-id}/media_publish?creation_id={container_id}
 //      → publishes the container
 //
 // Instagram REQUIRES an image for every post (no text-only via API).
+//
+// IMPORTANT: The Content Publishing API endpoint host MUST match the OAuth
+// login type. Instagram Login (standalone) → graph.instagram.com.
+// Facebook Login → graph.facebook.com. Using the wrong host fails with
+// error 190: "Invalid OAuth access token - Cannot parse access token".
 
 import { Injectable } from '@nestjs/common';
 import type {
@@ -50,10 +55,19 @@ const IG_TOKEN_URL = 'https://api.instagram.com/oauth/access_token';
 const IG_TOKEN_EXCHANGE_URL = 'https://graph.instagram.com/access_token';
 const IG_PROFILE_URL = 'https://graph.instagram.com/v21.0/me';
 
-// The Content Publishing API is hosted on the Facebook Graph API endpoint,
-// even when using Instagram Business Login. The {ig-user-id} is the IG
-// account ID returned by Instagram's token endpoint.
-const FB_GRAPH_BASE = 'https://graph.facebook.com/v21.0';
+// Content Publishing endpoints.
+//
+// Per Meta's official docs (https://developers.facebook.com/documentation/instagram-platform/content-publishing):
+//   - Instagram API with Instagram Login (Business Login for Instagram / "standalone")
+//     → Host URL: graph.instagram.com   → uses Instagram User access token
+//   - Instagram API with Facebook Login
+//     → Host URL: graph.facebook.com    → uses Facebook Page access token
+//
+// We use Instagram Login (standalone OAuth), so we MUST publish to
+// graph.instagram.com. Using graph.facebook.com with an Instagram-Login
+// token fails with error 190: "Invalid OAuth access token - Cannot
+// parse access token" because the FB host cannot parse IG-Login tokens.
+const IG_GRAPH_BASE = 'https://graph.instagram.com/v21.0';
 
 // Instagram Business Login scopes (the new API — different from legacy
 // instagram_basic / instagram_content_publish which are Facebook Login scopes).
@@ -365,7 +379,7 @@ export class InstagramAdapter implements PlatformAdapter {
       access_token: creds.accessToken,
     });
 
-    const createResp = await fetch(`${FB_GRAPH_BASE}/${igUserId}/media`, {
+    const createResp = await fetch(`${IG_GRAPH_BASE}/${igUserId}/media`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: createBody.toString(),
@@ -415,7 +429,7 @@ export class InstagramAdapter implements PlatformAdapter {
       access_token: creds.accessToken,
     });
 
-    const publishResp = await fetch(`${FB_GRAPH_BASE}/${igUserId}/media_publish`, {
+    const publishResp = await fetch(`${IG_GRAPH_BASE}/${igUserId}/media_publish`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: publishBody.toString(),
