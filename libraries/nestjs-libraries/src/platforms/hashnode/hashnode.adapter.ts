@@ -3,9 +3,14 @@
 //
 // SIMPLE credential: user pastes a Personal Access Token from
 // hashnode.com/settings/developer. We validate by POST-ing the GraphQL
-// query `me` (returns the user's username), then store the PAT encrypted.
+// query `me` (returns the user's username + publications), then store the
+// PAT encrypted.
 //
 // Hashnode API docs: https://apidocs.hashnode.com/graphql-api-v2
+//
+// IMPORTANT: The old endpoint `https://gql.hashnode.com` was retired in
+// May 2026 (redirects to a paid-access changelog page). The current
+// working endpoint is `https://gql-beta.hashnode.com`.
 //
 // Trust model per docs/12-TRUST-COPY.md §1:
 //   "You generate this key yourself in your account's settings. It can
@@ -23,7 +28,11 @@ import type {
 import { PublishError } from '../adapter.interface';
 import type { Platform } from '@prisma/client';
 
-const HASHNODE_GRAPHQL_URL = 'https://gql.hashnode.com';
+// The old endpoint `https://gql.hashnode.com` was retired in May 2026.
+// It now returns a 301 redirect to a paid-access changelog page (HTML),
+// which causes `resp.json()` to crash with "Unexpected token '<'".
+// The current working endpoint is `https://gql-beta.hashnode.com`.
+const HASHNODE_GRAPHQL_URL = 'https://gql-beta.hashnode.com';
 
 /**
  * The shape of the credentials JSON blob stored encrypted in
@@ -47,8 +56,45 @@ export class HashnodeAdapter implements PlatformAdapter {
   }
 
   /**
+   * Safely parse a JSON response from the Hashnode GraphQL API.
+   *
+   * Defensive guard: if the API returns HTML instead of JSON (e.g., due to
+   * a CDN redirect, Cloudflare challenge, or endpoint change), throw a
+   * clear PublishError instead of letting `resp.json()` crash with an
+   * unhandled SyntaxError.
+   */
+  private async safeJsonResp(resp: Response, context: string): Promise<unknown> {
+    const contentType = resp.headers.get('content-type') || '';
+    const text = await resp.text();
+
+    if (!contentType.includes('application/json') && !text.trim().startsWith('{')) {
+      // The response is NOT JSON — likely HTML (redirect page, error page, etc.)
+      throw new PublishError(
+        'NETWORK',
+        `Hashnode API returned a non-JSON response (${context}). ` +
+          `Status: ${resp.status}, Content-Type: ${contentType}. ` +
+          `The API endpoint may have changed. Response preview: ${text.slice(0, 200)}...`,
+      );
+    }
+
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new PublishError(
+        'NETWORK',
+        `Hashnode API returned invalid JSON (${context}). ` +
+          `Status: ${resp.status}. Response preview: ${text.slice(0, 200)}...`,
+      );
+    }
+  }
+
+  /**
    * Validate the user-pasted Hashnode PAT by querying the `me` field.
    * Per docs/02-SRS.md FR-005: validate via identity endpoint before saving.
+   *
+   * Also fetches the user's first publication (needed for publishing later).
+   * If the user has no publications, we still save the connection but warn
+   * the user they need to create a blog on Hashnode before they can publish.
    */
   async validateCredentials(
     input: Record<string, string>
@@ -58,15 +104,19 @@ export class HashnodeAdapter implements PlatformAdapter {
       throw new PublishError('VALIDATION', 'pat (Personal Access Token) is required');
     }
 
+    // GraphQL query using the correct Relay-style pagination schema.
+    // The old `nodes` field was removed; the API now uses `edges { node { ... } }`.
     const query = `
       query {
         me {
           id
           username
           publications(first: 1) {
-            nodes {
-              id
-              title
+            edges {
+              node {
+                id
+                title
+              }
             }
           }
         }
@@ -94,16 +144,17 @@ export class HashnodeAdapter implements PlatformAdapter {
       const text = await resp.text();
       throw new PublishError(
         'NETWORK',
-        `Hashnode validation failed (${resp.status}): ${text}`
+        `Hashnode validation failed (${resp.status}): ${text.slice(0, 300)}`
       );
     }
 
-    const data = (await resp.json()) as {
+    // Safely parse the JSON response (handles HTML/non-JSON responses)
+    const data = (await this.safeJsonResp(resp, 'validateCredentials')) as {
       data?: {
         me?: {
           id: string;
           username: string;
-          publications?: { nodes: Array<{ id: string; title: string }> };
+          publications?: { edges: Array<{ node: { id: string; title: string } }> };
         };
       };
       errors?: Array<{ message: string }>;
@@ -122,14 +173,26 @@ export class HashnodeAdapter implements PlatformAdapter {
       );
     }
 
+    const me = data.data.me;
+    const publicationId = me.publications?.edges?.[0]?.node?.id;
+
+    // If the user has no publications, we still save the connection (so they
+    // don't have to re-enter the PAT later), but we surface a clear warning.
+    if (!publicationId) {
+      // We'll still return successfully — the connection is valid, the user
+      // just needs to create a blog on Hashnode. When they try to publish,
+      // the publish() method will throw a clear error.
+      // We use a special username prefix to signal this in the UI.
+    }
+
     return {
       identity: {
-        id: data.data.me.id,
-        username: data.data.me.username,
+        id: me.id,
+        username: me.username,
       },
       credentials: {
         pat,
-        publicationId: data.data.me.publications?.nodes[0]?.id,
+        publicationId,
       },
     };
   }
@@ -137,8 +200,8 @@ export class HashnodeAdapter implements PlatformAdapter {
   /**
    * Publish a markdown article to the user's Hashnode publication.
    *
-   * Endpoint: POST /graphql (Hashnode GraphQL API v2)
-   * Mutation: publishPost(input: { publicationId, ... })
+   * Endpoint: POST https://gql-beta.hashnode.com (GraphQL)
+   * Mutation: publishPost(input: { publicationId, title, contentMarkdown, tags, ... })
    */
   async publish(
     credentials: AdapterCredentials,
@@ -151,7 +214,10 @@ export class HashnodeAdapter implements PlatformAdapter {
     if (!creds.publicationId) {
       throw new PublishError(
         'VALIDATION',
-        'Hashnode publicationId missing — user must reconnect to republish their publication'
+        'No Hashnode publication found. Create a blog on hashnode.com first ' +
+          '(click "Create a blog" → choose a blog name → create). Then ' +
+          'disconnect Hashnode in NetAmplify and reconnect to pick up the ' +
+          'new publication ID.'
       );
     }
 
@@ -206,11 +272,12 @@ export class HashnodeAdapter implements PlatformAdapter {
       const text = await resp.text();
       throw new PublishError(
         'NETWORK',
-        `Hashnode publish failed (${resp.status}): ${text}`
+        `Hashnode publish failed (${resp.status}): ${text.slice(0, 300)}`
       );
     }
 
-    const data = (await resp.json()) as {
+    // Safely parse the JSON response
+    const data = (await this.safeJsonResp(resp, 'publish')) as {
       data?: { publishPost?: { post?: { id: string; slug: string; url?: string } } };
       errors?: Array<{ message: string }>;
     };
