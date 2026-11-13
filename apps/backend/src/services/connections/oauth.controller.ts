@@ -40,6 +40,11 @@ import {
 import { errorMapper, ServiceError } from '@netamplify/nestjs-libraries/services/error.mapper';
 import { PLATFORM_SCHEMA } from '@netamplify/nestjs-libraries/validation/schemas';
 import type { Platform } from '@prisma/client';
+import {
+  buildOAuthFrontendUrl,
+  buildOAuthRedirectUri,
+  isHttpsRequest,
+} from './oauth-redirect';
 
 const OAUTH_COOKIE_NAME = 'netamplify_oauth_state';
 const OAUTH_COOKIE_TTL_MS = 10 * 60 * 1000;
@@ -113,11 +118,11 @@ export class OAuthController {
 
       const pkce = generatePkcePair();
       const state = generateState();
-      const redirectUri = this.buildRedirectUri(req, platform);
+      const redirectUri = buildOAuthRedirectUri(req, platform, process.env.PUBLIC_APP_URL);
 
       // Build the returnTo URL from the request origin (preserves port 4200
-      // when proxied through Vite, or the PUBLIC_APP_URL if set)
-      const returnTo = this.buildFrontendUrl(req);
+      // when proxied through Vite, or the ngrok URL when accessed via ngrok).
+      const returnTo = buildOAuthFrontendUrl(req);
 
       const payload: OAuthCookiePayload = {
         state,
@@ -130,7 +135,7 @@ export class OAuthController {
       // Signed httpOnly cookie — secure only when on HTTPS.
       // On localhost (HTTP), secure:true would prevent the browser from
       // storing the cookie, which breaks the entire OAuth flow.
-      const isHttps = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https';
+      const isHttps = isHttpsRequest(req);
       res.cookie(OAUTH_COOKIE_NAME, JSON.stringify(payload), {
         httpOnly: true,
         sameSite: 'lax',
@@ -167,7 +172,7 @@ export class OAuthController {
     @Req() req: Request,
     @Res() res: Response
   ): Promise<void> {
-    let returnTo = this.buildFrontendUrl(req);
+    let returnTo = buildOAuthFrontendUrl(req);
 
     try {
       const platform = parsePlatform(platformParam);
@@ -213,7 +218,7 @@ export class OAuthController {
         throw new ServiceError('INTERNAL', `${platform} adapter missing OAuth methods`);
       }
 
-      const redirectUri = this.buildRedirectUri(req, platform);
+      const redirectUri = buildOAuthRedirectUri(req, platform, process.env.PUBLIC_APP_URL);
       this._logger.log(`Exchanging code for tokens (redirectUri: ${redirectUri})...`);
       const tokens = await adapter.exchangeCode(code, {
         code_verifier: cookie.codeVerifier,
@@ -259,29 +264,9 @@ export class OAuthController {
     }
   }
 
-  /**
-   * Build the OAuth redirect URI (where the platform sends the callback).
-   * Instagram uses a different redirect URI path (/instagram/callback)
-   * because it uses Instagram's own OAuth endpoint (not Facebook's).
-   */
-  private buildRedirectUri(req: Request, platform: Platform): string {
-    const baseUrl = process.env.PUBLIC_APP_URL
-      || `${req.protocol}://${req.get('host')}`;
-    if (platform === 'INSTAGRAM') {
-      return `${baseUrl}/api/oauth/instagram/callback`;
-    }
-    return `${baseUrl}/api/oauth/${platform.toLowerCase()}/callback`;
-  }
-
-  /**
-   * Build the frontend URL for post-OAuth redirect.
-   * When behind Vite proxy, req.get('host') is the frontend port (4200).
-   * Falls back to PUBLIC_APP_URL or localhost:4200.
-   */
-  private buildFrontendUrl(req: Request): string {
-    return process.env.PUBLIC_APP_URL
-      || `http://${req.get('host') || 'localhost:4200'}`;
-  }
+  // Redirect-URI / frontend-URL / HTTPS detection logic lives in the pure
+  // helpers in ./oauth-redirect (unit-tested there). The controller delegates
+  // to buildOAuthRedirectUri(), buildOAuthFrontendUrl() and isHttpsRequest().
 }
 
 function parsePlatform(raw: string): Platform {

@@ -23,7 +23,7 @@ import type { Platform } from '@prisma/client';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { execSync } from 'child_process';
+import { ensureChromiumAvailable, findChromiumBinary } from './chromium-binary';
 
 export interface XCookieCredentials extends AdapterCredentials {
   authToken: string;
@@ -33,41 +33,12 @@ export interface XCookieCredentials extends AdapterCredentials {
 /**
  * Find an available Chromium binary on the system.
  * Searches Playwright cache + system-installed browsers.
+ *
+ * @deprecated Use {@link ensureChromiumAvailable} from `./chromium-binary` —
+ *   it also auto-installs when nothing is found. This re-export is kept only
+ *   for backward compatibility with any external callers.
  */
-function findChromiumBinary(): string | undefined {
-  const candidates: string[] = [];
-  const cacheDir = path.join(os.homedir(), '.cache', 'ms-playwright');
-  if (fs.existsSync(cacheDir)) {
-    let entries: string[] = [];
-    try { entries = fs.readdirSync(cacheDir); } catch { /* ignore */ }
-    for (const entry of entries) {
-      if (entry.startsWith('chromium_headless_shell-')) {
-        candidates.push(path.join(cacheDir, entry, 'chrome-headless-shell-linux64', 'chrome-headless-shell'));
-      }
-      if (entry.startsWith('chromium-') && !entry.includes('headless')) {
-        candidates.push(path.join(cacheDir, entry, 'chrome-linux64', 'chrome'));
-        candidates.push(path.join(cacheDir, entry, 'chrome-linux', 'chrome'));
-      }
-    }
-  }
-  const systemBins = ['chromium', 'chromium-browser', 'google-chrome', 'google-chrome-stable'];
-  for (const bin of systemBins) {
-    try {
-      const found = execSync(`which ${bin} 2>/dev/null`, { encoding: 'utf-8' }).trim();
-      if (found) candidates.push(found);
-    } catch { /* not installed */ }
-  }
-  candidates.push('/usr/bin/chromium', '/usr/bin/google-chrome');
-  for (const candidate of candidates) {
-    try {
-      if (fs.existsSync(candidate)) {
-        fs.accessSync(candidate, fs.constants.X_OK);
-        return candidate;
-      }
-    } catch { /* not executable */ }
-  }
-  return undefined;
-}
+export { findChromiumBinary };
 
 @Injectable()
 export class XCookieAdapter implements PlatformAdapter {
@@ -157,7 +128,16 @@ export class XCookieAdapter implements PlatformAdapter {
       throw new PublishError('NETWORK', 'Playwright is not installed. Run: pnpm --filter ./apps/backend exec playwright install chromium');
     }
 
-    const executablePath = findChromiumBinary();
+    // Resolve a Chromium executable (scans cache + PATH, auto-installs if missing).
+    // Passing executablePath makes launch resilient to a partial Playwright cache
+    // (the #1 cause of "Executable doesn't exist" errors after pnpm install).
+    let executablePath: string | undefined;
+    try {
+      executablePath = ensureChromiumAvailable(this._logger);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new PublishError('NETWORK', msg);
+    }
     let browser: any = null;
 
     try {

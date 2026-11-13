@@ -25,6 +25,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { chromium, type Browser, type BrowserContext } from 'playwright';
 import { ServiceError } from '@netamplify/nestjs-libraries/services/error.mapper';
+import { ensureChromiumAvailable } from '@netamplify/nestjs-libraries/platforms/x/chromium-binary';
 
 /** Result of a successful Twitter capture session. */
 export interface TwitterCaptureResult {
@@ -63,11 +64,28 @@ export class TwitterCaptureService {
     let context: BrowserContext | null = null;
 
     try {
+      // Resolve a Chromium executable before launching. ensureChromiumAvailable
+      // scans the Playwright cache + system PATH (so a partial cache or a system
+      // chrome still works), and auto-installs via `npx playwright install
+      // chromium` if nothing is found. This is what stops the
+      // "Executable doesn't exist at .../chromium-1208/.../chrome" error from
+      // re-breaking X every time node_modules is touched.
+      let executablePath: string | undefined;
+      try {
+        executablePath = ensureChromiumAvailable(this._logger);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        throw new ServiceError('INTERNAL', msg);
+      }
+
       // Launch headful Chromium. We use headful so the user can see + interact
       // with the login form. Playwright's chromium.launch() defaults to headless
       // — we explicitly set headless: false.
+      // Passing executablePath makes launch resilient to a missing default
+      // binary (the most common cause of capture failures after pnpm install).
       browser = await chromium.launch({
         headless: false,
+        ...(executablePath ? { executablePath } : {}),
         args: [
           '--disable-blink-features=AutomationControlled', // hide "Chrome is being controlled by automated software" banner
           '--no-first-run',
