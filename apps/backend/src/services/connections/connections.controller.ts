@@ -247,48 +247,6 @@ export class ConnectionsController {
     }
   }
 
-  // ==========================================================================
-  // New OAuth / API-key platforms (Mastodon + WordPress)
-  // ==========================================================================
-
-  /**
-   * POST /api/connections/mastodon  { instance, accessToken }
-   * Per docs/02-SRS.md FR-007: Mastodon support.
-   */
-  @Post('mastodon')
-  @HttpCode(201)
-  async connectMastodon(@Body() body: unknown, @Req() req: Request): Promise<{ id: string; username: string }> {
-    try {
-      return await this._conn.saveSimpleConnection(
-        getUserId(req),
-        'MASTODON',
-        body,
-        getAuditContext(req)
-      );
-    } catch (e) {
-      throw errorMapper(e);
-    }
-  }
-
-  /**
-   * POST /api/connections/wordpress  { siteUrl, username, appPassword }
-   * Per docs/02-SRS.md FR-007: WordPress support.
-   */
-  @Post('wordpress')
-  @HttpCode(201)
-  async connectWordPress(@Body() body: unknown, @Req() req: Request): Promise<{ id: string; username: string }> {
-    try {
-      return await this._conn.saveSimpleConnection(
-        getUserId(req),
-        'WORDPRESS',
-        body,
-        getAuditContext(req)
-      );
-    } catch (e) {
-      throw errorMapper(e);
-    }
-  }
-
   /**
    * DELETE /api/connections/:platform
    * Hard-delete the user's connection for that platform.

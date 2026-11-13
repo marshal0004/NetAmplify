@@ -6,16 +6,18 @@
 //   "All adapters register in src/lib/platforms/registry.ts:
 //    { platform, kind: 'OAUTH'|'SIMPLE', scopes?, configured: () => boolean }"
 //
-// Phase 3 wires all 8 adapters (Reddit, X, LinkedIn, Discord, Dev.to,
-// Telegram, Bluesky, Hashnode). Phase 4 will use the registry to dispatch
-// publish calls + connect flows.
+// Mastodon, WordPress, and the OAuth-based X adapter (TWITTER) were removed
+// from the product surface. Their Prisma enum values are retained so any
+// historical rows remain valid, but NO adapter is registered for them — so
+// they never appear in the Connect Checklist (list() iterates all()) and
+// cannot be connected or published to. X (Twitter) is exposed exclusively
+// via the cookie / browser-capture adapter (TWITTER_COOKIE).
 
 import { Injectable, Inject } from '@nestjs/common';
 import type { PlatformAdapter } from './adapter.interface';
 import { AdapterNotFoundError, PlatformNotConfiguredError } from './adapter.interface';
 import type { Platform } from '@prisma/client';
 
-import { XAdapter } from './x/x.adapter';
 import { LinkedInAdapter } from './linkedin/linkedin.adapter';
 import { DiscordAdapter } from './discord/discord.adapter';
 import { DevtoAdapter } from './devto/devto.adapter';
@@ -23,13 +25,11 @@ import { HashnodeAdapter } from './hashnode/hashnode.adapter';
 import { TelegramAdapter } from './telegram/telegram.adapter';
 import { BlueskyAdapter } from './bluesky/bluesky.adapter';
 import { XCookieAdapter } from './x/x-cookie.adapter';
-import { MastodonAdapter } from './mastodon/mastodon.adapter';
-import { WordPressAdapter } from './wordpress/wordpress.adapter';
 import { FacebookAdapter } from './facebook/facebook.adapter';
 import { InstagramAdapter } from './instagram/instagram.adapter';
 
 /**
- * Registry of all 12 NetAmplify platform adapters.
+ * Registry of the 9 NetAmplify platform adapters exposed to users.
  *
  * The registry is a Map<Platform, PlatformAdapter>. Lookup is O(1).
  * Adapters are singletons (NestJS injectable); the registry holds one
@@ -40,7 +40,6 @@ export class AdapterRegistry {
   private readonly adapters: Map<Platform, PlatformAdapter>;
 
   constructor(
-    @Inject(XAdapter) private readonly _x: XAdapter,
     @Inject(LinkedInAdapter) private readonly _linkedin: LinkedInAdapter,
     @Inject(DiscordAdapter) private readonly _discord: DiscordAdapter,
     @Inject(DevtoAdapter) private readonly _devto: DevtoAdapter,
@@ -48,13 +47,10 @@ export class AdapterRegistry {
     @Inject(TelegramAdapter) private readonly _telegram: TelegramAdapter,
     @Inject(BlueskyAdapter) private readonly _bluesky: BlueskyAdapter,
     @Inject(XCookieAdapter) private readonly _xCookie: XCookieAdapter,
-    @Inject(MastodonAdapter) private readonly _mastodon: MastodonAdapter,
-    @Inject(WordPressAdapter) private readonly _wordpress: WordPressAdapter,
     @Inject(FacebookAdapter) private readonly _facebook: FacebookAdapter,
     @Inject(InstagramAdapter) private readonly _instagram: InstagramAdapter,
   ) {
     this.adapters = new Map<Platform, PlatformAdapter>([
-      ['TWITTER', this._x],
       ['LINKEDIN', this._linkedin],
       ['DISCORD', this._discord],
       ['DEVTO', this._devto],
@@ -62,8 +58,6 @@ export class AdapterRegistry {
       ['TELEGRAM', this._telegram],
       ['BLUESKY', this._bluesky],
       ['TWITTER_COOKIE', this._xCookie],
-      ['MASTODON', this._mastodon],
-      ['WORDPRESS', this._wordpress],
       ['FACEBOOK', this._facebook],
       ['INSTAGRAM', this._instagram],
     ]);
@@ -71,7 +65,8 @@ export class AdapterRegistry {
 
   /**
    * Get the adapter for a platform. Throws AdapterNotFoundError if the
-   * platform is not in the registry (shouldn't happen — all 8 are wired).
+   * platform is not in the registry (e.g. a removed platform like MASTODON
+   * or the OAuth TWITTER adapter).
    */
   get(platform: Platform): PlatformAdapter {
     const adapter = this.adapters.get(platform);
@@ -82,15 +77,15 @@ export class AdapterRegistry {
   }
 
   /**
-   * Get all 8 adapters as a list (used by IntegrationManager + the
-   * Connect Checklist UI).
+   * Get all registered adapters as a list. Drives the Connect Checklist via
+   * ConnectionsService.list() (one card per registered adapter).
    */
   all(): PlatformAdapter[] {
     return Array.from(this.adapters.values());
   }
 
   /**
-   * Get all 8 adapters as a map (used by IntegrationManager).
+   * Get all registered adapters as a map (used by IntegrationManager).
    */
   map(): Map<Platform, PlatformAdapter> {
     return new Map(this.adapters);
@@ -99,8 +94,8 @@ export class AdapterRegistry {
   /**
    * Returns true if the platform has required env vars set.
    * For SIMPLE adapters (Discord, Dev.to, Hashnode, Telegram, Bluesky),
-   * always true (user-pasted credentials). For OAUTH adapters (Reddit, X,
-   * LinkedIn), checks env vars.
+   * always true (user-pasted credentials). For OAUTH adapters (LinkedIn,
+   * Facebook, Instagram) and the cookie X adapter, checks env / state.
    *
    * Used by Connect Checklist UI to render "Setup pending" cards without
    * erroring per docs/01-PRD.md §4.

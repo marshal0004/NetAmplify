@@ -73,22 +73,29 @@ describe('Integration: Connections', () => {
   });
 
   describe('GET /api/connections', () => {
-    it('returns 8 platforms with "not connected" status', async () => {
+    it('returns all registered platforms with "not connected" status', async () => {
       const res = await test.request.get('/api/connections')
         .set('Authorization', `Bearer ${token}`);
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
-      expect(res.body.length).toBe(12);
-      // All 8 platforms should be present
+      // 9 registered adapters: 5 mocked below + 4 real (LinkedIn, X-cookie, Facebook, Instagram)
+      expect(res.body.length).toBe(9);
       const platforms = res.body.map((c: { platform: string }) => c.platform);
-      expect(platforms).toContain('REDDIT');
+      // SIMPLE platforms (mocked in this test)
       expect(platforms).toContain('DISCORD');
       expect(platforms).toContain('DEVTO');
       expect(platforms).toContain('TELEGRAM');
       expect(platforms).toContain('BLUESKY');
       expect(platforms).toContain('HASHNODE');
-      expect(platforms).toContain('TWITTER');
+      // OAuth / cookie platforms (real adapters, listed regardless of env state)
       expect(platforms).toContain('LINKEDIN');
+      expect(platforms).toContain('TWITTER_COOKIE');
+      expect(platforms).toContain('FACEBOOK');
+      expect(platforms).toContain('INSTAGRAM');
+      // Removed-from-product platforms must NOT appear (no adapter registered)
+      expect(platforms).not.toContain('MASTODON');
+      expect(platforms).not.toContain('WORDPRESS');
+      expect(platforms).not.toContain('TWITTER');
     });
 
     it('returns 401 without JWT', async () => {
@@ -225,16 +232,20 @@ describe('Integration: Connections', () => {
       expect(discord.platformUsername).toBeNull();
     });
 
-    it('returns 404 for non-existent connection', async () => {
+    it('returns 400 for an unrecognized platform (validation)', async () => {
+      // 'reddit' is not in PLATFORM_SCHEMA, so parsePlatformParam rejects it
+      // with a VALIDATION_ERROR → 400 (not 404).
       const res = await test.request.delete('/api/connections/reddit')
         .set('Authorization', `Bearer ${token}`);
-      expect(res.status).toBe(404);
+      expect(res.status).toBe(400);
     });
 
-    it('returns 400 for unknown platform', async () => {
+    it('returns 404 for a valid platform with no connection to delete', async () => {
+      // 'instagram' IS a recognized platform, but the user never connected it,
+      // so disconnect() finds no row → 404 (not 400).
       const res = await test.request.delete('/api/connections/instagram')
         .set('Authorization', `Bearer ${token}`);
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(404);
     });
   });
 });

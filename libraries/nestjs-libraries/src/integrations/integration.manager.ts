@@ -26,7 +26,6 @@ export const NETAMPLIFY_PLATFORMS = [
   'TELEGRAM',
   'BLUESKY',
   'HASHNODE',
-  'TWITTER',
   'LINKEDIN',
 ] as const;
 
@@ -46,7 +45,6 @@ export const TIER_A_PLATFORMS: ReadonlyArray<NetAmplifyPlatform> = [
 ];
 
 export const TIER_B_PLATFORMS: ReadonlyArray<NetAmplifyPlatform> = [
-  'TWITTER',
   'LINKEDIN',
 ];
 
@@ -65,11 +63,6 @@ export class IntegrationManager {
       case 'reddit':
         return Boolean(
           process.env.REDDIT_CLIENT_ID && process.env.REDDIT_CLIENT_SECRET
-        );
-      case 'x':
-      case 'twitter':
-        return Boolean(
-          process.env.TWITTER_CLIENT_ID && process.env.TWITTER_CLIENT_SECRET
         );
       case 'linkedin':
         return Boolean(

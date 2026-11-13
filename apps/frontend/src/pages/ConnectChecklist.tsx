@@ -15,10 +15,7 @@ const trustCopy: Record<string, string> = {
   TELEGRAM: 'The bot is YOURS — you create it with @BotFather and control it. We only get the ability to send messages to the one channel where you made it an admin. Remove the bot anytime.',
   BLUESKY: 'Bluesky built App Passwords exactly for this: separate from your real password, limited to posting, revocable in one click.',
   HASHNODE: 'You generate this PAT yourself in your account\'s settings. It can only manage content — and you can regenerate or delete it whenever you want.',
-  TWITTER: 'You\'ll log in on X\'s official page — NetAmplify never sees your password. We receive only a limited permission to post tweets, and you can revoke it anytime in your X settings.',
   LINKEDIN: 'You\'ll log in on LinkedIn\'s official page — NetAmplify never sees your password. We receive only a limited permission to post on your behalf, and you can revoke it anytime in your LinkedIn settings.',
-  MASTODON: 'You create this access token yourself in your Mastodon instance\'s settings. It only has the `write:statuses` scope — meaning it can only post statuses, nothing else. Revoke it in one click from your instance settings.',
-  WORDPRESS: 'WordPress Application Passwords are separate from your real password and only work via the REST API. They can\'t be used to log in to wp-admin. Revoke instantly from your WordPress profile page.',
   TWITTER_COOKIE: 'Your X session is stored encrypted (AES-256-GCM) — we never see your X password. The session only allows posting tweets; we can\'t read your DMs, change your password, or take over your account. Log out of x.com on any device to instantly invalidate it.',
   FACEBOOK: 'You\'ll log in on Facebook\'s official page — NetAmplify never sees your password. We receive only a limited permission to post to your Facebook Page, and you can revoke it anytime in your Facebook settings.',
   INSTAGRAM: 'You\'ll log in on Meta\'s official page — NetAmplify never sees your password. We receive only a limited permission to post to your Instagram Business account, and you can revoke it anytime in your Meta settings.',
@@ -99,9 +96,6 @@ const platformConfig: Record<string, PlatformConfig> = {
     ],
     docsLink: 'https://atproto.com/specs/xrpc#app-password',
   },
-  TWITTER: {
-    steps: [{ text: 'Click "Connect via OAuth" to log in on X\'s official page.' }],
-  },
   LINKEDIN: {
     steps: [{ text: 'Click "Connect via OAuth" to log in on LinkedIn\'s official page.' }],
   },
@@ -116,41 +110,6 @@ const platformConfig: Record<string, PlatformConfig> = {
       { text: 'Your connection is saved — no copy-paste required!' },
     ],
     docsLink: 'https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies',
-  },
-  // ==========================================================================
-  // New OAuth / API-key platforms (Mastodon + WordPress)
-  // ==========================================================================
-  MASTODON: {
-    fields: [
-      { key: 'instance', label: 'Instance URL', placeholder: 'mastodon.social' },
-      { key: 'accessToken', label: 'Access Token', placeholder: 'Your access token' },
-    ],
-    steps: [
-      { text: 'Open your Mastodon instance settings (opens in new tab)', link: 'https://mastodon.social/settings/applications', linkText: 'Open Mastodon Settings' },
-      { text: 'Click "New Application"' },
-      { text: 'Name it "NetAmplify" and grant the `write:statuses` scope' },
-      { text: 'Submit, then copy the Access Token' },
-      { text: 'Enter your instance URL above (e.g., mastodon.social)' },
-      { text: 'Paste the access token above' },
-    ],
-    docsLink: 'https://docs.joinmastodon.org/api/',
-  },
-  WORDPRESS: {
-    fields: [
-      { key: 'siteUrl', label: 'Site URL', placeholder: 'https://blog.example.com' },
-      { key: 'username', label: 'Username', placeholder: 'your WP username' },
-      { key: 'appPassword', label: 'App Password', placeholder: 'abcd wxyz 1234 5678 ...' },
-    ],
-    steps: [
-      { text: 'Log in to your WordPress admin (e.g., blog.example.com/wp-admin)' },
-      { text: 'Go to Users → Profile → Application Passwords' },
-      { text: 'Type "NetAmplify" → click "Add New Application Password"' },
-      { text: 'Copy the generated password (24 chars, with spaces)' },
-      { text: 'Enter your Site URL above (with https://)' },
-      { text: 'Enter your WordPress username above' },
-      { text: 'Paste the app password above (spaces are OK)' },
-    ],
-    docsLink: 'https://developer.wordpress.org/rest-api/using-the-rest-api/application-passwords/',
   },
 };
 
@@ -625,10 +584,7 @@ function platformName(platform: string): string {
     TELEGRAM: 'Telegram',
     BLUESKY: 'Bluesky',
     HASHNODE: 'Hashnode',
-    TWITTER: 'X (Twitter) — OAuth',
     LINKEDIN: 'LinkedIn',
-    MASTODON: 'Mastodon',
-    WORDPRESS: 'WordPress',
     TWITTER_COOKIE: 'X (Twitter)',
     FACEBOOK: 'Facebook',
     INSTAGRAM: 'Instagram',

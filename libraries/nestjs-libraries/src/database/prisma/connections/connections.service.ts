@@ -35,8 +35,6 @@ import {
   CONNECT_BLUESKY_SCHEMA,
   CONNECT_HASHNODE_SCHEMA,
   CONNECT_TWITTER_COOKIE_SCHEMA,
-  CONNECT_MASTODON_SCHEMA,
-  CONNECT_WORDPRESS_SCHEMA,
 } from '@netamplify/nestjs-libraries/validation/schemas';
 
 interface AuditContext {
@@ -219,12 +217,6 @@ export class ConnectionsService {
       case 'TWITTER_COOKIE':
         parsedInput = CONNECT_TWITTER_COOKIE_SCHEMA.parse(rawInput) as Record<string, string>;
         break;
-      case 'MASTODON':
-        parsedInput = CONNECT_MASTODON_SCHEMA.parse(rawInput) as Record<string, string>;
-        break;
-      case 'WORDPRESS':
-        parsedInput = CONNECT_WORDPRESS_SCHEMA.parse(rawInput) as Record<string, string>;
-        break;
       default:
         throw new ServiceError(
           'VALIDATION_ERROR',
@@ -393,13 +385,12 @@ export class ConnectionsService {
 
 /**
  * Tier A = live in MVP (instant setup): Discord, Dev.to, Telegram,
- *   Bluesky, Hashnode, Mastodon, WordPress, TWITTER_COOKIE
+ *   Bluesky, Hashnode, TWITTER_COOKIE
  * Tier B = bonus attempts (work if creds configured):
- *   X (OAuth), LinkedIn (OAuth), Facebook (OAuth), Instagram (OAuth)
+ *   LinkedIn (OAuth), Facebook (OAuth), Instagram (OAuth)
  */
 function isTierB(platform: Platform): boolean {
   return (
-    platform === 'TWITTER' ||
     platform === 'LINKEDIN' ||
     platform === 'FACEBOOK' ||
     platform === 'INSTAGRAM'

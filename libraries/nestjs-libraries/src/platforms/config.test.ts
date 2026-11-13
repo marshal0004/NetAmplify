@@ -12,9 +12,12 @@ import {
 } from './config';
 
 describe('PLATFORM_CONFIG', () => {
-  it('has all 8 NetAmplify platforms configured', () => {
+  it('has every Prisma Platform enum value configured (exhaustive Record)', () => {
+    // PLATFORM_CONFIG is Record<Platform, PlatformConfig>, so it MUST carry an
+    // entry for every enum value — including removed-from-product platforms
+    // (TWITTER/MASTODON/WORDPRESS), whose entries remain as a type-required
+    // data contract even though no adapter is registered for them.
     const platforms = Object.keys(PLATFORM_CONFIG);
-    expect(platforms).toContain('REDDIT');
     expect(platforms).toContain('DISCORD');
     expect(platforms).toContain('DEVTO');
     expect(platforms).toContain('TELEGRAM');
@@ -22,11 +25,12 @@ describe('PLATFORM_CONFIG', () => {
     expect(platforms).toContain('HASHNODE');
     expect(platforms).toContain('TWITTER');
     expect(platforms).toContain('LINKEDIN');
+    expect(platforms).toContain('MASTODON');
+    expect(platforms).toContain('WORDPRESS');
+    expect(platforms).toContain('TWITTER_COOKIE');
+    expect(platforms).toContain('FACEBOOK');
+    expect(platforms).toContain('INSTAGRAM');
     expect(platforms.length).toBe(12);
-  });
-
-  it('Reddit has 300-char title limit', () => {
-    expect(PLATFORM_CONFIG.REDDIT.charLimit).toBe(300);
   });
 
   it('X (Twitter) has 280-char limit', () => {

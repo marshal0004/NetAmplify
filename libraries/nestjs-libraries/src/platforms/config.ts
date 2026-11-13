@@ -118,7 +118,7 @@ export const PLATFORM_CONFIG: Record<Platform, PlatformConfig> = {
   },
   TWITTER_COOKIE: {
     platform: 'TWITTER_COOKIE',
-    name: 'X (Twitter) — Cookie',
+    name: 'X (Twitter)',
     charLimit: 280, // same as TWITTER
     rateLimitPerMinute: 30, // cookies use the per-user web rate limit (lower than API)
     markdownSupported: false,
