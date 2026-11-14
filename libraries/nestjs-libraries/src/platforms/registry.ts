@@ -27,9 +27,11 @@ import { BlueskyAdapter } from './bluesky/bluesky.adapter';
 import { XCookieAdapter } from './x/x-cookie.adapter';
 import { FacebookAdapter } from './facebook/facebook.adapter';
 import { InstagramAdapter } from './instagram/instagram.adapter';
+import { YouTubeAdapter } from './youtube/youtube.adapter';
+import { ThreadsAdapter } from './threads/threads.adapter';
 
 /**
- * Registry of the 9 NetAmplify platform adapters exposed to users.
+ * Registry of the 11 NetAmplify platform adapters exposed to users.
  *
  * The registry is a Map<Platform, PlatformAdapter>. Lookup is O(1).
  * Adapters are singletons (NestJS injectable); the registry holds one
@@ -49,6 +51,8 @@ export class AdapterRegistry {
     @Inject(XCookieAdapter) private readonly _xCookie: XCookieAdapter,
     @Inject(FacebookAdapter) private readonly _facebook: FacebookAdapter,
     @Inject(InstagramAdapter) private readonly _instagram: InstagramAdapter,
+    @Inject(YouTubeAdapter) private readonly _youtube: YouTubeAdapter,
+    @Inject(ThreadsAdapter) private readonly _threads: ThreadsAdapter,
   ) {
     this.adapters = new Map<Platform, PlatformAdapter>([
       ['LINKEDIN', this._linkedin],
@@ -60,6 +64,8 @@ export class AdapterRegistry {
       ['TWITTER_COOKIE', this._xCookie],
       ['FACEBOOK', this._facebook],
       ['INSTAGRAM', this._instagram],
+      ['YOUTUBE', this._youtube],
+      ['THREADS', this._threads],
     ]);
   }
 

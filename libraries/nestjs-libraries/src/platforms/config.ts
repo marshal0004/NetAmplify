@@ -143,6 +143,28 @@ export const PLATFORM_CONFIG: Record<Platform, PlatformConfig> = {
     imageSupported: true,
     maxImages: 1, // IG requires an image/video for every post
   },
+  YOUTUBE: {
+    platform: 'YOUTUBE',
+    name: 'YouTube',
+    // YouTube Data API v3 has no text-post endpoint — only video uploads.
+    // title ≤100, description ≤5000. charLimit reflects the title (the primary
+    // field the Format Engine truncates); the description budget is enforced
+    // separately in the adapter.
+    charLimit: 100,
+    rateLimitPerMinute: null, // 10,000 quota units/day per project (upload = 1600 units)
+    markdownSupported: false, // plain text description only
+    imageSupported: false, // videos only — no image posts via Data API
+    maxImages: 0,
+  },
+  THREADS: {
+    platform: 'THREADS',
+    name: 'Threads',
+    charLimit: 500, // per Meta Threads docs
+    rateLimitPerMinute: null, // 250 publishes / 24h per app (effectively unbounded for MVP)
+    markdownSupported: false, // plain text + hashtags
+    imageSupported: true, // IMAGE media_type supported (VIDEO requires async processing)
+    maxImages: 1, // single image per thread (carousel is a future enhancement)
+  },
 };
 
 /**

@@ -36,10 +36,11 @@ datasource db {
 // Enums
 // ============================================================================
 
-/// NetAmplify supports 12 platforms in MVP per docs/01-PRD.md §4:
+/// NetAmplify supports 14 platforms per docs/01-PRD.md §4:
 ///   Tier A (live): DISCORD, DEVTO, TELEGRAM, BLUESKY, HASHNODE, MASTODON, WORDPRESS
 ///   Tier A (cookie variant): TWITTER_COOKIE (bypass paywall via session cookies)
-///   Tier B (bonus OAuth): TWITTER (X), LINKEDIN, FACEBOOK, INSTAGRAM
+///   Tier B (bonus OAuth): TWITTER (X), LINKEDIN, FACEBOOK, INSTAGRAM,
+///                         YOUTUBE (Google Data API v3), THREADS (Meta Threads API)
 enum Platform {
   DISCORD
   DEVTO
@@ -53,6 +54,8 @@ enum Platform {
   TWITTER_COOKIE
   FACEBOOK
   INSTAGRAM
+  YOUTUBE
+  THREADS
 }
 
 /// How the platform credential was obtained. Drives the Connect Checklist UX.

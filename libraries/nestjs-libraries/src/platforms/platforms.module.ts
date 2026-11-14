@@ -20,6 +20,8 @@ import { BlueskyAdapter } from './bluesky/bluesky.adapter';
 import { XCookieAdapter } from './x/x-cookie.adapter';
 import { FacebookAdapter } from './facebook/facebook.adapter';
 import { InstagramAdapter } from './instagram/instagram.adapter';
+import { YouTubeAdapter } from './youtube/youtube.adapter';
+import { ThreadsAdapter } from './threads/threads.adapter';
 
 @Module({
   providers: [
@@ -33,6 +35,8 @@ import { InstagramAdapter } from './instagram/instagram.adapter';
     XCookieAdapter,
     FacebookAdapter,
     InstagramAdapter,
+    YouTubeAdapter,
+    ThreadsAdapter,
   ],
   exports: [
     AdapterRegistry,
@@ -45,6 +49,8 @@ import { InstagramAdapter } from './instagram/instagram.adapter';
     XCookieAdapter,
     FacebookAdapter,
     InstagramAdapter,
+    YouTubeAdapter,
+    ThreadsAdapter,
   ],
 })
 export class PlatformsModule {}

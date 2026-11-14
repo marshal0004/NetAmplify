@@ -65,6 +65,15 @@ export const FORMATTERS: Record<Platform, Formatter> = {
   // (FB: 63206, IG: 2200) so no truncation logic needed beyond the standard.
   FACEBOOK: linkedinFormatter,
   INSTAGRAM: linkedinFormatter,
+  // YouTube + Threads reuse the LinkedIn plain-text formatter as their base.
+  // The adapters enforce platform-specific limits at publish time:
+  //   YouTube: title ≤100, description ≤5000 (Data API v3 has no text-only post).
+  //   Threads: caption ≤500 (Meta Threads limit), text-first with optional image.
+  // The formatter only shapes title/body/url/hashtags; the videoUrl for YouTube
+  // and imageUrl for Threads pass through via the publish request's options,
+  // not the formatter.
+  YOUTUBE: linkedinFormatter,
+  THREADS: linkedinFormatter,
 };
 
 /**

@@ -30,7 +30,9 @@ describe('PLATFORM_CONFIG', () => {
     expect(platforms).toContain('TWITTER_COOKIE');
     expect(platforms).toContain('FACEBOOK');
     expect(platforms).toContain('INSTAGRAM');
-    expect(platforms.length).toBe(12);
+    expect(platforms).toContain('YOUTUBE');
+    expect(platforms).toContain('THREADS');
+    expect(platforms.length).toBe(14);
   });
 
   it('X (Twitter) has 280-char limit', () => {

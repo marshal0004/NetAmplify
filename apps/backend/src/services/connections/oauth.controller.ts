@@ -85,7 +85,7 @@ export class OAuthController {
   ): Promise<void> {
     try {
       const platform = parsePlatform(platformParam);
-      if (!['TWITTER', 'LINKEDIN', 'FACEBOOK', 'INSTAGRAM'].includes(platform)) {
+      if (!['TWITTER', 'LINKEDIN', 'FACEBOOK', 'INSTAGRAM', 'YOUTUBE', 'THREADS'].includes(platform)) {
         throw new ServiceError(
           'VALIDATION_ERROR',
           `${platform} does not support OAuth via this endpoint`

@@ -2,11 +2,11 @@
 // NetAmplify — AdapterRegistry membership test.
 //
 // Guards the product surface: after Mastodon, WordPress, and the OAuth-based X
-// (TWITTER) were removed, the registry must expose exactly the 9 remaining
-// adapters and must NOT register the removed platforms. This prevents a
-// regression where a removed platform silently re-appears in the Connect
-// Checklist — ConnectionsService.list() iterates registry.all(), so anything
-// in the registry becomes a user-visible card.
+// (TWITTER) were removed, the registry must expose exactly the 11 active
+// adapters (9 originals + YouTube + Threads) and must NOT register the removed
+// platforms. This prevents a regression where a removed platform silently
+// re-appears in the Connect Checklist — ConnectionsService.list() iterates
+// registry.all(), so anything in the registry becomes a user-visible card.
 
 import { describe, it, expect } from 'vitest';
 import type { PlatformAdapter } from './adapter.interface';
@@ -25,12 +25,14 @@ function stubAdapter(): PlatformAdapter {
 }
 
 /**
- * Build a real AdapterRegistry with 9 stub adapters, passed in the exact
+ * Build a real AdapterRegistry with 11 stub adapters, passed in the exact
  * constructor parameter order (LinkedIn, Discord, Devto, Hashnode, Telegram,
- * Bluesky, XCookie, Facebook, Instagram).
+ * Bluesky, XCookie, Facebook, Instagram, YouTube, Threads).
  */
 function buildRegistry(): AdapterRegistry {
   return new AdapterRegistry(
+    stubAdapter(),
+    stubAdapter(),
     stubAdapter(),
     stubAdapter(),
     stubAdapter(),
@@ -53,14 +55,16 @@ const EXPECTED_PRESENT: readonly Platform[] = [
   'TWITTER_COOKIE',
   'FACEBOOK',
   'INSTAGRAM',
+  'YOUTUBE',
+  'THREADS',
 ];
 
 const EXPECTED_ABSENT: readonly Platform[] = ['TWITTER', 'MASTODON', 'WORDPRESS'];
 
 describe('AdapterRegistry membership (removed platforms)', () => {
-  it('registers exactly the 9 product-surface adapters', () => {
+  it('registers exactly the 11 product-surface adapters', () => {
     const registry = buildRegistry();
-    expect(registry.all()).toHaveLength(9);
+    expect(registry.all()).toHaveLength(11);
   });
 
   it('get() returns an adapter for every present platform', () => {

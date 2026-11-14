@@ -387,13 +387,16 @@ export class ConnectionsService {
  * Tier A = live in MVP (instant setup): Discord, Dev.to, Telegram,
  *   Bluesky, Hashnode, TWITTER_COOKIE
  * Tier B = bonus attempts (work if creds configured):
- *   LinkedIn (OAuth), Facebook (OAuth), Instagram (OAuth)
+ *   LinkedIn (OAuth), Facebook (OAuth), Instagram (OAuth),
+ *   YouTube (Google OAuth), Threads (Meta OAuth)
  */
 function isTierB(platform: Platform): boolean {
   return (
     platform === 'LINKEDIN' ||
     platform === 'FACEBOOK' ||
-    platform === 'INSTAGRAM'
+    platform === 'INSTAGRAM' ||
+    platform === 'YOUTUBE' ||
+    platform === 'THREADS'
   );
 }
 
@@ -408,6 +411,8 @@ function connectionTypeFor(
     case 'LINKEDIN':
     case 'FACEBOOK':
     case 'INSTAGRAM':
+    case 'YOUTUBE':
+    case 'THREADS':
       return 'OAUTH';
     case 'DEVTO':
     case 'HASHNODE':

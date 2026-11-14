@@ -282,7 +282,7 @@ describe('formatForAllPlatforms', () => {
       REDDIT: { subreddit: 'test' },
     });
     const platforms = Object.keys(results) as Platform[];
-    expect(platforms.length).toBe(12);
+    expect(platforms.length).toBe(14);
     expect(platforms).toContain('REDDIT');
     expect(platforms).toContain('TWITTER');
     expect(platforms).toContain('LINKEDIN');
@@ -291,5 +291,7 @@ describe('formatForAllPlatforms', () => {
     expect(platforms).toContain('HASHNODE');
     expect(platforms).toContain('TELEGRAM');
     expect(platforms).toContain('BLUESKY');
+    expect(platforms).toContain('YOUTUBE');
+    expect(platforms).toContain('THREADS');
   });
 });
