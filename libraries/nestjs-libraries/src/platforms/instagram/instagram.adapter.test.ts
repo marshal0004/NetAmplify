@@ -76,12 +76,13 @@ describe('InstagramAdapter', () => {
         'state-abc-123',
         REDIRECT_URI_HTTPS,
       );
-      expect(url).toContain('https://api.instagram.com/oauth/authorize');
+      expect(url).toContain('https://www.instagram.com/oauth/authorize');
+      expect(url).not.toContain('api.instagram.com/oauth/authorize');
       expect(url).toContain('client_id=1782847289700445');
       expect(url).toContain('response_type=code');
       expect(url).toContain('state=state-abc-123');
       expect(url).toContain(
-        'scope=instagram_business_basic%2Cinstagram_business_content_publish',
+        'scope=instagram_business_basic%2Cinstagram_business_content_publish%2Cinstagram_business_manage_comments%2Cinstagram_business_manage_insights',
       );
       expect(url).toContain(
         `redirect_uri=${encodeURIComponent(REDIRECT_URI_HTTPS)}`,
@@ -149,6 +150,8 @@ describe('InstagramAdapter', () => {
       expect(tokens.scopes).toEqual([
         'instagram_business_basic',
         'instagram_business_content_publish',
+        'instagram_business_manage_comments',
+        'instagram_business_manage_insights',
       ]);
       expect(tokens.expiresAt).toBeGreaterThan(Math.floor(Date.now() / 1000));
 
@@ -832,6 +835,119 @@ describe('InstagramAdapter', () => {
       process.env.PUBLIC_APP_URL = 'https://tunnel.ngrok-free.app';
       // Pass a non-URL string with "localhost" in it to trigger the parse error path
       expect(() => rewriteLocalhostUrlForMeta('localhost-not-a-url')).toThrow();
+    });
+  });
+
+  describe('postflare alignment', () => {
+    it('exchangeCode strips the "#_" fragment Instagram appends to the code', async () => {
+      const shortLived = mockResponse(200, {
+        access_token: 'IGQVJ-short',
+        user_id: '17841405822304914',
+        expires_in: 3600,
+      });
+      const longLived = mockResponse(200, {
+        access_token: 'IGQVJ-long',
+        expires_in: 5184000,
+      });
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(shortLived)
+        .mockResolvedValueOnce(longLived);
+      vi.stubGlobal('fetch', fetchMock);
+
+      await adapter.exchangeCode(
+        'AUTHCODE#_',
+        { code_verifier: 'v', code_challenge: 'c', code_challenge_method: 'S256' },
+        REDIRECT_URI_HTTPS,
+      );
+
+      const body = new URLSearchParams(fetchMock.mock.calls[0][1].body as string);
+      expect(body.get('code')).toBe('AUTHCODE'); // #_ stripped
+    });
+
+    it('exchangeCode handles the newer wrapped { data: [{access_token, user_id}] } response', async () => {
+      const shortLived = mockResponse(200, {
+        data: [
+          {
+            access_token: 'IGQVJ-wrapped-short',
+            user_id: '17841405822304914',
+            expires_in: 3600,
+          },
+        ],
+      });
+      const longLived = mockResponse(200, {
+        access_token: 'IGQVJ-wrapped-long',
+        expires_in: 5184000,
+      });
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(shortLived)
+        .mockResolvedValueOnce(longLived);
+      vi.stubGlobal('fetch', fetchMock);
+
+      const tokens = await adapter.exchangeCode(
+        'auth-code',
+        { code_verifier: 'v', code_challenge: 'c', code_challenge_method: 'S256' },
+        REDIRECT_URI_HTTPS,
+      );
+
+      expect(tokens.accessToken).toBe('IGQVJ-wrapped-long');
+    });
+
+    it('getIdentity prefers user_id over id (publish-endpoint id)', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+        mockResponse(200, {
+          id: 'app-scoped-id-999',
+          user_id: '17841405822304914',
+          username: 'neerajrawatdev',
+          account_type: 'BUSINESS',
+        }),
+      ));
+
+      const identity = await adapter.getIdentity({ accessToken: 'IGQVJ-token' });
+
+      // user_id is the IG account id used by /media publish endpoints.
+      expect(identity.id).toBe('17841405822304914');
+      expect(identity.id).not.toBe('app-scoped-id-999');
+    });
+
+    it('refresh() exchanges a long-lived token for a fresh 60-day token via graph.instagram.com', async () => {
+      const refreshed = mockResponse(200, {
+        access_token: 'IGQVJ-refreshed-token',
+        token_type: 'bearer',
+        expires_in: 5184000,
+      });
+      const fetchMock = vi.fn().mockResolvedValueOnce(refreshed);
+      vi.stubGlobal('fetch', fetchMock);
+
+      const tokens = await adapter.refresh({
+        accessToken: 'IGQVJ-old-token',
+        scopes: ['instagram_business_basic'],
+      });
+
+      expect(tokens.accessToken).toBe('IGQVJ-refreshed-token');
+      expect(tokens.expiresAt).toBeGreaterThan(Math.floor(Date.now() / 1000));
+
+      const url = new URL(fetchMock.mock.calls[0][0] as string);
+      expect(url.origin).toBe('https://graph.instagram.com');
+      expect(url.pathname).toBe('/refresh_access_token');
+      expect(url.searchParams.get('grant_type')).toBe('ig_refresh_token');
+      expect(url.searchParams.get('access_token')).toBe('IGQVJ-old-token');
+    });
+
+    it('refresh() throws AUTH on 401 (token past refresh window)', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+        mockResponse(401, { error: { message: 'expired' } }),
+      ));
+      await expect(
+        adapter.refresh({ accessToken: 'IGQVJ-old-token' }),
+      ).rejects.toThrow(/past refresh window/);
+    });
+
+    it('refresh() throws AUTH when no access token is present', async () => {
+      await expect(
+        adapter.refresh({ accessToken: '' }),
+      ).rejects.toThrow(/no access token/);
     });
   });
 });

@@ -9,12 +9,12 @@
 //
 // This is the same approach Postiz uses for "Instagram (Standalone)".
 //
-// IMPORTANT: Instagram's authorize endpoint (api.instagram.com/oauth/authorize)
+// IMPORTANT: Instagram's authorize endpoint (www.instagram.com/oauth/authorize)
 // REQUIRES an HTTPS redirect URI. http://localhost is rejected by Meta.
 // To test locally, set PUBLIC_APP_URL to an HTTPS tunnel URL (e.g. ngrok).
 //
 // OAuth flow:
-//   1. Browser → https://api.instagram.com/oauth/authorize?client_id=...&redirect_uri=...&scope=...
+//   1. Browser → https://www.instagram.com/oauth/authorize?client_id=...&redirect_uri=...&scope=...
 //   2. User authorizes on Instagram
 //   3. Instagram → redirect_uri?code=...&state=...
 //   4. Backend POSTs to https://api.instagram.com/oauth/access_token
@@ -49,10 +49,15 @@ import type {
 import { PublishError } from '../adapter.interface';
 import type { Platform } from '@prisma/client';
 
-// Instagram's own OAuth endpoints (NOT Facebook's)
-const IG_AUTHORIZE_URL = 'https://api.instagram.com/oauth/authorize';
+// Instagram's own OAuth endpoints (NOT Facebook's). The authorize endpoint
+// is www.instagram.com/oauth/authorize (aligned with postflare's
+// instagram_standalone.ts); the token endpoint stays on api.instagram.com.
+const IG_AUTHORIZE_URL = 'https://www.instagram.com/oauth/authorize';
 const IG_TOKEN_URL = 'https://api.instagram.com/oauth/access_token';
 const IG_TOKEN_EXCHANGE_URL = 'https://graph.instagram.com/access_token';
+// Long-lived token refresh endpoint (grant_type=ig_refresh_token). Aligned
+// with postflare's instagram_standalone.refresh().
+const IG_REFRESH_URL = 'https://graph.instagram.com/refresh_access_token';
 const IG_PROFILE_URL = 'https://graph.instagram.com/v21.0/me';
 
 // Content Publishing endpoints.
@@ -71,15 +76,20 @@ const IG_GRAPH_BASE = 'https://graph.instagram.com/v21.0';
 
 // Instagram Business Login scopes (the new API — different from legacy
 // instagram_basic / instagram_content_publish which are Facebook Login scopes).
+// Aligned with postflare's instagram_standalone.ts scope set.
 //
-// instagram_business_basic            — read profile, username, account_type
-// instagram_business_content_publish  — publish media containers
+// instagram_business_basic             — read profile, username, account_type
+// instagram_business_content_publish   — publish media containers
+// instagram_business_manage_comments   — read + reply to comments
+// instagram_business_manage_insights   — read account + media insights
 //
 // These MUST be enabled in the Meta dashboard under
 // Instagram API → Permissions & Features.
 const IG_SCOPES = [
   'instagram_business_basic',
   'instagram_business_content_publish',
+  'instagram_business_manage_comments',
+  'instagram_business_manage_insights',
 ];
 
 export interface InstagramCredentials extends AdapterCredentials {
@@ -175,7 +185,11 @@ export class InstagramAdapter implements PlatformAdapter {
       );
     }
 
-    // Step 1: Exchange code for short-lived token + IG user_id
+    // Step 1: Exchange code for short-lived token + IG user_id.
+    // Instagram appends "#_" to the auth code in the redirect; strip it or
+    // the token exchange fails with "Invalid grant_type". (Aligned with
+    // postflare's instagram_standalone callback: code.replace(/#_$/, "").)
+    const cleanCode = code.replace(/#_$/, '');
     const tokenResp = await fetch(IG_TOKEN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -184,7 +198,7 @@ export class InstagramAdapter implements PlatformAdapter {
         client_secret: appSecret,
         grant_type: 'authorization_code',
         redirect_uri: redirectUri,
-        code,
+        code: cleanCode,
       }).toString(),
     });
 
@@ -196,17 +210,27 @@ export class InstagramAdapter implements PlatformAdapter {
       );
     }
 
+    // Meta's token endpoint returns either a flat object ({ access_token,
+    // user_id, expires_in }) or, in newer responses, a wrapped
+    // { data: [{ access_token, user_id }] }. Handle both (aligned with
+    // postflare's instagram_standalone callback:
+    // short.access_token ?? short.data?.[0]?.access_token).
     const tokenData = (await tokenResp.json()) as {
-      access_token: string;
+      access_token?: string;
       user_id?: string;
       expires_in?: number;
       token_type?: string;
+      data?: Array<{ access_token?: string; user_id?: string; expires_in?: number }>;
     };
 
-    if (!tokenData.access_token) {
+    const shortAccessToken = tokenData.access_token ?? tokenData.data?.[0]?.access_token;
+    const igUserIdFromToken = tokenData.user_id ?? tokenData.data?.[0]?.user_id;
+    const shortExpiresIn = tokenData.expires_in ?? tokenData.data?.[0]?.expires_in;
+
+    if (!shortAccessToken) {
       throw new PublishError('AUTH', 'Instagram returned no access_token');
     }
-    if (!tokenData.user_id) {
+    if (!igUserIdFromToken) {
       // This should never happen with Instagram's own OAuth endpoint.
       // If it does, the app is misconfigured (using FB OAuth instead of IG).
       throw new PublishError(
@@ -223,7 +247,7 @@ export class InstagramAdapter implements PlatformAdapter {
     const longLivedUrl = new URL(IG_TOKEN_EXCHANGE_URL);
     longLivedUrl.searchParams.set('grant_type', 'ig_exchange_token');
     longLivedUrl.searchParams.set('client_secret', appSecret);
-    longLivedUrl.searchParams.set('access_token', tokenData.access_token);
+    longLivedUrl.searchParams.set('access_token', shortAccessToken);
 
     const longLivedResp = await fetch(longLivedUrl.toString()).catch(
       () => null,
@@ -248,9 +272,9 @@ export class InstagramAdapter implements PlatformAdapter {
 
     // Fallback: short-lived token (1 hour — enough for testing)
     return {
-      accessToken: tokenData.access_token,
-      expiresAt: tokenData.expires_in
-        ? Math.floor(Date.now() / 1000) + tokenData.expires_in
+      accessToken: shortAccessToken,
+      expiresAt: shortExpiresIn
+        ? Math.floor(Date.now() / 1000) + shortExpiresIn
         : Math.floor(Date.now() / 1000) + 3600,
       scopes: IG_SCOPES,
     };
@@ -267,7 +291,11 @@ export class InstagramAdapter implements PlatformAdapter {
    * the user_id from the token exchange — they are equivalent).
    */
   async getIdentity(tokens: OAuthTokens): Promise<PlatformIdentity> {
-    const fields = 'id,username,account_type';
+    // Fetch the same field set as postflare's instagram_standalone /me call.
+    // user_id is the IG account id used by the Content Publishing endpoints
+    // (/{ig-user-id}/media); id is the app-scoped user id. We prefer user_id
+    // for publish compatibility, falling back to id.
+    const fields = 'user_id,id,username,name,profile_picture_url,account_type';
     const profileResp = await fetch(
       `${IG_PROFILE_URL}?fields=${fields}&access_token=${encodeURIComponent(tokens.accessToken)}`,
     );
@@ -285,17 +313,24 @@ export class InstagramAdapter implements PlatformAdapter {
 
     const profile = (await profileResp.json()) as {
       id?: string;
+      user_id?: string;
       username?: string;
+      name?: string;
+      profile_picture_url?: string;
       account_type?: string;
     };
 
-    if (!profile.id) {
+    // Prefer user_id (IG account id used by /media publish endpoints),
+    // fall back to id (app-scoped user id). postflare does the same
+    // (user.user_id ?? user.id).
+    const accountId = profile.user_id ?? profile.id;
+    if (!accountId) {
       throw new PublishError('NETWORK', 'Instagram /me returned no id');
     }
 
     const username = profile.username
       ? `@${profile.username}`
-      : `IG account ${profile.id}`;
+      : `IG account ${accountId}`;
 
     // Surface a clear error if the IG account is personal (cannot post via API)
     if (profile.account_type && profile.account_type === 'PERSONAL') {
@@ -309,8 +344,60 @@ export class InstagramAdapter implements PlatformAdapter {
     }
 
     return {
-      id: profile.id,
+      id: accountId,
       username,
+    };
+  }
+
+  /**
+   * Refresh a long-lived Instagram access token.
+   *
+   * Long-lived IG tokens (from ig_exchange_token) last 60 days and can be
+   * refreshed as long as they have not expired. The refresh endpoint returns
+   * a NEW token with a fresh 60-day window; the old token is invalidated.
+   *
+   * Called by the publish worker before publish if the token expires within
+   * the next 24h (proactive refresh avoids mid-publish AUTH failures).
+   *
+   * Aligned with postflare's instagram_standalone.refresh() — same endpoint
+   * (graph.instagram.com/refresh_access_token) + grant_type=ig_refresh_token.
+   */
+  async refresh(tokens: OAuthTokens): Promise<OAuthTokens> {
+    if (!tokens.accessToken) {
+      throw new PublishError('AUTH', 'Cannot refresh: no access token present');
+    }
+    const refreshUrl = new URL(IG_REFRESH_URL);
+    refreshUrl.searchParams.set('grant_type', 'ig_refresh_token');
+    refreshUrl.searchParams.set('access_token', tokens.accessToken);
+
+    const resp = await fetch(refreshUrl.toString());
+    if (resp.status === 401) {
+      throw new PublishError(
+        'AUTH',
+        'Instagram token expired past refresh window — user must reconnect',
+      );
+    }
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new PublishError(
+        'NETWORK',
+        `Instagram token refresh failed (${resp.status}): ${text}`,
+      );
+    }
+    const data = (await resp.json()) as {
+      access_token?: string;
+      token_type?: string;
+      expires_in?: number;
+    };
+    if (!data.access_token) {
+      throw new PublishError('NETWORK', 'Instagram refresh returned no access_token');
+    }
+    return {
+      accessToken: data.access_token,
+      expiresAt: data.expires_in
+        ? Math.floor(Date.now() / 1000) + data.expires_in
+        : Math.floor(Date.now() / 1000) + 60 * 24 * 3600,
+      scopes: tokens.scopes ?? IG_SCOPES,
     };
   }
 
