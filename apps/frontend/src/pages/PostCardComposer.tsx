@@ -2,7 +2,8 @@ import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { postcardApi } from '@/lib/api';
-import { getErrorMessage, getFieldErrors } from '@/lib/auth';
+import { getErrorMessage, getFieldErrors } from '@/lib/errors';
+import { MediaPreview } from '@/components/MediaPreview';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -44,6 +45,16 @@ export function PostCardComposer() {
       formData.append('file', file);
 
       const jwtToken = localStorage.getItem('netamplify_token');
+      if (!jwtToken) {
+        // Guard against `Bearer null` → backend "jwt malformed". The api-client
+        // path (lib/api.ts request()) guards this too, but the upload uses a raw
+        // fetch with FormData (the api client forces Content-Type: json, which
+        // would clobber the multipart boundary). Dispatch the unauthorized event
+        // so the auth context clears `user` + RequireAuth redirects to /login.
+        window.dispatchEvent(new CustomEvent('netamplify:unauthorized'));
+        setFormError('You must be logged in to NetAmplify. Please log in and try again.');
+        return;
+      }
       const resp = await fetch('/api/upload', {
         method: 'POST',
         headers: {
@@ -221,7 +232,7 @@ export function PostCardComposer() {
                 />
                 {imagePreview ? (
                   <div className="mt-2 relative">
-                    <img src={imagePreview} alt="Preview" className="max-h-48 rounded-lg border border-white/10" />
+                    <MediaPreview src={imagePreview} alt="Preview" className="max-h-48 rounded-lg border border-white/10" />
                     <button
                       type="button"
                       onClick={() => { setImageUrl(''); setImagePreview(''); }}

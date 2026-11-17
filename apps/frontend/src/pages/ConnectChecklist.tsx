@@ -7,7 +7,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { isTauri, captureAndConnect } from '@/lib/tauri';
 
 const trustCopy: Record<string, string> = {
   DISCORD: 'A webhook can only post to ONE channel in your server. Even in a worst case, it can\'t read messages, DMs, or touch your account. Delete the webhook in your server settings anytime and it\'s dead instantly.',
@@ -161,25 +160,6 @@ export function ConnectChecklist() {
   function handleDisconnect(platform: string) {
     if (confirm(`Disconnect ${platform}? You'll need to reconnect to publish again.`)) {
       disconnectMutation.mutate(platform);
-    }
-  }
-
-  async function handleAutoCapture(platform: 'TWITTER_COOKIE') {
-    setCapturingPlatform(platform);
-    setErrors({});
-    try {
-      const jwtToken = localStorage.getItem('netamplify_token');
-      if (!jwtToken) {
-        setErrors({ global: 'You must be logged in to NetAmplify to connect platforms.' });
-        return;
-      }
-      await captureAndConnect(platform, jwtToken);
-      queryClient.invalidateQueries({ queryKey: ['connections'] });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Auto-capture failed. Try the manual cookie input below.';
-      setErrors({ global: message });
-    } finally {
-      setCapturingPlatform(null);
     }
   }
 

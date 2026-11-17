@@ -3,7 +3,8 @@ import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { postcardApi, connectionsApi, publishApi, type Post, type Preview } from '@/lib/api';
-import { getErrorMessage } from '@/lib/auth';
+import { getErrorMessage } from '@/lib/errors';
+import { MediaPreview } from '@/components/MediaPreview';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -130,6 +131,11 @@ export function PublishPage() {
                 <span key={tag} className="rounded-md bg-indigo-500/10 px-2 py-1 font-mono text-xs text-indigo-300">{tag}</span>
               ))}
             </div>
+            {card.imageUrl && (
+              <div className="mt-4">
+                <MediaPreview src={card.imageUrl} alt={card.title} className="max-h-64 rounded-lg border border-white/10" />
+              </div>
+            )}
           </CardContent>
         </Card>
       </motion.div>

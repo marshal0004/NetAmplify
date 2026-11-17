@@ -360,10 +360,14 @@ describe('POSTCARD_UPDATE_SCHEMA (partial)', () => {
 
 describe('PUBLISH_SCHEMA', () => {
   it('accepts a valid publish payload', () => {
+    // REDDIT is a cookie-bypass platform (published via
+    // /api/publish/reddit-cookie-web, NOT the normal /api/postcards/:id/publish
+    // flow) so it is intentionally absent from PLATFORM_SCHEMA. Use BLUESKY +
+    // DISCORD (both in the enum).
     expect(
       PUBLISH_SCHEMA.safeParse({
         platforms: [
-          { platform: 'REDDIT', options: { subreddit: 'sideproject' } },
+          { platform: 'BLUESKY' },
           { platform: 'DISCORD' },
         ],
         requestId: 'client-uuid-12345',
@@ -384,15 +388,17 @@ describe('PUBLISH_SCHEMA', () => {
   });
 
   it('rejects an unknown platform identifier', () => {
+    // INSTAGRAM is in the PLATFORM_SCHEMA enum (it's a real OAuth publish
+    // platform). Use a truly-unknown platform to test rejection.
     expect(
       PUBLISH_SCHEMA.safeParse({
-        platforms: [{ platform: 'INSTAGRAM' }],
+        platforms: [{ platform: 'TUMBLR' }],
       }).success
     ).toBe(false);
   });
 
   it('accepts a payload without requestId (optional)', () => {
-    expect(PUBLISH_SCHEMA.safeParse({ platforms: [{ platform: 'REDDIT' }] }).success).toBe(true);
+    expect(PUBLISH_SCHEMA.safeParse({ platforms: [{ platform: 'DISCORD' }] }).success).toBe(true);
   });
 });
 

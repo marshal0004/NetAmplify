@@ -83,6 +83,11 @@ async function request<T>(
   // silently.
   const isPublicAuthPath = /^\/auth\/(signup|login|reset-request|reset-confirm)(\/|$)/.test(path);
   if (!token && !isPublicAuthPath) {
+    // Signal the auth context to clear its (possibly stale) user state so
+    // RequireAuth redirects to /login. Without this, a prior 401 that cleared
+    // the token leaves `user` stale → RequireAuth keeps passing while every
+    // raw-fetch handler sends `Bearer null` → backend "jwt malformed".
+    window.dispatchEvent(new CustomEvent('netamplify:unauthorized'));
     throw new ApiError(
       401,
       'UNAUTHENTICATED',
@@ -114,9 +119,14 @@ async function request<T>(
   if (!resp.ok) {
     const envelope = body as ApiErrorEnvelope;
     if (envelope?.error?.code) {
-      // 401 → clear token + redirect (handled by auth context)
+      // 401 → clear token + signal auth context to clear user state + redirect.
+      // The auth context listens for 'netamplify:unauthorized' and setUser(null),
+      // which makes RequireAuth redirect to /login. Without the event, only the
+      // token is cleared — `user` stays stale, RequireAuth keeps passing, and
+      // raw-fetch handlers send `Bearer null` → "jwt malformed".
       if (resp.status === 401) {
         setToken(null);
+        window.dispatchEvent(new CustomEvent('netamplify:unauthorized'));
       }
       throw new ApiError(
         resp.status,

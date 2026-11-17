@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { postcardApi } from '@/lib/api';
+import { MediaPreview } from '@/components/MediaPreview';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -57,7 +58,7 @@ export function PostCardView() {
             )}
             {card.imageUrl && (
               <div className="mt-6">
-                <img src={card.imageUrl} alt={card.title} className="max-w-full rounded-lg border border-white/10" />
+                <MediaPreview src={card.imageUrl} alt={card.title} className="max-w-full rounded-lg border border-white/10" />
               </div>
             )}
             <div className="mt-8 border-t border-white/5 pt-6">

@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { postcardApi, connectionsApi } from '@/lib/api';
+import { MediaPreview } from '@/components/MediaPreview';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -92,6 +93,11 @@ export function Dashboard() {
               <Link to={`/dashboard/postcards/${card.id}`}>
                 <Card className="border-white/10 bg-white/[0.03] backdrop-blur-xl transition-all hover:border-white/20 hover:bg-white/[0.05]">
                   <CardContent className="pt-6">
+                    {card.imageUrl && (
+                      <div className="mb-3 overflow-hidden rounded-lg border border-white/10">
+                        <MediaPreview src={card.imageUrl} alt={card.title} className="max-h-40 w-full object-cover" controls={false} />
+                      </div>
+                    )}
                     <h3 className="mb-2 font-semibold text-white">{card.title}</h3>
                     <p className="mb-4 text-sm text-white/50">{card.summary}</p>
                     <div className="flex flex-wrap gap-1">

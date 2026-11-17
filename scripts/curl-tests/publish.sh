@@ -77,12 +77,15 @@ else
 fi
 echo ""
 
-# 3. POST /api/postcards/:id/publish (without any connection → 400)
-echo -e "${YELLOW}[1/9] POST /api/postcards/:id/publish (no connections)${NC}"
+# 3. POST /api/postcards/:id/publish (valid platform, no connection → 400)
+#    REDDIT is cookie-bypass (NOT in PLATFORM_SCHEMA) → would fail Zod first.
+#    Use BLUESKY (in the enum) so the request reaches the connection check and
+#    returns "No active connection" — the actual behavior a user sees.
+echo -e "${YELLOW}[1/9] POST /api/postcards/:id/publish (valid platform, no connection)${NC}"
 RESP=$(curl -s -w "\n%{http_code}" -X POST "$BASE_URL/api/postcards/$POSTCARD_ID/publish" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
-  -d '{"platforms":[{"platform":"REDDIT","options":{"subreddit":"test"}}]}')
+  -d '{"platforms":[{"platform":"BLUESKY"}]}')
 BODY=$(echo "$RESP" | head -n -1); STATUS=$(echo "$RESP" | tail -n1)
 assert_status "publish without connection" "400" "$STATUS"
 assert_contains "error mentions missing connection" "No active connection" "$BODY"
@@ -98,22 +101,31 @@ STATUS=$(echo "$RESP" | tail -n1)
 assert_status "publish empty platforms" "400" "$STATUS"
 echo ""
 
-# 5. POST /api/postcards/:id/publish (invalid platform → 400)
-echo -e "${YELLOW}[3/9] POST /api/postcards/:id/publish (unknown platform)${NC}"
+# 5. POST /api/postcards/:id/publish (unknown platform → 400 with fieldErrors)
+#    Verifies the publish.service fieldErrors fix: the response MUST include the
+#    Zod field path ("platforms.0.platform") + a descriptive message, NOT the
+#    old generic "Invalid publish input". This is what makes the user see
+#    "TUMBLR is not a valid platform" instead of an opaque "input error".
+#    (INSTAGRAM is in the enum — using it here would NOT test rejection.)
+echo -e "${YELLOW}[3/9] POST /api/postcards/:id/publish (unknown platform → fieldErrors)${NC}"
 RESP=$(curl -s -w "\n%{http_code}" -X POST "$BASE_URL/api/postcards/$POSTCARD_ID/publish" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
-  -d '{"platforms":[{"platform":"INSTAGRAM"}]}')
-STATUS=$(echo "$RESP" | tail -n1)
+  -d '{"platforms":[{"platform":"TUMBLR"}]}')
+BODY=$(echo "$RESP" | head -n -1); STATUS=$(echo "$RESP" | tail -n1)
 assert_status "publish unknown platform" "400" "$STATUS"
+assert_contains "descriptive message (not generic 'input error')" "Invalid publish input: platforms.0.platform" "$BODY"
+assert_contains "fieldErrors in envelope" "platforms.0.platform" "$BODY"
 echo ""
 
 # 6. POST /api/postcards/:id/publish (nonexistent postcard → 404)
+#    Use BLUESKY (in the enum) so the request passes Zod + reaches the
+#    postcard-ownership lookup, which 404s. (REDDIT would fail Zod first → 400.)
 echo -e "${YELLOW}[4/9] POST /api/postcards/nonexistent/publish${NC}"
 RESP=$(curl -s -w "\n%{http_code}" -X POST "$BASE_URL/api/postcards/nonexistent-id/publish" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
-  -d '{"platforms":[{"platform":"REDDIT"}]}')
+  -d '{"platforms":[{"platform":"BLUESKY"}]}')
 STATUS=$(echo "$RESP" | tail -n1)
 assert_status "publish nonexistent postcard" "404" "$STATUS"
 echo ""

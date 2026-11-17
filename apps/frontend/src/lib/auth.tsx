@@ -13,7 +13,7 @@
 //   - error: string | null (last auth error)
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
-import { authApi, setToken, getToken, ApiError } from './api';
+import { authApi, setToken, getToken } from './api';
 
 interface User {
   id: string;
@@ -50,6 +50,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null);
       })
       .finally(() => setIsLoading(false));
+  }, []);
+
+  // Listen for 'netamplify:unauthorized' dispatched by the api client (lib/api.ts)
+  // on any 401 response, or when a guarded request is attempted with no token.
+  // Clears the user state so RequireAuth redirects to /login. Without this, a
+  // 401 clears the token (api.ts setToken(null)) but leaves `user` stale —
+  // RequireAuth keeps passing while localStorage is empty, so raw-fetch
+  // handlers (PostCardComposer upload, etc.) send `Bearer null` → backend
+  // "jwt malformed". This desync was the root cause of the upload 401 cascade.
+  useEffect(() => {
+    const handler = () => setUser(null);
+    window.addEventListener('netamplify:unauthorized', handler);
+    return () => window.removeEventListener('netamplify:unauthorized', handler);
   }, []);
 
   async function login(email: string, password: string) {
@@ -89,21 +102,7 @@ export function useAuth(): AuthContextValue {
   return ctx;
 }
 
-/**
- * Extract field-level errors from an ApiError for form display.
- */
-export function getFieldErrors(err: unknown): Record<string, string> {
-  if (err instanceof ApiError && err.fieldErrors) {
-    return err.fieldErrors;
-  }
-  return {};
-}
-
-/**
- * Extract the top-level error message from any thrown error.
- */
-export function getErrorMessage(err: unknown): string {
-  if (err instanceof ApiError) return err.message;
-  if (err instanceof Error) return err.message;
-  return 'An unexpected error occurred';
-}
+// getErrorMessage + getFieldErrors moved to ./errors.ts (HMR Fast Refresh fix:
+// mixing a component export with non-component exports breaks Vite HMR —
+// "Could not Fast Refresh (getErrorMessage export is incompatible)" → full
+// page reload on every auth.tsx change).

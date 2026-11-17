@@ -78,7 +78,21 @@ export class PublishService {
     // 1. Validate input
     const parsed = PUBLISH_SCHEMA.safeParse(rawInput);
     if (!parsed.success) {
-      throw new ServiceError('VALIDATION_ERROR', 'Invalid publish input', undefined, parsed.error);
+      // Extract Zod field errors so the client sees WHICH field is invalid
+      // (e.g., "platforms.0.platform — Invalid enum value(s). Expected ...,
+      // received 'REDDIT'") instead of a generic "Invalid publish input".
+      // errorMapper serializes fieldErrors into the response envelope; the
+      // frontend's getFieldErrors() (lib/errors.ts) surfaces them in forms.
+      const fieldErrors: Record<string, string> = {};
+      for (const issue of parsed.error.issues) {
+        const path = issue.path.join('.') || '_';
+        if (!fieldErrors[path]) fieldErrors[path] = issue.message;
+      }
+      const firstIssue = parsed.error.issues[0];
+      const message = firstIssue
+        ? `Invalid publish input: ${firstIssue.path.join('.') || 'input'} — ${firstIssue.message}`
+        : 'Invalid publish input';
+      throw new ServiceError('VALIDATION_ERROR', message, fieldErrors, parsed.error);
     }
     const input = parsed.data as PublishInput;
 
