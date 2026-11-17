@@ -61,7 +61,12 @@ export function buildOAuthRedirectUri(
   // Route them to PUBLIC_APP_URL (ngrok in dev, prod URL in prod). All other
   // OAuth platforms (Facebook, LinkedIn, YouTube) accept http://localhost.
   if (platform === 'INSTAGRAM' || platform === 'THREADS') {
-    const base = publicAppUrl || requestOrigin;
+    // Strip any trailing slash(es) from PUBLIC_APP_URL. A trailing slash
+    // produces "...ngrok-free.dev//api/oauth/instagram/callback" (double
+    // slash), which Instagram rejects at the authorize step with
+    // "Invalid redirect_uri" because it no longer byte-matches the URI
+    // registered in the Meta console (Business login settings).
+    const base = (publicAppUrl || requestOrigin).replace(/\/+$/, '');
     return `${base}/api/oauth/${platform.toLowerCase()}/callback`;
   }
   return `${requestOrigin}/api/oauth/${platform.toLowerCase()}/callback`;

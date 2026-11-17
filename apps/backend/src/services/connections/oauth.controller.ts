@@ -44,6 +44,7 @@ import {
   buildOAuthFrontendUrl,
   buildOAuthRedirectUri,
   isHttpsRequest,
+  resolveRequestOrigin,
 } from './oauth-redirect';
 
 const OAUTH_COOKIE_NAME = 'netamplify_oauth_state';
@@ -144,8 +145,25 @@ export class OAuthController {
         secure: isHttps,
       });
 
-      const authUrl = adapter.getAuthUrl(pkce, state, redirectUri);
-      res.redirect(302, authUrl);
+    const authUrl = adapter.getAuthUrl(pkce, state, redirectUri);
+
+    // Log the exact redirect_uri + authorize URL. Instagram validates
+    // redirect_uri at the AUTHORIZE step — before any callback reaches this
+    // backend — so without this log, a mismatch between the redirect_uri we
+    // send and the URI registered in the Meta console (the #1 cause of
+    // Instagram's "Invalid redirect_uri" error) is completely invisible.
+    // Compare the "redirect_uri SENT" line below, byte-for-byte, against the
+    // URI listed in Meta → Business login settings → OAuth redirect URIs.
+    this._logger.log(
+      `[OAuth start] platform=${platform}\n` +
+        `  PUBLIC_APP_URL env    : ${JSON.stringify(process.env.PUBLIC_APP_URL ?? '<unset>')}\n` +
+        `  request origin (xfwd) : ${resolveRequestOrigin(req)}\n` +
+        `  redirect_uri SENT     : ${redirectUri}\n` +
+        `  authorize URL         : ${authUrl}\n` +
+        `  >>> redirect_uri SENT must EXACTLY match a URI in Meta → Business login settings → OAuth redirect URIs`,
+    );
+
+    res.redirect(302, authUrl);
     } catch (e) {
       if (e instanceof PlatformNotConfiguredError) {
         throw new ServiceError('PLATFORM_NOT_CONFIGURED', e.message);

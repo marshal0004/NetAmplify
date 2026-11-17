@@ -89,6 +89,34 @@ describe('buildOAuthRedirectUri', () => {
     expect(uri).toBe('https://my.ngrok-free.dev/api/oauth/instagram/callback');
   });
 
+  it('strips a trailing slash from PUBLIC_APP_URL (avoids double-slash "Invalid redirect_uri")', () => {
+    // If the user sets PUBLIC_APP_URL="https://my.ngrok-free.dev/" (with a
+    // trailing slash), we must send
+    //   "https://my.ngrok-free.dev/api/oauth/instagram/callback"
+    // NOT
+    //   "https://my.ngrok-free.dev//api/oauth/instagram/callback"  (double slash)
+    // Instagram rejects the double-slash form at the authorize step with
+    // "Invalid redirect_uri" because it no longer matches the URI registered
+    // in the Meta console.
+    const uri = buildOAuthRedirectUri(
+      req({ 'x-forwarded-proto': 'https', 'x-forwarded-host': 'my.ngrok-free.dev' }),
+      'INSTAGRAM',
+      'https://subfrac-nonepigram.ngrok-free.dev/',
+    );
+    expect(uri).toBe(
+      'https://subfrac-nonepigram.ngrok-free.dev/api/oauth/instagram/callback',
+    );
+  });
+
+  it('strips multiple trailing slashes from PUBLIC_APP_URL (Threads)', () => {
+    const uri = buildOAuthRedirectUri(
+      req({ 'x-forwarded-proto': 'https', 'x-forwarded-host': 'my.ngrok-free.dev' }),
+      'THREADS',
+      'https://my.ngrok-free.dev///',
+    );
+    expect(uri).toBe('https://my.ngrok-free.dev/api/oauth/threads/callback');
+  });
+
   it('Facebook uses the request origin (localhost) — NOT PUBLIC_APP_URL', () => {
     // This is the core fix: FB OAuth works over localhost without registering
     // the ngrok domain in FB App Domains.
