@@ -5,6 +5,7 @@ import { json } from 'express';
 import { static as expressStatic } from 'express';
 import { existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
+import { UPLOADS_DIR } from '@netamplify/nestjs-libraries/services/uploads-dir';
 
 process.env.TZ = 'UTC';
 
@@ -55,14 +56,16 @@ async function start() {
   app.use(cookieParser(process.env.JWT_SECRET || 'netamplify-cookie-secret'));
   app.use(compression());
 
-  // Create uploads directory if it doesn't exist
-  const uploadsDir = join(process.cwd(), 'public', 'uploads');
+  // Create uploads directory if it doesn't exist (UPLOADS_DIR is the shared
+  // absolute path — same constant the upload controller saves to + the
+  // platform adapters read local files from. Eliminates the CWD-drift 404.)
+  const uploadsDir = UPLOADS_DIR;
   if (!existsSync(uploadsDir)) {
     mkdirSync(uploadsDir, { recursive: true });
   }
 
   // Serve uploaded files as static (e.g. /uploads/image-123.jpg)
-  app.use('/uploads', expressStatic(join(process.cwd(), 'public', 'uploads'), {
+  app.use('/uploads', expressStatic(uploadsDir, {
     maxAge: 86400000, // 1 day cache
   }));
 

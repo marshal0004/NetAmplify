@@ -8,9 +8,20 @@
 //
 // Hashnode API docs: https://apidocs.hashnode.com/graphql-api-v2
 //
-// IMPORTANT: The old endpoint `https://gql.hashnode.com` was retired in
-// May 2026 (redirects to a paid-access changelog page). The current
-// working endpoint is `https://gql-beta.hashnode.com`.
+// IMPORTANT — endpoint history (verified Nov 2026 via Hashnode changelog +
+// current API docs):
+//   - https://gql.hashnode.com  → the CURRENT, official GraphQL endpoint.
+//     (Confirmed by Hashnode's own API docs + the official Hashnode GQL Agent
+//     Skill: "All Hashnode API requests go through a single GraphQL endpoint:
+//      https://gql.hashnode.com (POST only)".)
+//   - https://gql-beta.hashnode.com → the DEPRECATED beta host. An earlier
+//     revision of this file swapped to gql-beta on the (incorrect) belief
+//     that gql.hashnode.com had been retired. That belief conflated two
+//     separate changelog items: (a) the May 2026 "GraphQL API is moving to a
+//     paid offering" change (Pro-plan requirement — NOT an endpoint change),
+//     and (b) a transient HTML redirect some users hit. The safeJsonResp()
+//     guard below already handles any non-JSON response defensively, so the
+//     correct, current endpoint gql.hashnode.com is used here.
 //
 // Trust model per docs/12-TRUST-COPY.md §1:
 //   "You generate this key yourself in your account's settings. It can
@@ -28,11 +39,9 @@ import type {
 import { PublishError } from '../adapter.interface';
 import type { Platform } from '@prisma/client';
 
-// The old endpoint `https://gql.hashnode.com` was retired in May 2026.
-// It now returns a 301 redirect to a paid-access changelog page (HTML),
-// which causes `resp.json()` to crash with "Unexpected token '<'".
-// The current working endpoint is `https://gql-beta.hashnode.com`.
-const HASHNODE_GRAPHQL_URL = 'https://gql-beta.hashnode.com';
+// The current official Hashnode GraphQL endpoint (POST only).
+// See https://apidocs.hashnode.com/graphql-api-v2 + the Nov 2026 API docs.
+const HASHNODE_GRAPHQL_URL = 'https://gql.hashnode.com';
 
 /**
  * The shape of the credentials JSON blob stored encrypted in
@@ -240,6 +249,10 @@ export class HashnodeAdapter implements PlatformAdapter {
         }
       }
     `;
+    // coverImageURL — Hashnode fetches the image from this URL for the post's
+    // cover. The hashnodeFormatter provides it as formatted.options.coverImage
+    // (from postCard.imageUrl). Only include it when present + truthy.
+    const coverImage = formatted.options?.coverImage as string | undefined;
     const variables = {
       input: {
         publicationId: creds.publicationId,
@@ -247,6 +260,7 @@ export class HashnodeAdapter implements PlatformAdapter {
         contentMarkdown: formatted.body,
         tags: tags.map((slug) => ({ slug, name: slug })),
         ...(formatted.url ? { canonicalUrl: formatted.url } : {}),
+        ...(coverImage ? { coverImageURL: coverImage } : {}),
       },
     };
 

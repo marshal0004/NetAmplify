@@ -48,6 +48,7 @@ import type {
 } from '../adapter.interface';
 import { PublishError } from '../adapter.interface';
 import type { Platform } from '@prisma/client';
+import { isVideoMedia } from '../../services/uploads-dir';
 
 // Instagram's own OAuth endpoints (NOT Facebook's). The authorize endpoint
 // is www.instagram.com/oauth/authorize (aligned with postflare's
@@ -442,26 +443,24 @@ export class InstagramAdapter implements PlatformAdapter {
       );
     }
 
-    // Get image URL from options — IG REQUIRES an image
-    const rawImageUrl = formatted.options?.imageUrl as string | undefined;
-    if (!rawImageUrl) {
+    // Get media URL from options — IG REQUIRES media (image or video).
+    // The PostCard stores a single `imageUrl` that holds both; detect the
+    // type from the URL extension to choose the correct Graph API flow.
+    const rawMediaUrl = formatted.options?.imageUrl as string | undefined;
+    if (!rawMediaUrl) {
       throw new PublishError(
         'VALIDATION',
-        'Instagram posts require an image. Upload an image in the PostCard editor.',
+        'Instagram posts require media (image or video). Upload an image or video in the PostCard editor.',
       );
     }
+    const isVideo = isVideoMedia(rawMediaUrl);
 
-    // Instagram's servers MUST be able to fetch the image_url over the public
-    // internet. If the URL points to localhost (which happens when:
-    //   (a) the PostCard was created before PUBLIC_APP_URL was set, OR
-    //   (b) the upload controller wasn't read with PUBLIC_APP_URL), Meta's
-    // servers cannot reach localhost and the publish fails with:
-    //   "Timeout" / error_subcode 2207003 (media download took too long).
-    //
-    // Fix: rewrite any localhost URL to use PUBLIC_APP_URL (typically the
-    // ngrok HTTPS tunnel URL). If PUBLIC_APP_URL is not set, throw a clear
-    // error — Instagram publishing cannot work without a public URL.
-    const imageUrl = rewriteLocalhostUrlForMeta(rawImageUrl);
+    // Instagram's servers MUST be able to fetch the media URL over the public
+    // internet (the Graph API is URL-only — unlike YouTube/X, we cannot upload
+    // bytes directly). Rewrite localhost → PUBLIC_APP_URL (ngrok HTTPS).
+    // If PUBLIC_APP_URL is unset, throw a clear error — IG publishing cannot
+    // work without a publicly-fetchable URL.
+    const mediaUrl = rewriteLocalhostUrlForMeta(rawMediaUrl);
 
     // Build caption
     const tagsLine =
@@ -471,11 +470,17 @@ export class InstagramAdapter implements PlatformAdapter {
     const urlLine = formatted.url ? `\n${formatted.url}` : '';
     const caption = `${formatted.title}\n\n${formatted.body}${urlLine}${tagsLine}`;
 
-    // Step 1: Create the media container
+    // Step 1: Create the media container.
+    //   image:  { image_url, caption, access_token }
+    //   video:  { media_type: 'VIDEO', video_url, caption, access_token }
+    //   (Video reels must be ≤60s + ≤100MB per IG Content Publishing limits;
+    //    H.264 mp4 is the recommended format.)
     const createBody = new URLSearchParams({
-      image_url: imageUrl,
       caption,
       access_token: creds.accessToken,
+      ...(isVideo
+        ? { media_type: 'VIDEO', video_url: mediaUrl }
+        : { image_url: mediaUrl }),
     });
 
     const createResp = await fetch(`${IG_GRAPH_BASE}/${igUserId}/media`, {
@@ -517,11 +522,17 @@ export class InstagramAdapter implements PlatformAdapter {
 
     const containerId = createData.id;
 
-    // Step 2: Wait 3s for image processing, then publish.
-    // The IG Content Publishing API requires a processing delay between
-    // container creation and publishing — otherwise media_publish fails
-    // with "Media is still processing".
-    await new Promise((resolve) => setTimeout(resolve, 3000));
+    // Step 2: Wait for processing, then publish.
+    //   image: 3s is enough (Meta downloads + processes the image quickly).
+    //   video: poll GET /{containerId}?fields=status_code until FINISHED
+    //          (videos take 10-60s to transcode). Fail on ERROR. Without this
+    //          poll, media_publish fails with "Media is still processing" for
+    //          any video larger than a few MB.
+    if (isVideo) {
+      await waitForIgVideoContainer(containerId, creds.accessToken);
+    } else {
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+    }
 
     const publishBody = new URLSearchParams({
       creation_id: containerId,
@@ -561,6 +572,52 @@ export class InstagramAdapter implements PlatformAdapter {
       url: `https://www.instagram.com/`,
     };
   }
+}
+
+/**
+ * Poll an Instagram VIDEO container's `status_code` until FINISHED.
+ *
+ * Video containers take longer to process than images — Meta must download +
+ * transcode the video before `media_publish` will succeed. Polls
+ * GET /{containerId}?fields=status_code every 5s (up to 120s). Throws:
+ *   - VALIDATION if status === 'ERROR' (the video may be in an unsupported
+ *     format or exceed IG's reel limits: ≤60s duration, ≤100MB).
+ *   - NETWORK on timeout (120s) — the caller (BullMQ worker) retries 3×.
+ */
+async function waitForIgVideoContainer(
+  containerId: string,
+  accessToken: string,
+): Promise<void> {
+  const maxAttempts = 24; // 24 × 5s = 120s ceiling
+  for (let i = 0; i < maxAttempts; i++) {
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+    let resp: Response;
+    try {
+      resp = await fetch(
+        `${IG_GRAPH_BASE}/${containerId}?fields=status_code&access_token=${encodeURIComponent(accessToken)}`,
+      );
+    } catch {
+      // Transient network error — keep polling (don't fail the whole publish
+      // on a single flaky GET).
+      continue;
+    }
+    if (!resp.ok) continue;
+    const data = (await resp.json().catch(() => ({}))) as { status_code?: string };
+    const status = data.status_code;
+    if (status === 'FINISHED') return;
+    if (status === 'ERROR') {
+      throw new PublishError(
+        'VALIDATION',
+        'Instagram video processing failed — the video may be in an unsupported format ' +
+          'or exceed IG reel limits (≤60s duration, ≤100MB, H.264 mp4 recommended).',
+      );
+    }
+    // IN_PROGRESS / IN_QUEUED / undefined → keep polling.
+  }
+  throw new PublishError(
+    'NETWORK',
+    'Instagram video processing timed out after 120s — retry the publish.',
+  );
 }
 
 /**

@@ -24,6 +24,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { ensureChromiumAvailable, findChromiumBinary } from './chromium-binary';
+import { isVideoMedia, readLocalUploadFile } from '../../services/uploads-dir';
 
 export interface XCookieCredentials extends AdapterCredentials {
   authToken: string;
@@ -234,82 +235,111 @@ export class XCookieAdapter implements PlatformAdapter {
       // Failures here are NOT silently swallowed — we log them clearly so the
       // user knows why their tweet went out as text-only. We do NOT throw,
       // because a text-only tweet is still a valid post (better than no post).
-      const imageUrl = formatted.options?.imageUrl as string | undefined;
+      const mediaUrl = formatted.options?.imageUrl as string | undefined;
       let imageAttached = false;
-      if (imageUrl) {
-        this._logger.log(`Image URL provided, attempting to attach: ${imageUrl}`);
+      if (mediaUrl) {
+        const isVideo = isVideoMedia(mediaUrl);
+        this._logger.log(
+          `Media URL provided, attempting to attach: ${mediaUrl} (type: ${isVideo ? 'video' : 'image'})`
+        );
         try {
-          // Download the image to a temp file.
-          // The backend CAN fetch localhost URLs (unlike Meta's servers).
-          // For non-localhost URLs (Unsplash, Imgur), this also works.
-          const imgResp = await fetch(imageUrl);
-          if (!imgResp.ok) {
-            this._logger.warn(`Image download failed (${imgResp.status}): ${imageUrl}`);
+          // Read the LOCAL file from disk FIRST — bypasses the ngrok/404/
+          // interstitial roundtrip entirely (the backend fetching its own
+          // ngrok URL was returning 404, and ngrok-free serves an HTML
+          // "Visit Site" interstitial to non-browser User-Agents like Node
+          // fetch). If the URL isn't a local /uploads/ URL (external CDN),
+          // fall back to HTTP fetch with the ngrok-skip-browser-warning header.
+          let mediaBuffer: Buffer;
+          let ext: string;
+          const localFile = readLocalUploadFile(mediaUrl);
+          if (localFile) {
+            mediaBuffer = localFile;
+            ext = isVideo
+              ? 'mp4'
+              : (mediaUrl.match(/\.(png|gif|webp)$/i)?.[1] || 'jpg');
+            this._logger.log(
+              `Read local file from disk (${mediaBuffer.byteLength} bytes)`
+            );
           } else {
-            const imgBuffer = await imgResp.arrayBuffer();
-            const imgContentType = imgResp.headers.get('content-type') || 'image/jpeg';
-            // Determine file extension from content-type
-            const ext = imgContentType.includes('png') ? 'png'
-              : imgContentType.includes('gif') ? 'gif'
-              : imgContentType.includes('webp') ? 'webp'
+            const mediaResp = await fetch(mediaUrl, {
+              headers: { 'ngrok-skip-browser-warning': 'skip' },
+            });
+            if (!mediaResp.ok) {
+              throw new Error(`HTTP ${mediaResp.status} fetching ${mediaUrl}`);
+            }
+            mediaBuffer = Buffer.from(await mediaResp.arrayBuffer());
+            const contentType = mediaResp.headers.get('content-type') || '';
+            ext = isVideo
+              ? 'mp4'
+              : contentType.includes('png') ? 'png'
+              : contentType.includes('gif') ? 'gif'
+              : contentType.includes('webp') ? 'webp'
               : 'jpg';
-            const tmpDir = os.tmpdir();
-            const tmpPath = path.join(tmpDir, `tweet-img-${Date.now()}.${ext}`);
-            fs.writeFileSync(tmpPath, Buffer.from(imgBuffer));
-            this._logger.log(`Image downloaded to temp file: ${tmpPath} (${imgBuffer.byteLength} bytes)`);
-
-            // X's compose page has multiple file inputs. Try them in order:
-            //   1. input[type="file"] with accept containing "image"
-            //   2. input[type="file"] with accept="image/*,video/*"
-            //   3. Any input[type="file"] (last resort)
-            //
-            // The old code only tried #1, which often returns null because X
-            // uses accept="image/*,video/*" (no "image" substring match in
-            // some HTML attribute orderings).
-            const fileInputSelectors = [
-              'input[type="file"][accept*="image"]',
-              'input[type="file"][accept*="video"]',
-              'input[type="file"][accept*="*"]',
-              'input[type="file"]',
-            ];
-            let fileInput: any = null;
-            let usedSelector = '';
-            for (const selector of fileInputSelectors) {
-              fileInput = await page.$(selector);
-              if (fileInput) {
-                usedSelector = selector;
-                this._logger.log(`Found file input using selector: ${selector}`);
-                break;
-              }
-            }
-
-            if (!fileInput) {
-              this._logger.warn(
-                `No file input found on x.com/compose/post. Tried ${fileInputSelectors.length} selectors. ` +
-                  `Tweet will be posted as text-only.`
-              );
-            } else {
-              await fileInput.setInputFiles(tmpPath);
-              this._logger.log(`setInputFiles() called via selector: ${usedSelector}`);
-              // Wait for X to upload the image + show the preview.
-              // X shows a preview thumbnail + removes the "Add image" button
-              // when the upload is complete. 3s is usually enough.
-              await page.waitForTimeout(3000);
-              imageAttached = true;
-              this._logger.log(`Image attached successfully`);
-            }
-
-            // Clean up temp file
-            try { fs.unlinkSync(tmpPath); } catch { /* ignore */ }
+            this._logger.log(
+              `Downloaded media via HTTP (${mediaBuffer.byteLength} bytes)`
+            );
           }
+
+          const tmpDir = os.tmpdir();
+          const tmpPath = path.join(tmpDir, `tweet-media-${Date.now()}.${ext}`);
+          fs.writeFileSync(tmpPath, mediaBuffer);
+          this._logger.log(
+            `Media saved to temp file: ${tmpPath} (${mediaBuffer.byteLength} bytes)`
+          );
+
+          // X's compose page has multiple file inputs. Try them in order:
+          //   1. input[type="file"] with accept containing "image"
+          //   2. input[type="file"] with accept containing "video"
+          //   3. input[type="file"] with accept containing "*"
+          //   4. Any input[type="file"] (last resort)
+          //
+          // The old code only tried #1, which often returns null because X
+          // uses accept="image/*,video/*" (no "image" substring match in
+          // some HTML attribute orderings).
+          const fileInputSelectors = [
+            'input[type="file"][accept*="image"]',
+            'input[type="file"][accept*="video"]',
+            'input[type="file"][accept*="*"]',
+            'input[type="file"]',
+          ];
+          let fileInput: any = null;
+          let usedSelector = '';
+          for (const selector of fileInputSelectors) {
+            fileInput = await page.$(selector);
+            if (fileInput) {
+              usedSelector = selector;
+              this._logger.log(`Found file input using selector: ${selector}`);
+              break;
+            }
+          }
+
+          if (!fileInput) {
+            this._logger.warn(
+              `No file input found on x.com/compose/post. Tried ${fileInputSelectors.length} selectors. ` +
+                `Tweet will be posted as text-only.`
+            );
+          } else {
+            await fileInput.setInputFiles(tmpPath);
+            this._logger.log(`setInputFiles() called via selector: ${usedSelector}`);
+            // Wait for X to upload the media + show the preview.
+            // X shows a preview thumbnail + removes the "Add media" button
+            // when the upload is complete. 3s is usually enough for images;
+            // videos may take longer but 3s is a reasonable start.
+            await page.waitForTimeout(3000);
+            imageAttached = true;
+            this._logger.log(`Media attached successfully`);
+          }
+
+          // Clean up temp file
+          try { fs.unlinkSync(tmpPath); } catch { /* ignore */ }
         } catch (e) {
           this._logger.warn(
-            `Image attachment failed: ${e instanceof Error ? e.message : String(e)}. ` +
+            `Media attachment failed: ${e instanceof Error ? e.message : String(e)}. ` +
               `Tweet will be posted as text-only.`
           );
         }
       } else {
-        this._logger.log(`No image URL provided — posting text-only tweet`);
+        this._logger.log(`No media URL provided — posting text-only tweet`);
       }
 
       // Find and click the Post button

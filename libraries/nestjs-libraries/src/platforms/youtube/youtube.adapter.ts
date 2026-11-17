@@ -64,6 +64,7 @@ import type {
 } from '../adapter.interface';
 import { PublishError } from '../adapter.interface';
 import type { Platform } from '@prisma/client';
+import { isVideoMedia, readLocalUploadFile } from '../../services/uploads-dir';
 
 // Google OAuth endpoints.
 const GOOGLE_AUTHORIZE_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
@@ -405,13 +406,23 @@ export class YouTubeAdapter implements PlatformAdapter {
       );
     }
 
-    // Video URL is REQUIRED — YouTube Data API v3 only supports video uploads.
-    const rawVideoUrl = formatted.options?.videoUrl as string | undefined;
-    if (!rawVideoUrl || typeof rawVideoUrl !== 'string') {
+    // The PostCard stores a single `imageUrl` that holds BOTH images + videos
+    // (the upload controller accepts .jpg/.png/.gif/.webp/.mp4). YouTube Data
+    // API v3 ONLY accepts video uploads (no text/image post endpoint), so we
+    // read formatted.options.imageUrl + require it to be a video file.
+    const rawMediaUrl = formatted.options?.imageUrl as string | undefined;
+    if (!rawMediaUrl || typeof rawMediaUrl !== 'string') {
       throw new PublishError(
         'VALIDATION',
-        'YouTube posts require a video. Set options.videoUrl to a publicly reachable ' +
-          'video URL (mp4, webm, or mov). YouTube Data API v3 has no text-only post endpoint.',
+        'YouTube posts require a video. Upload a video (.mp4, .webm, or .mov) in the ' +
+          'PostCard editor. YouTube Data API v3 has no text-only or image post endpoint.',
+      );
+    }
+    if (!isVideoMedia(rawMediaUrl)) {
+      throw new PublishError(
+        'VALIDATION',
+        `YouTube requires a VIDEO file (.mp4/.webm/.mov). The PostCard media URL is not ` +
+          `a video: ${rawMediaUrl}. Upload a video instead of an image.`,
       );
     }
 
@@ -471,33 +482,53 @@ export class YouTubeAdapter implements PlatformAdapter {
       );
     }
 
-    // Step 2: Fetch the video bytes + upload them to the session URI.
-    const resolvedVideoUrl = resolveVideoUrl(rawVideoUrl);
+    // Step 2: Get the video bytes + upload them to the session URI.
+    //
+    // Read the LOCAL file from disk FIRST — this bypasses the ngrok/404/
+    // interstitial roundtrip entirely (the backend loopback-fetching its own
+    // ngrok URL is fragile + was returning 404, and ngrok-free serves an HTML
+    // "Visit Site" interstitial to non-browser User-Agents like Node fetch).
+    // If the URL isn't a local /uploads/ URL (external CDN), fall back to HTTP
+    // fetch with the ngrok-skip-browser-warning header.
     let videoBytes: ArrayBuffer;
     let videoMime: string;
-    try {
-      const videoResp = await fetch(resolvedVideoUrl);
-      if (!videoResp.ok) {
+    const localFile = readLocalUploadFile(rawMediaUrl);
+    if (localFile) {
+      // Buffer → ArrayBuffer slice (fetch accepts Buffer directly, but
+      // ArrayBuffer is the canonical byte-upload body type).
+      videoBytes = localFile.buffer.slice(
+        localFile.byteOffset,
+        localFile.byteOffset + localFile.byteLength,
+      ) as ArrayBuffer;
+      videoMime = inferMimeFromUrl(rawMediaUrl) || 'video/mp4';
+    } else {
+      const resolvedVideoUrl = resolveVideoUrl(rawMediaUrl);
+      try {
+        const videoResp = await fetch(resolvedVideoUrl, {
+          headers: { 'ngrok-skip-browser-warning': 'skip' },
+        });
+        if (!videoResp.ok) {
+          throw new PublishError(
+            'NETWORK',
+            `Could not fetch video bytes from ${resolvedVideoUrl} (${videoResp.status})`,
+          );
+        }
+        videoBytes = await videoResp.arrayBuffer();
+        videoMime =
+          videoResp.headers.get('content-type') ||
+          inferMimeFromUrl(resolvedVideoUrl) ||
+          'video/mp4';
+      } catch (e) {
+        if (e instanceof PublishError) throw e;
         throw new PublishError(
           'NETWORK',
-          `Could not fetch video bytes from ${resolvedVideoUrl} (${videoResp.status})`,
+          `Failed to fetch video bytes from ${resolvedVideoUrl}: ${e instanceof Error ? e.message : String(e)}`,
         );
       }
-      videoBytes = await videoResp.arrayBuffer();
-      videoMime =
-        videoResp.headers.get('content-type') ||
-        inferMimeFromUrl(resolvedVideoUrl) ||
-        'video/mp4';
-    } catch (e) {
-      if (e instanceof PublishError) throw e;
-      throw new PublishError(
-        'NETWORK',
-        `Failed to fetch video bytes from ${resolvedVideoUrl}: ${e instanceof Error ? e.message : String(e)}`,
-      );
     }
 
     if (videoBytes.byteLength === 0) {
-      throw new PublishError('VALIDATION', `Video file at ${resolvedVideoUrl} is empty (0 bytes)`);
+      throw new PublishError('VALIDATION', `Video file is empty (0 bytes)`);
     }
 
     // PUT the raw bytes to the session URI.

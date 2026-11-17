@@ -22,6 +22,7 @@ import { existsSync, mkdirSync, writeFileSync, renameSync } from 'fs';
 import { join, extname } from 'path';
 import { randomBytes } from 'crypto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { UPLOADS_DIR } from '@netamplify/nestjs-libraries/services/uploads-dir';
 
 const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.mp4'];
 const MAX_FILE_SIZE = (parseInt(process.env.MAX_UPLOAD_SIZE_MB || '50', 10)) * 1024 * 1024;
@@ -112,8 +113,12 @@ export class UploadController {
     const randomHex = randomBytes(8).toString('hex');
     const filename = `${userId}-${randomHex}${ext}`;
 
-    // Save to public/uploads/
-    const uploadsDir = join(process.cwd(), 'public', 'uploads');
+    // Save to the shared uploads dir (UPLOADS_DIR — absolute, env-configurable
+    // via UPLOAD_DIRECTORY, defaults to <cwd>/public/uploads). Using the shared
+    // constant guarantees the save path matches the serve path (main.ts
+    // express.static + the platform adapters' local-file reads), eliminating
+    // the CWD-drift 404 that broke Instagram + X media publishing.
+    const uploadsDir = UPLOADS_DIR;
     if (!existsSync(uploadsDir)) {
       mkdirSync(uploadsDir, { recursive: true });
     }
