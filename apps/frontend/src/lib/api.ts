@@ -69,6 +69,27 @@ async function request<T>(
   schema?: ZodSchema<T>,
 ): Promise<T> {
   const token = getToken();
+
+  // Guard: if there is no session token AND this is a guarded route (anything
+  // other than the public auth endpoints), fail fast with a clear message
+  // instead of sending a headerless request that the backend rejects with a
+  // cryptic "No auth token" 401. This is what makes the difference between the
+  // user seeing "You must be logged in" (and going to log in) vs. an opaque
+  // "An unexpected error occurred" — the latter happens when the user is on a
+  // different origin (e.g. the ngrok URL) where they haven't logged in, so
+  // localStorage has no token. The raw-fetch handlers in ConnectChecklist
+  // already guard with `if (!jwtToken) return`, but this api-client path did
+  // not, so Bluesky (which uses connectionsApi.connect → request()) failed
+  // silently.
+  const isPublicAuthPath = /^\/auth\/(signup|login|reset-request|reset-confirm)(\/|$)/.test(path);
+  if (!token && !isPublicAuthPath) {
+    throw new ApiError(
+      401,
+      'UNAUTHENTICATED',
+      'You must be logged in to NetAmplify. Please log in and try again.',
+    );
+  }
+
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...((options.headers as Record<string, string>) ?? {}),

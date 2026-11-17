@@ -193,18 +193,37 @@ export const CONNECT_TELEGRAM_SCHEMA = z.object({
 });
 
 export const CONNECT_BLUESKY_SCHEMA = z.object({
+  // Normalize BEFORE validating: trim whitespace, strip a leading @ (users
+  // trained on postiz's "@handle" mention format paste it here), and lowercase.
+  // Without this, "@Jane.bsky.social " or an uppercased app password (some
+  // password managers) is rejected at the Zod layer with "Invalid handle"
+  // before Bluesky is ever contacted — even though the credentials are correct.
+  // Postiz's own provider accepts /^.+$/ ; we keep a structural regex but only
+  // AFTER normalization, so the user's exact paste doesn't matter.
   handle: z
     .string()
-    .min(1, 'Handle is required')
-    .max(200)
-    .regex(/^[\w.\-]+(\.bsky\.social)?$/, 'Invalid Bluesky handle'),
+    .trim()
+    .transform((h) => h.replace(/^@+/, '').toLowerCase())
+    .pipe(
+      z
+        .string()
+        .min(1, 'Handle is required')
+        .max(200)
+        .regex(/^[\w.\-]+(\.bsky\.social)?$/, 'Invalid Bluesky handle (e.g. jane.bsky.social)'),
+    ),
   appPassword: z
     .string()
-    .min(1, 'App password is required')
-    .max(256)
-    .regex(
-      /^[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}$/,
-      'App password should be in xxxx-xxxx-xxxx-xxxx format (lowercase alphanumeric)'
+    .trim()
+    .transform((p) => p.toLowerCase())
+    .pipe(
+      z
+        .string()
+        .min(1, 'App password is required')
+        .max(256)
+        .regex(
+          /^[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}$/,
+          'App password should be in xxxx-xxxx-xxxx-xxxx format (lowercase alphanumeric)',
+        ),
     ),
 });
 

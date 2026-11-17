@@ -502,13 +502,32 @@ describe('CONNECT_BLUESKY_SCHEMA', () => {
     ).toBe(false);
   });
 
-  it('rejects an app password with uppercase', () => {
-    expect(
-      CONNECT_BLUESKY_SCHEMA.safeParse({
-        handle: 'jane.bsky.social',
-        appPassword: 'Abcd-efgh-ijkl-mnop',
-      }).success
-    ).toBe(false);
+  it('normalizes an uppercase app password to lowercase (accepts it)', () => {
+    // App passwords pasted from password managers sometimes arrive uppercase.
+    // The schema lowercases the input before validating, so a structurally
+    // valid app password is accepted regardless of case (postiz-compatible).
+    const result = CONNECT_BLUESKY_SCHEMA.safeParse({
+      handle: 'jane.bsky.social',
+      appPassword: 'Abcd-efgh-ijkl-mnop',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.appPassword).toBe('abcd-efgh-ijkl-mnop');
+    }
+  });
+
+  it('strips a leading @ + lowercases the handle (postiz @handle paste)', () => {
+    // Users trained on postiz's "@handle" mention format paste "@Jane.bsky.social"
+    // here. The schema strips the leading @ and lowercases before validating,
+    // so the credentials are accepted + normalized.
+    const result = CONNECT_BLUESKY_SCHEMA.safeParse({
+      handle: '@Jane.bsky.social',
+      appPassword: 'abcd-efgh-ijkl-mnop',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.handle).toBe('jane.bsky.social');
+    }
   });
 
   it('rejects an empty handle', () => {

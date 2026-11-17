@@ -143,10 +143,18 @@ export class TwitterCaptureService {
       });
 
       // Detect if the browser was closed by the user before login completed.
+      // captureComplete is set to true right before the success return, so the
+      // close handler (which ALSO fires when we close the browser ourselves in
+      // the finally block after a successful capture) doesn't log a spurious
+      // "User closed the browser window before login completed" WARN right
+      // after "✓ Capture complete".
       let userClosedBrowser = false;
+      let captureComplete = false;
       page.on('close', () => {
         userClosedBrowser = true;
-        this._logger.warn('User closed the browser window before login completed');
+        if (!captureComplete) {
+          this._logger.warn('User closed the browser window before login completed');
+        }
       });
 
       // Poll for auth_token + ct0 cookies.
@@ -287,6 +295,7 @@ export class TwitterCaptureService {
         this._logger.warn('Could not scrape @username — using placeholder "X user"');
       }
 
+      captureComplete = true;
       this._logger.log(`✓ Capture complete: @${username}`);
       return { authToken, ct0, username };
     } catch (e) {
