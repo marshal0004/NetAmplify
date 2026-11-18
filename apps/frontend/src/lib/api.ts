@@ -406,6 +406,58 @@ export const publishApi = {
 };
 
 // ============================================================================
+// Platforms API — per-platform config (char limits, media support) for the
+// composer + publish page. Single source of truth: the frontend fetches this
+// once + renders live char counters + per-platform metadata without
+// duplicating the backend's PLATFORM_CONFIG.
+// ============================================================================
+const PlatformConfigSchema = z.object({
+  platform: z.string(),
+  name: z.string(),
+  charLimit: z.number(),
+  rateLimitPerMinute: z.number().nullable(),
+  markdownSupported: z.boolean(),
+  imageSupported: z.boolean(),
+  maxImages: z.number(),
+});
+
+export type PlatformConfig = z.infer<typeof PlatformConfigSchema>;
+
+export const platformsApi = {
+  /** GET /api/platforms — per-platform config (char limits, media support). */
+  async list(): Promise<PlatformConfig[]> {
+    return request('/platforms', {}, z.array(PlatformConfigSchema));
+  },
+};
+
+// ============================================================================
+// Media API — the user's uploaded media library (postflare-style reusable
+// media grid). GET lists the user's files; DELETE removes one.
+// ============================================================================
+const MediaItemSchema = z.object({
+  filename: z.string(),
+  url: z.string(),
+  mimeType: z.string(),
+  size: z.number(),
+  isVideo: z.boolean(),
+  uploadedAt: z.string(),
+});
+
+export type MediaItem = z.infer<typeof MediaItemSchema>;
+
+export const mediaApi = {
+  /** GET /api/media — list the current user's uploaded media (newest first). */
+  async list(): Promise<MediaItem[]> {
+    return request('/media', {}, z.array(MediaItemSchema));
+  },
+
+  /** DELETE /api/media/:filename — remove a media file from the library. */
+  async delete(filename: string): Promise<void> {
+    return request(`/media/${encodeURIComponent(filename)}`, { method: 'DELETE' });
+  },
+};
+
+// ============================================================================
 // Health API
 // ============================================================================
 export const healthApi = {

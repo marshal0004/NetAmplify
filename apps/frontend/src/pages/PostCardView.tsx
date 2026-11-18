@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { postcardApi } from '@/lib/api';
 import { MediaPreview } from '@/components/MediaPreview';
 import { Button } from '@/components/ui/button';
@@ -62,7 +64,9 @@ export function PostCardView() {
               </div>
             )}
             <div className="mt-8 border-t border-white/5 pt-6">
-              <div className="prose prose-sm prose-invert max-w-none whitespace-pre-wrap text-white/70">{card.description}</div>
+              <div className="prose prose-sm prose-invert max-w-none text-white/70">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{card.description}</ReactMarkdown>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -74,6 +78,9 @@ export function PostCardView() {
         transition={{ duration: 0.5, delay: 0.2 }}
         className="flex gap-3"
       >
+        <Link to={`/dashboard/postcards/${card.id}/edit`}>
+          <Button variant="outline" className="border-white/10 bg-white/5 text-white/60 hover:bg-white/10">✏️ Edit</Button>
+        </Link>
         <Link to={`/dashboard/postcards/${card.id}/publish`}>
           <Button className="bg-gradient-to-r from-indigo-500 to-purple-500 border-0">🚀 Amplify to platforms</Button>
         </Link>

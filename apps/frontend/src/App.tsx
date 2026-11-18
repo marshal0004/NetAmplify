@@ -8,8 +8,9 @@
 //   /reset/confirm             → Password reset confirm
 //   /dashboard                 → Dashboard (auth required)
 //   /dashboard/connections     → Connect Checklist (auth required)
-//   /dashboard/postcards/new   → Composer (auth required)
-//   /dashboard/postcards/:id   → View/edit (auth required)
+//   /dashboard/postcards/new        → Composer (create, auth required)
+//   /dashboard/postcards/:id        → View (auth required)
+//   /dashboard/postcards/:id/edit   → Composer (edit, auth required)
 //   /dashboard/postcards/:id/publish → Publish page (auth required)
 //   /dashboard/history         → History (auth required)
 //   /dashboard/settings        → Profile + Trust & Security (auth required)
@@ -53,6 +54,7 @@ export default function App() {
         <Route path="connections" element={<ConnectChecklist />} />
         <Route path="postcards/new" element={<PostCardComposer />} />
         <Route path="postcards/:id" element={<PostCardView />} />
+        <Route path="postcards/:id/edit" element={<PostCardComposer />} />
         <Route path="postcards/:id/publish" element={<PublishPage />} />
         <Route path="history" element={<History />} />
         <Route path="settings" element={<Settings />} />

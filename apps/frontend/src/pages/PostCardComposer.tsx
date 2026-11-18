@@ -1,9 +1,27 @@
-import { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+// /home/z/my-project/netamplify-ref/apps/frontend/src/pages/PostCardComposer.tsx
+// NetAmplify — PostCard composer (create OR edit).
+//
+// Postflare-grade composer features:
+//   - Media Library grid (reusable uploaded media — no re-upload needed)
+//   - Markdown preview (react-markdown + remark-gfm, was naive pre-wrap)
+//   - Edit mode (accepts :id via useParams → loads the PostCard → PATCH on save)
+//   - Drag-and-drop OR click-to-browse upload (unchanged)
+//   - Live char counters per PostCard field (unchanged)
+//
+// Routing:
+//   /dashboard/postcards/new        → create mode (no :id param)
+//   /dashboard/postcards/:id/edit   → edit mode (loads + PATCHes the PostCard)
+
+import { useState, useRef, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { postcardApi } from '@/lib/api';
 import { getErrorMessage, getFieldErrors } from '@/lib/errors';
 import { MediaPreview } from '@/components/MediaPreview';
+import { MediaLibrary } from '@/components/MediaLibrary';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -13,6 +31,10 @@ import { Badge } from '@/components/ui/badge';
 
 export function PostCardComposer() {
   const navigate = useNavigate();
+  const { id: editId } = useParams<{ id: string }>();
+  const isEditMode = Boolean(editId);
+  const queryClient = useQueryClient();
+
   const [title, setTitle] = useState('');
   const [summary, setSummary] = useState('');
   const [description, setDescription] = useState('');
@@ -25,9 +47,32 @@ export function PostCardComposer() {
   const [imagePreview, setImagePreview] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showPreview, setShowPreview] = useState(false);
+  const [showMediaLibrary, setShowMediaLibrary] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Edit mode: load the existing PostCard + populate the form once.
+  const { data: existingCard } = useQuery({
+    queryKey: ['postcard', editId],
+    queryFn: () => postcardApi.get(editId!),
+    enabled: !!editId,
+  });
+
+  const populatedRef = useRef(false);
+  useEffect(() => {
+    if (existingCard && !populatedRef.current) {
+      setTitle(existingCard.title);
+      setSummary(existingCard.summary);
+      setDescription(existingCard.description);
+      setTechStack(existingCard.techStack);
+      setRepoUrl(existingCard.repoUrl ?? '');
+      setLiveUrl(existingCard.liveUrl ?? '');
+      setImageUrl(existingCard.imageUrl ?? '');
+      setImagePreview(existingCard.imageUrl ?? '');
+      populatedRef.current = true;
+    }
+  }, [existingCard]);
 
   function addTechTag() {
     const tag = techInput.trim().toLowerCase();
@@ -46,20 +91,13 @@ export function PostCardComposer() {
 
       const jwtToken = localStorage.getItem('netamplify_token');
       if (!jwtToken) {
-        // Guard against `Bearer null` → backend "jwt malformed". The api-client
-        // path (lib/api.ts request()) guards this too, but the upload uses a raw
-        // fetch with FormData (the api client forces Content-Type: json, which
-        // would clobber the multipart boundary). Dispatch the unauthorized event
-        // so the auth context clears `user` + RequireAuth redirects to /login.
         window.dispatchEvent(new CustomEvent('netamplify:unauthorized'));
         setFormError('You must be logged in to NetAmplify. Please log in and try again.');
         return;
       }
       const resp = await fetch('/api/upload', {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${jwtToken}`,
-        },
+        headers: { Authorization: `Bearer ${jwtToken}` },
         body: formData,
       });
 
@@ -68,9 +106,11 @@ export function PostCardComposer() {
         throw new Error(`Upload failed: ${errText}`);
       }
 
-      const data = await resp.json() as { url: string; filename: string; mimeType: string };
+      const data = (await resp.json()) as { url: string; filename: string; mimeType: string };
       setImageUrl(data.url);
       setImagePreview(data.url);
+      // Invalidate the media library so the new upload appears in the grid.
+      queryClient.invalidateQueries({ queryKey: ['media-library'] });
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Upload failed');
     } finally {
@@ -80,17 +120,19 @@ export function PostCardComposer() {
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (file) {
-      handleFileUpload(file);
-    }
+    if (file) handleFileUpload(file);
   }
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault();
     const file = e.dataTransfer.files?.[0];
-    if (file) {
-      handleFileUpload(file);
-    }
+    if (file) handleFileUpload(file);
+  }
+
+  function pickFromLibrary(url: string) {
+    setImageUrl(url);
+    setImagePreview(url);
+    setShowMediaLibrary(false);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -99,11 +141,18 @@ export function PostCardComposer() {
     setFormError(null);
     setLoading(true);
     try {
-      const card = await postcardApi.create({
-        title, summary, description, techStack,
-        repoUrl: repoUrl || undefined, liveUrl: liveUrl || undefined,
+      const payload = {
+        title,
+        summary,
+        description,
+        techStack,
+        repoUrl: repoUrl || undefined,
+        liveUrl: liveUrl || undefined,
         imageUrl: imageUrl || undefined,
-      });
+      };
+      const card = isEditMode
+        ? await postcardApi.update(editId!, payload)
+        : await postcardApi.create(payload);
       navigate(`/dashboard/postcards/${card.id}`);
     } catch (err) {
       setErrors(getFieldErrors(err));
@@ -121,12 +170,17 @@ export function PostCardComposer() {
         transition={{ duration: 0.5 }}
         className="text-3xl font-bold text-white"
       >
-        New Post Card
+        {isEditMode ? 'Edit Post Card' : 'New Post Card'}
       </motion.h1>
 
-      {formError && <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">{formError}</div>}
+      {formError && (
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
+          {formError}
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Basics */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }}>
           <Card className="border-white/10 bg-white/[0.03] backdrop-blur-xl">
             <CardHeader><CardTitle className="text-white">Basics</CardTitle></CardHeader>
@@ -149,6 +203,7 @@ export function PostCardComposer() {
           </Card>
         </motion.div>
 
+        {/* Story (Markdown) — react-markdown preview */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.15 }}>
           <Card className="border-white/10 bg-white/[0.03] backdrop-blur-xl">
             <CardHeader>
@@ -164,12 +219,12 @@ export function PostCardComposer() {
                 <div className="prose prose-sm prose-invert max-w-none rounded-lg border border-white/5 bg-black/30 p-4 text-white/70">
                   <h1>{title}</h1>
                   <p><em>{summary}</em></p>
-                  <div className="whitespace-pre-wrap">{description}</div>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{description}</ReactMarkdown>
                 </div>
               ) : (
                 <div>
                   <Textarea value={description} onChange={(e) => setDescription(e.target.value)} required maxLength={5000} rows={12}
-                    placeholder="## Introduction&#10;&#10;Describe your project here. Markdown supported."
+                    placeholder="## Introduction&#10;&#10;Describe your project here. Markdown supported (headings, **bold**, lists, code, links)."
                     className="font-mono text-sm border-white/10 bg-white/5 text-white placeholder:text-white/20 focus:border-indigo-500/50" />
                   <p className="mt-1 text-xs text-white/30">{description.length}/5000</p>
                   {errors.description && <p className="text-xs text-red-400">{errors.description}</p>}
@@ -179,6 +234,7 @@ export function PostCardComposer() {
           </Card>
         </motion.div>
 
+        {/* Tech Stack */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.2 }}>
           <Card className="border-white/10 bg-white/[0.03] backdrop-blur-xl">
             <CardHeader><CardTitle className="text-white">Tech Stack</CardTitle></CardHeader>
@@ -205,9 +261,10 @@ export function PostCardComposer() {
           </Card>
         </motion.div>
 
+        {/* Links + Media */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.25 }}>
           <Card className="border-white/10 bg-white/[0.03] backdrop-blur-xl">
-            <CardHeader><CardTitle className="text-white">Links (optional)</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-white">Links + Media</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div>
                 <Label htmlFor="repoUrl" className="text-white/60">Repository URL</Label>
@@ -222,7 +279,12 @@ export function PostCardComposer() {
                 {errors.liveUrl && <p className="text-xs text-red-400">{errors.liveUrl}</p>}
               </div>
               <div>
-                <Label className="text-white/60">Image / Video <span className="text-white/30">(required for Instagram, recommended for all)</span></Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-white/60">Image / Video <span className="text-white/30">(required for Instagram/Threads, recommended for all)</span></Label>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setShowMediaLibrary(!showMediaLibrary)} className="text-white/50 hover:text-white">
+                    {showMediaLibrary ? 'Hide library' : 'Pick from library'}
+                  </Button>
+                </div>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -230,6 +292,15 @@ export function PostCardComposer() {
                   onChange={handleFileSelect}
                   className="hidden"
                 />
+                {showMediaLibrary && (
+                  <div className="mt-2">
+                    <MediaLibrary
+                      onSelect={pickFromLibrary}
+                      selectedUrl={imageUrl}
+                      onUploadNew={() => fileInputRef.current?.click()}
+                    />
+                  </div>
+                )}
                 {imagePreview ? (
                   <div className="mt-2 relative">
                     <MediaPreview src={imagePreview} alt="Preview" className="max-h-48 rounded-lg border border-white/10" />
@@ -242,22 +313,24 @@ export function PostCardComposer() {
                     </button>
                   </div>
                 ) : (
-                  <div
-                    onClick={() => !uploading && fileInputRef.current?.click()}
-                    onDrop={handleDrop}
-                    onDragOver={(e) => e.preventDefault()}
-                    className="mt-2 border-2 border-dashed border-white/10 rounded-lg p-8 text-center cursor-pointer hover:border-indigo-500/50 transition-colors"
-                  >
-                    {uploading ? (
-                      <p className="text-white/40">Uploading...</p>
-                    ) : (
-                      <>
-                        <p className="text-white/40">Drag & drop an image or video here</p>
-                        <p className="text-white/20 text-sm mt-1">or click to browse</p>
-                        <p className="text-white/20 text-xs mt-2">JPG, PNG, GIF, WebP, MP4 — max 50MB</p>
-                      </>
-                    )}
-                  </div>
+                  !showMediaLibrary && (
+                    <div
+                      onClick={() => !uploading && fileInputRef.current?.click()}
+                      onDrop={handleDrop}
+                      onDragOver={(e) => e.preventDefault()}
+                      className="mt-2 border-2 border-dashed border-white/10 rounded-lg p-8 text-center cursor-pointer hover:border-indigo-500/50 transition-colors"
+                    >
+                      {uploading ? (
+                        <p className="text-white/40">Uploading…</p>
+                      ) : (
+                        <>
+                          <p className="text-white/40">Drag &amp; drop an image or video here</p>
+                          <p className="text-white/20 text-sm mt-1">or click to browse — or pick from your Media Library</p>
+                          <p className="text-white/20 text-xs mt-2">JPG, PNG, GIF, WebP, MP4 — max 50MB</p>
+                        </>
+                      )}
+                    </div>
+                  )
                 )}
               </div>
             </CardContent>
@@ -266,9 +339,9 @@ export function PostCardComposer() {
 
         <div className="flex gap-3">
           <Button type="submit" disabled={loading} className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 border-0">
-            {loading ? 'Creating…' : 'Create Post Card'}
+            {loading ? (isEditMode ? 'Saving…' : 'Creating…') : (isEditMode ? 'Save Changes' : 'Create Post Card')}
           </Button>
-          <Button type="button" variant="outline" onClick={() => navigate('/dashboard')} className="border-white/10 bg-white/5 text-white/60 hover:bg-white/10">
+          <Button type="button" variant="outline" onClick={() => navigate(-1)} className="border-white/10 bg-white/5 text-white/60 hover:bg-white/10">
             Cancel
           </Button>
         </div>
