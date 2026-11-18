@@ -80,7 +80,6 @@ export class PublishService {
     if (!parsed.success) {
       // Extract Zod field errors so the client sees WHICH field is invalid
       // (e.g., "platforms.0.platform — Invalid enum value(s). Expected ...,
-      // received 'REDDIT'") instead of a generic "Invalid publish input".
       // errorMapper serializes fieldErrors into the response envelope; the
       // frontend's getFieldErrors() (lib/errors.ts) surfaces them in forms.
       const fieldErrors: Record<string, string> = {};
@@ -300,7 +299,6 @@ export class PublishService {
   /**
    * List user's posts with pagination + filters.
    * Per docs/05-API-SPEC.md:
-   *   GET /api/posts?page=1&platform=REDDIT&status=SUCCESS
    */
   async list(
     userId: string,

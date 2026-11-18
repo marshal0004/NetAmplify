@@ -36,7 +36,7 @@ export function History() {
         <select value={platformFilter} onChange={(e) => setPlatformFilter(e.target.value)}
           className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white">
           <option value="">All platforms</option>
-          {['REDDIT', 'DISCORD', 'DEVTO', 'TELEGRAM', 'BLUESKY', 'HASHNODE', 'TWITTER', 'LINKEDIN'].map((p) => (
+          {['DISCORD', 'DEVTO', 'TELEGRAM', 'BLUESKY', 'HASHNODE', 'TWITTER', 'LINKEDIN', 'MASTODON', 'WORDPRESS', 'TWITTER_COOKIE', 'FACEBOOK', 'INSTAGRAM', 'YOUTUBE', 'THREADS'].map((p) => (
             <option key={p} value={p}>{p}</option>
           ))}
         </select>

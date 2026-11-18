@@ -46,6 +46,6 @@
     "copyright": "MIT License — NetAmplify 2026",
     "category": "SocialNetworking",
     "shortDescription": "One-click multi-platform posting for students",
-    "longDescription": "NetAmplify lets students create a PostCard once and publish it to Reddit, Discord, Dev.to, Telegram, Bluesky, Hashnode, Mastodon, WordPress, X, and LinkedIn — with per-platform formatting, AES-256-GCM encrypted credentials, and zero-copy cookie capture via native WebView."
+    "longDescription": "NetAmplify lets students create a PostCard once and publish it to Discord, Dev.to, Telegram, Bluesky, Hashnode, Mastodon, WordPress, X, and LinkedIn — with per-platform formatting, AES-256-GCM encrypted credentials, and zero-copy cookie capture via native WebView."
   }
 }

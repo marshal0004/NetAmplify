@@ -12,7 +12,6 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import {
   isTauri,
-  captureRedditCookies,
   captureXCookies,
   proxyCookieConnection,
   captureAndConnect,
@@ -58,33 +57,6 @@ describe('tauri bridge', () => {
     });
   });
 
-  describe('captureRedditCookies()', () => {
-    it('throws a descriptive error when not running in Tauri', async () => {
-      const w = window as unknown as Record<string, unknown>;
-      delete w.__TAURI_INTERNALS__;
-      await expect(captureRedditCookies()).rejects.toThrow(/desktop app/i);
-    });
-
-    it('invokes the capture_reddit_cookies Tauri command when in Tauri', async () => {
-      const mockInvoke = vi.fn().mockResolvedValue({
-        platform: 'REDDIT_COOKIE',
-        cookies: { token_v2: 'jwt-here', csrf_token: 'csrf-here' },
-        username: 'u/testuser',
-        user_id: 't2_abc',
-        captured_at: '2026-09-19T12:00:00Z',
-      });
-      const w = window as unknown as Record<string, unknown>;
-      w.__TAURI_INTERNALS__ = { invoke: mockInvoke };
-
-      const result = await captureRedditCookies();
-
-      expect(mockInvoke).toHaveBeenCalledWith('capture_reddit_cookies', undefined);
-      expect(result.platform).toBe('REDDIT_COOKIE');
-      expect(result.cookies.token_v2).toBe('jwt-here');
-      expect(result.username).toBe('u/testuser');
-    });
-  });
-
   describe('captureXCookies()', () => {
     it('throws a descriptive error when not running in Tauri', async () => {
       const w = window as unknown as Record<string, unknown>;
@@ -116,25 +88,25 @@ describe('tauri bridge', () => {
       const w = window as unknown as Record<string, unknown>;
       delete w.__TAURI_INTERNALS__;
       await expect(
-        proxyCookieConnection('REDDIT_COOKIE', {}, 'jwt')
+        proxyCookieConnection('TWITTER_COOKIE', {}, 'jwt')
       ).rejects.toThrow(/desktop app/i);
     });
 
     it('invokes the proxy_cookie_connection command with correct args', async () => {
-      const mockInvoke = vi.fn().mockResolvedValue({ id: 'conn-123', username: 'u/test' });
+      const mockInvoke = vi.fn().mockResolvedValue({ id: 'conn-123', username: '@test' });
       const w = window as unknown as Record<string, unknown>;
       w.__TAURI_INTERNALS__ = { invoke: mockInvoke };
 
-      const cookies = { token_v2: 'jwt', csrf_token: 'csrf' };
-      const result = await proxyCookieConnection('REDDIT_COOKIE', cookies, 'netamplify-jwt');
+      const cookies = { auth_token: 'hex', ct0: 'csrf' };
+      const result = await proxyCookieConnection('TWITTER_COOKIE', cookies, 'netamplify-jwt');
 
       expect(mockInvoke).toHaveBeenCalledWith('proxy_cookie_connection', {
-        platform: 'REDDIT_COOKIE',
+        platform: 'TWITTER_COOKIE',
         cookies,
         jwtToken: 'netamplify-jwt',
       });
       expect(result.id).toBe('conn-123');
-      expect(result.username).toBe('u/test');
+      expect(result.username).toBe('@test');
     });
   });
 
@@ -143,33 +115,8 @@ describe('tauri bridge', () => {
       const w = window as unknown as Record<string, unknown>;
       delete w.__TAURI_INTERNALS__;
       await expect(
-        captureAndConnect('REDDIT_COOKIE', 'jwt')
+        captureAndConnect('TWITTER_COOKIE', 'jwt')
       ).rejects.toThrow(/desktop app/i);
-    });
-
-    it('chains capture + proxy for Reddit', async () => {
-      const mockInvoke = vi.fn()
-        .mockResolvedValueOnce({
-          platform: 'REDDIT_COOKIE',
-          cookies: { token_v2: 'jwt', csrf_token: 'csrf' },
-          username: 'u/test',
-          user_id: 't2_x',
-          captured_at: '2026-09-19T12:00:00Z',
-        })
-        .mockResolvedValueOnce({ id: 'conn-1', username: 'u/test' });
-      const w = window as unknown as Record<string, unknown>;
-      w.__TAURI_INTERNALS__ = { invoke: mockInvoke };
-
-      const result = await captureAndConnect('REDDIT_COOKIE', 'netamplify-jwt');
-
-      expect(mockInvoke).toHaveBeenCalledTimes(2);
-      expect(mockInvoke).toHaveBeenNthCalledWith(1, 'capture_reddit_cookies', undefined);
-      expect(mockInvoke).toHaveBeenNthCalledWith(2, 'proxy_cookie_connection', {
-        platform: 'REDDIT_COOKIE',
-        cookies: { token_v2: 'jwt', csrf_token: 'csrf' },
-        jwtToken: 'netamplify-jwt',
-      });
-      expect(result.id).toBe('conn-1');
     });
 
     it('chains capture + proxy for X', async () => {
@@ -201,7 +148,7 @@ describe('tauri bridge', () => {
       w.__TAURI_INTERNALS__ = { invoke: mockInvoke };
 
       await expect(
-        captureAndConnect('REDDIT_COOKIE', 'jwt')
+        captureAndConnect('TWITTER_COOKIE', 'jwt')
       ).rejects.toEqual({
         code: 'USER_CANCELLED',
         message: 'Login window was closed',

@@ -6,7 +6,6 @@ import { AdapterRegistry } from '../../libraries/nestjs-libraries/src/platforms/
 // Simulates the exact user journey from the demo script in docs/10-ROADMAP.md:
 //   1. Signup (email, password, name)
 //   2. Create a PostCard (title, summary, description, techStack)
-//   3. Connect platforms (Discord + Dev.to + Reddit via mock)
 //   4. Publish to N platforms (one-click Amplify)
 //   5. Poll for status until terminal
 //   6. Assert: all targets SUCCESS (or appropriate terminal status)
@@ -35,9 +34,6 @@ const mockAdapters: MockAdapterConfig[] = [
   { platform: 'BLUESKY',
     validateResult: { identity: { id: 'did:plc:abc', username: 'jane.bsky.social' }, credentials: { accessJwt: 'mock', refreshJwt: 'mock', did: 'did:plc:abc', handle: 'jane.bsky.social' } },
     publishResult: { id: 'rkey-1', url: 'https://bsky.app/profile/jane.bsky.social/post/rkey-1' } },
-  { platform: 'REDDIT',
-    validateResult: { identity: { id: 't2_abc', username: 'testuser' }, credentials: { accessToken: 'mock', refreshToken: 'mock', scopes: ['identity', 'submit'] } },
-    publishResult: { id: 't3_xyz', url: 'https://reddit.com/r/test/comments/xyz/title/' } },
 ];
 
 describe('E2E: Amplify flow (signup → connect → publish → SUCCESS)', () => {

@@ -14,21 +14,21 @@
 
 ```
 T-<NN> <short-name> [<priority>] dep:<dependencies>
-Description: ...
-Files touched: ...
+Description:...
+Files touched:...
 Acceptance criteria (AC):
-  - ...
+ -...
 Tests required:
-  - ...
+ -...
 Definition of Done (per CLAUDE.md §4):
-  - [ ] Zero TS errors
-  - [ ] Lint clean
-  - [ ] Unit + integration + E2E (as applicable) pass
-  - [ ] UI has loading + error + empty states (if UI)
-  - [ ] Server-side Zod on every input
-  - [ ] Ownership enforced (403 test) — if user-scoped
-  - [ ] PROGRESS.md updated
-  - [ ] Conventional commit `feat(T-NN): <subject>`
+ - [ ] Zero TS errors
+ - [ ] Lint clean
+ - [ ] Unit + integration + E2E (as applicable) pass
+ - [ ] UI has loading + error + empty states (if UI)
+ - [ ] Server-side Zod on every input
+ - [ ] Ownership enforced (403 test) — if user-scoped
+ - [ ] PROGRESS.md updated
+ - [ ] Conventional commit `feat(T-NN): <subject>`
 ```
 
 ---
@@ -152,10 +152,10 @@ NextAuth v4 credentials provider:
 - `DELETE /api/postcards/:id` — delete (cascade to Posts/PostTargets).
 - Dashboard grid (`src/app/(dashboard)/dashboard/page.tsx`) with post card cards.
 - Composer (`/dashboard/postcards/new`, `/dashboard/postcards/:id/edit`) with:
-  - Basics section (title + summary, char counters).
-  - Story section (markdown editor + preview toggle + char counter).
-  - Tech tags section (chips input, 1–10, max 24 chars).
-  - Links section (repoUrl, liveUrl, URL validation).
+ - Basics section (title + summary, char counters).
+ - Story section (markdown editor + preview toggle + char counter).
+ - Tech tags section (chips input, 1–10, max 24 chars).
+ - Links section (repoUrl, liveUrl, URL validation).
 - View page (`/dashboard/postcards/:id`) with rendered markdown + Amplify button (disabled until T-15).
 
 **Files touched**
@@ -260,37 +260,35 @@ Playwright journey: signup → profile → create post card (with image if T-05 
 
 **Files touched**
 - `src/lib/platforms/types.ts`, `src/lib/platforms/registry.ts`.
-- `src/lib/platforms/{reddit,discord,devto,telegram,bluesky,hashnode,twitter,linkedin}/adapter.ts` (stubs).
+- `src/lib/platforms/{,discord,devto,telegram,bluesky,hashnode,twitter,linkedin}/adapter.ts` (stubs).
 - `src/lib/formatters/types.ts` (interface only).
 - Tests: `tests/unit/platforms/registry.test.ts`.
 
 **Acceptance criteria (AC)**
 - Registry drives a connections availability unit test: for each platform, `isConfigured()` returns true/false based on env vars.
 - `getAdapter(platform)` returns the right adapter instance.
-- `isTierA('REDDIT')` → true; `isTierA('TWITTER')` → false.
+- `isTierA('')` → true; `isTierA('TWITTER')` → false.
 
 **Tests required**
 - Unit: registry lookup, configured() per env var presence, isTierA() correctness.
 
 ---
 
-### T-09 Reddit OAuth connect [MUST] dep:T-08
 
 **Description**
-- `src/app/api/oauth/[platform]/start/route.ts` — gen PKCE + state, set signed httpOnly cookie, 302 to Reddit authorize URL.
+- `src/app/api/oauth/[platform]/start/route.ts` — gen PKCE + state, set signed httpOnly cookie, 302 to authorize URL.
 - `src/app/api/oauth/[platform]/callback/route.ts` — validate state, exchange code, fetch identity, encrypt, upsert Connection, audit CONNECT, redirect to checklist.
 - `src/lib/auth/pkce.ts` — `code_verifier` + `code_challenge` (S256) generators.
 - `src/lib/auth/state-cookie.ts` — httpOnly signed cookie helpers (10-min TTL, single-use).
-- `src/lib/platforms/reddit/adapter.ts` — full OAuth adapter (`getAuthUrl`, `exchangeCode`, `getIdentity`, `publish` stub — full publish in T-14).
-- `src/lib/platforms/reddit/client.ts` — low-level fetch wrappers (Reddit OAuth endpoints).
+- `src/lib/platforms//adapter.ts` — full OAuth adapter (`getAuthUrl`, `exchangeCode`, `getIdentity`, `publish` stub — full publish in T-14).
+- `src/lib/platforms//client.ts` — low-level fetch wrappers (OAuth endpoints).
 - Mocks: unit tests use `vi.spyOn(globalThis, 'fetch')`.
 
 **Files touched**
 - `src/app/api/oauth/[platform]/start/route.ts`, `src/app/api/oauth/[platform]/callback/route.ts`.
 - `src/lib/auth/pkce.ts`, `src/lib/auth/state-cookie.ts`.
-- `src/lib/platforms/reddit/adapter.ts`, `src/lib/platforms/reddit/client.ts`.
-- `src/server/services/connections.ts` (add `connectReddit()`).
-- Tests: `tests/unit/platforms/reddit/adapter.test.ts`, `tests/unit/auth/pkce.test.ts`, `tests/integration/oauth-reddit.test.ts`.
+- `src/lib/platforms//adapter.ts`, `src/lib/platforms//client.ts`.
+- Tests: `tests/unit/platforms//adapter.test.ts`, `tests/unit/auth/pkce.test.ts`, `tests/integration/oauth-.test.ts`.
 
 **Acceptance criteria (AC)**
 - FR-004 acceptance: happy path connects + shows "Connected as @handle"; tampered state → 400 + no row; callback for unconfigured platform → 404; response contains no tokens.
@@ -298,8 +296,8 @@ Playwright journey: signup → profile → create post card (with image if T-05 
 - Scopes: `identity`, `submit` (minimal).
 
 **Tests required**
-- Unit: PKCE generators, state-cookie signer, Reddit adapter `getAuthUrl` / `exchangeCode` / `getIdentity` with mocked fetch.
-- Integration: full start → callback flow with mocked Reddit API; tampered state → 400; expired state → 400; unconfigured → 400.
+- Unit: PKCE generators, state-cookie signer adapter `getAuthUrl` / `exchangeCode` / `getIdentity` with mocked fetch.
+- Integration: full start → callback flow with mocked API; tampered state → 400; expired state → 400; unconfigured → 400.
 
 ---
 
@@ -387,10 +385,10 @@ Playwright journey: signup → profile → create post card (with image if T-05 
 ### T-13 Format Engine + preview endpoint [MUST] dep:T-04
 
 **Description**
-- `src/lib/formatters/{reddit,discord,devto,telegram,bluesky,hashnode,twitter,linkedin}.ts` — 8 pure formatters per FR-011.
+- `src/lib/formatters/{,discord,devto,telegram,bluesky,hashnode,twitter,linkedin}.ts` — 8 pure formatters per FR-011.
 - `src/lib/formatters/index.ts` — `formatFor(platform, input)` registry.
 - `src/lib/formatters/_shared.ts` — `truncate()`, `graphemeCount()` (Intl.Segmenter), `hashtagLine()`.
-- `GET /api/postcards/:id/preview?platform=X&subreddit=` — live preview endpoint.
+- `GET /api/postcards/:id/preview?platform=X&community=` — live preview endpoint.
 - Golden files in `tests/unit/formatters/__fixtures__/` per platform.
 
 **Files touched**
@@ -447,7 +445,7 @@ Playwright journey: signup → profile → create post card (with image if T-05 
 
 **Description**
 - `src/app/(dashboard)/dashboard/postcards/[id]/publish/page.tsx` — Publish screen per `06-FRONTEND-SPEC.md` Screen 6.
-- `src/components/publish/platform-checklist.tsx` — only connected platforms selectable, Reddit reveals subreddit input.
+- `src/components/publish/platform-checklist.tsx` — only connected platforms selectable reveals community input.
 - `src/components/publish/live-preview-panel.tsx` — debounced (300ms) call to `/preview` with char counter.
 - `src/components/publish/status-board.tsx` — per-target status chips + permalink + Retry.
 - `src/components/publish/amplify-button.tsx` — "🚀 Amplify to N platforms" (N live count).
@@ -462,11 +460,11 @@ Playwright journey: signup → profile → create post card (with image if T-05 
 
 **Acceptance criteria (AC)**
 - FR-012 UI acceptance via Playwright (mocked adapters):
-  - Tick 3 platforms → Amplify → status board appears → all SUCCESS within 30s.
-  - Partial failure → banner + Retry button on FAILED row.
-  - Polling stops when all terminal; aborts on unmount.
-  - Live preview shows formatted output + `charCount/limit` counter (red if over).
-  - Reddit reveals subreddit input; defaults to last-used (saved per user).
+ - Tick 3 platforms → Amplify → status board appears → all SUCCESS within 30s.
+ - Partial failure → banner + Retry button on FAILED row.
+ - Polling stops when all terminal; aborts on unmount.
+ - Live preview shows formatted output + `charCount/limit` counter (red if over).
+ - reveals community input; defaults to last-used (saved per user).
 
 **Tests required**
 - E2E: full publish journey with mocked adapters (per `09-TESTING-STRATEGY.md` §4.2).
@@ -530,7 +528,7 @@ Playwright journey: signup → profile → create post card (with image if T-05 
 
 **Description**
 - Full mocked E2E journey: signup → profile → connect (mocked) → create card → amplify → status board → history.
-- `scripts/smoke.ts` — real-post to your private Discord + test subreddit (manual, never in CI).
+- `scripts/smoke.ts` — real-post to your private Discord + test community (manual, never in CI).
 - Smoke evidence (URLs + screenshots) in `docs/13-PROGRESS.md`.
 
 **Files touched**
@@ -540,7 +538,7 @@ Playwright journey: signup → profile → create post card (with image if T-05 
 
 **Acceptance criteria (AC)**
 - E2E green in CI.
-- Manual smoke: real Discord post URL + real Reddit post URL + screenshot in PROGRESS.md.
+- Manual smoke: real Discord post URL + real post URL + screenshot in PROGRESS.md.
 
 **Tests required**
 - The E2E spec is the test.
@@ -716,16 +714,16 @@ Playwright journey: signup → profile → create post card (with image if T-05 
 1. Pick the current week from `10-ROADMAP.md`.
 2. Pick the next ticket in dependency order from this list.
 3. Paste into your AI coding agent:
-   ```
-   Execute T-NN per docs/11-FEATURE-TICKETS.md. Follow CLAUDE.md;
-   write tests; meet Definition of Done; update docs/13-PROGRESS.md;
-   conventional commit `feat(T-NN): <subject>`; STOP.
-   ```
+ ```
+ Execute T-NN per docs/11-FEATURE-TICKETS.md. Follow CLAUDE.md;
+ write tests; meet Definition of Done; update docs/13-PROGRESS.md;
+ conventional commit `feat(T-NN): <subject>`; STOP.
+ ```
 4. After each ticket: review PR (per `08-CODING-STANDARDS.md` §9).
 5. After each week: "Act as a strict senior reviewer. Audit everything
-   built this week against the FRs and `07-SECURITY-ACCESS.md`
-   checklist. Verdict per FR: PASS or violation+fix. Apply fixes,
-   re-run suite."
+ built this week against the FRs and `07-SECURITY-ACCESS.md`
+ checklist. Verdict per FR: PASS or violation+fix. Apply fixes,
+ re-run suite."
 
 ---
 

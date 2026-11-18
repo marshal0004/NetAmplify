@@ -1,7 +1,6 @@
 // /home/z/my-project/netamplify-app/libraries/nestjs-libraries/src/integrations/integration.manager.ts
 // NetAmplify — IntegrationManager (Phase 1 minimal).
 //
-// The 8 platform providers (reddit, x, linkedin, discord, dev.to, telegram,
 // bluesky, hashnode) have been moved to `_phase4-pending-providers/` because
 // they reference postiz's deep internal types (Temporal activity, full
 // SocialProvider interface with ~30 fields). Phase 4 will rewrite them per
@@ -20,7 +19,6 @@ import { Injectable, Inject } from '@nestjs/common';
  * when the schema is rewritten in Phase 2 per docs/04-DATABASE.md).
  */
 export const NETAMPLIFY_PLATFORMS = [
-  'REDDIT',
   'DISCORD',
   'DEVTO',
   'TELEGRAM',
@@ -36,7 +34,6 @@ export type NetAmplifyPlatform = (typeof NETAMPLIFY_PLATFORMS)[number];
  * Tier B: bonus attempts (work if env creds configured; "Setup pending" otherwise).
  */
 export const TIER_A_PLATFORMS: ReadonlyArray<NetAmplifyPlatform> = [
-  'REDDIT',
   'DISCORD',
   'DEVTO',
   'TELEGRAM',
@@ -60,10 +57,6 @@ export class IntegrationManager {
    */
   configured(identifier: string): boolean {
     switch (identifier) {
-      case 'reddit':
-        return Boolean(
-          process.env.REDDIT_CLIENT_ID && process.env.REDDIT_CLIENT_SECRET
-        );
       case 'linkedin':
         return Boolean(
           process.env.LINKEDIN_CLIENT_ID && process.env.LINKEDIN_CLIENT_SECRET

@@ -30,9 +30,6 @@ const OPTIONAL_ENV_KEYS = [
   'EMAIL_FROM_ADDRESS',
   'EMAIL_FROM_NAME',
   'RESEND_API_KEY',
-  'REDDIT_CLIENT_ID',
-  'REDDIT_CLIENT_SECRET',
-  'REDDIT_REDIRECT_URI',
   'TWITTER_CLIENT_ID',
   'TWITTER_CLIENT_SECRET',
   'TWITTER_REDIRECT_URI',
@@ -115,7 +112,6 @@ export function resetEnv(): void {
  * Get an env value by name with a type guard. Returns undefined for
  * optional keys not set. Throws for unknown keys.
  *
- * @example getString('REDDIT_CLIENT_ID') // string | undefined
  */
 export function getString(key: EnvKey): string | undefined {
   if (key in env.required) {

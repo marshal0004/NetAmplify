@@ -1,24 +1,22 @@
 // /home/z/my-project/netamplify-app/src-tauri/src/commands/cookie_refresh.rs
 // NetAmplify — Tauri commands for auto-refreshing expired session cookies.
 //
-// Reddit's `token_v2` cookie expires every 1-2 days. X's `auth_token`
-// cookie lasts ~1 year. When a cookie expires, the publish worker gets
-// a 401 from the platform API. Instead of asking the user to manually
-// re-export cookies, we:
+// X's `auth_token` cookie lasts ~1 year. When a cookie expires, the
+// publish worker gets a 401 from the platform API. Instead of asking
+// the user to manually re-export cookies, we:
 //
 //   1. Re-open the platform's login page in a headless WebView
-//   2. The platform sees the long-lived `token` cookie (Reddit, 6 months)
-//      or the `auth_token` cookie (X, 1 year) and auto-logs in
-//   3. The platform issues a fresh `token_v2` (Reddit) or keeps `auth_token` (X)
+//   2. The platform sees the long-lived `auth_token` cookie (X, 1 year)
+//      and auto-logs in
+//   3. The platform keeps `auth_token` (X)
 //   4. We capture the fresh cookies + send them to the backend
 //
 // This makes the UX feel like OAuth — the user logs in ONCE, and
 // NetAmplify handles refreshes automatically in the background.
 //
-// When even the long-lived cookie expires (Reddit: 6 months, X: 1 year),
-// the refresh fails → the frontend shows a "please re-login" banner.
-// The user clicks it → logs in manually (3 seconds) → done for another
-// 6 months / 1 year.
+// When even the long-lived cookie expires (X: 1 year), the refresh
+// fails → the frontend shows a "please re-login" banner. The user
+// clicks it → logs in manually (3 seconds) → done for another 1 year.
 
 use crate::commands::{
     CookieCaptureError, CookieCaptureResult,
@@ -26,14 +24,14 @@ use crate::commands::{
 };
 use tauri::AppHandle;
 
-/// Check if a Reddit `token_v2` JWT has expired.
+/// Check if a JWT has expired.
 ///
 /// Decodes the JWT payload and checks the `exp` (expiry) field against
 /// the current time. Returns true if the token has expired (or is about
 /// to expire within the next hour — we refresh proactively).
 ///
 /// # Arguments
-/// * `token_v2` — the Reddit `token_v2` JWT string
+/// * `token` — the JWT string
 ///
 /// # Returns
 /// * `true` — the token has expired or will expire within 1 hour
@@ -79,49 +77,6 @@ pub async fn check_cookie_expiry(token: String) -> Result<bool, CookieCaptureErr
 
     // Refresh proactively if the token expires within 1 hour.
     Ok(exp < one_hour_from_now as f64)
-}
-
-/// Refresh Reddit cookies by re-opening the login window.
-///
-/// If the user's long-lived `token` cookie (6-month life) is still valid,
-/// Reddit will auto-log them in when the WebView opens reddit.com — no
-/// password entry required. We capture the fresh `token_v2` cookie
-/// and return it.
-///
-/// If the long-lived `token` cookie has also expired, the user will see
-/// the Reddit login form. They type their password → we capture the
-/// fresh cookies. This happens at most once every 6 months.
-///
-/// # Arguments
-/// * `app` — The Tauri app handle
-///
-/// # Returns
-/// * `Ok(CookieCaptureResult)` — fresh cookies on success
-/// * `Err(CookieCaptureError)` — on failure (user cancelled, timeout, etc.)
-#[tauri::command]
-pub async fn refresh_reddit_cookies(app: AppHandle) -> Result<CookieCaptureResult, CookieCaptureError> {
-    log::info!("Starting Reddit cookie refresh...");
-
-    // Re-use the same capture flow. If the long-lived `token` cookie is
-    // still in the WebView's cookie jar (from the previous login), Reddit
-    // will auto-login and issue a fresh `token_v2` without user interaction.
-    //
-    // If the `token` cookie has expired, the user will see the login form
-    // and need to type their password. This is the "daily login" fallback
-    // the user mentioned — takes ~3 seconds.
-    let result = capture_cookies_generic(
-        &app,
-        "reddit-refresh",
-        "Refreshing Reddit session — NetAmplify",
-        "https://www.reddit.com/login",
-        "token_v2",
-        &["token_v2", "csrf_token", "token"],
-        "REDDIT_COOKIE",
-    )
-    .await?;
-
-    log::info!("Reddit cookie refresh successful — user: {}", result.username);
-    Ok(result)
 }
 
 /// Refresh X (Twitter) cookies by re-opening the login window.

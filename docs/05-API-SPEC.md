@@ -17,26 +17,26 @@
 - NextAuth session cookie (HttpOnly, SameSite=Lax, Secure in prod).
 - Endpoints that need a session return `401 UNAUTHENTICATED` if missing.
 - Endpoints that need ownership return `404 NOT_FOUND` (not `403` —
-  never leak existence) if the resource exists but isn't owned by the
-  session user. Exceptions documented per-endpoint.
+ never leak existence) if the resource exists but isn't owned by the
+ session user. Exceptions documented per-endpoint.
 
 ### Error envelope (always, on any 4xx/5xx)
 
 ```json
 {
-  "error": {
-    "code": "VALIDATION_ERROR",
-    "message": "Title is required",
-    "fieldErrors": {
-      "title": ["Title is required"]
-    }
-  }
+ "error": {
+ "code": "VALIDATION_ERROR",
+ "message": "Title is required",
+ "fieldErrors": {
+ "title": ["Title is required"]
+ }
+ }
 }
 ```
 
 - `code`: machine-readable error code (see §2).
 - `message`: human-readable, safe to surface to user (sanitized — no
-  internal paths, no DB errors, no token patterns).
+ internal paths, no DB errors, no token patterns).
 - `fieldErrors`: optional, per-field error arrays for form validation.
 
 ### Success response
@@ -53,10 +53,10 @@
 
 ### Idempotency
 - Publish endpoint: client sends `requestId` (UUID v4). Server upserts
-  on `requestId`; second POST with same `requestId` returns `409
-  DUPLICATE_REQUEST` with the existing Post id.
+ on `requestId`; second POST with same `requestId` returns `409
+ DUPLICATE_REQUEST` with the existing Post id.
 - Other endpoints: not idempotent (no `requestId`); retry at your own
-  risk.
+ risk.
 
 ---
 
@@ -97,24 +97,24 @@ Create a new account. Auto-login on success.
 **Zod**
 ```typescript
 signupSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8).max(72),  // bcrypt caps at 72
-  name: z.string().min(1).max(100),
+ email: z.string().email(),
+ password: z.string().min(8).max(72), // bcrypt caps at 72
+ name: z.string().min(1).max(100),
 });
 ```
 
 **Responses**
 - `201 Created` → `{ id: "user-id", email: "alice@example.com" }`
-  (session cookie set automatically)
+ (session cookie set automatically)
 - `400 VALIDATION_ERROR` → field errors
 - `409 EMAIL_TAKEN` → `{ error: { code: "EMAIL_TAKEN", message: "Email already registered" } }`
 
 **Notes**
 - bcrypt cost = 10.
 - Password strength check: ≥8 chars, mixed case recommended but not
-  required (don't be annoying for students).
+ required (don't be annoying for students).
 - Audit: no audit row on signup (we don't log `SIGNUP` in MVP; only
-  `LOGIN` after the auto-login).
+ `LOGIN` after the auto-login).
 
 ---
 
@@ -131,14 +131,14 @@ whether the email exists (no user enumeration).
 **Responses**
 - `204 No Content` (always)
 - Audit: `LOGIN_FAIL` if email not found (for monitoring) — but no
-  response difference.
+ response difference.
 
 **Notes**
 - Email sent via Resend with a 1-hour single-use token.
 - Token format: 32 random bytes, base64url, stored as `emailVerified`
-  + a `passwordResetToken` (if we add a column) OR a separate
-  `PasswordReset` table. (We'll decide in T-02; lean toward a small
-  `PasswordReset` table to avoid User schema churn.)
+ + a `passwordResetToken` (if we add a column) OR a separate
+ `PasswordReset` table. (We'll decide in T-02; lean toward a small
+ `PasswordReset` table to avoid User schema churn.)
 
 ---
 
@@ -172,18 +172,18 @@ Returns the session user's profile.
 
 **Responses**
 - `200 OK` →
-  ```json
-  {
-    "id": "profile-id",
-    "userId": "user-id",
-    "name": "Alice",                  // from User.name (joined)
-    "headline": "Final-year CS @ IIT",
-    "college": "IIT Madras",
-    "graduationYear": 2026,
-    "githubUrl": "https://github.com/alice",
-    "portfolioUrl": "https://alice.dev"
-  }
-  ```
+ ```json
+ {
+ "id": "profile-id",
+ "userId": "user-id",
+ "name": "Alice", // from User.name (joined)
+ "headline": "Final-year CS @ IIT",
+ "college": "IIT Madras",
+ "graduationYear": 2026,
+ "githubUrl": "https://github.com/alice",
+ "portfolioUrl": "https://alice.dev"
+ }
+ ```
 - `401 UNAUTHENTICATED`
 
 ---
@@ -200,12 +200,12 @@ Partial update. All fields optional; only provided fields are updated.
 **Zod**
 ```typescript
 profilePatchSchema = z.object({
-  name: z.string().min(1).max(100).optional(),
-  headline: z.string().max(140).optional(),
-  college: z.string().max(100).optional(),
-  graduationYear: z.number().int().min(2015).max(2035).optional(),
-  githubUrl: z.string().url().startsWith('https://github.com/').optional().or(z.literal('')),
-  portfolioUrl: z.string().url().optional().or(z.literal('')),
+ name: z.string().min(1).max(100).optional(),
+ headline: z.string().max(140).optional(),
+ college: z.string().max(100).optional(),
+ graduationYear: z.number().int().min(2015).max(2035).optional(),
+ githubUrl: z.string().url().startsWith('https://github.com/').optional().or(z.literal('')),
+ portfolioUrl: z.string().url().optional().or(z.literal('')),
 });
 ```
 
@@ -228,26 +228,26 @@ List the session user's post cards, newest first.
 
 **Responses**
 - `200 OK` →
-  ```json
-  {
-    "items": [
-      {
-        "id": "card-id",
-        "title": "NetAmplify: post once, get seen everywhere",
-        "summary": "A multi-platform publisher for students.",
-        "techStack": ["nextjs", "prisma", "redis"],
-        "repoUrl": "https://github.com/alice/netamplify",
-        "liveUrl": "https://netamplify.app",
-        "imageUrl": null,
-        "createdAt": "2025-01-15T10:00:00Z",
-        "updatedAt": "2025-01-15T10:30:00Z"
-      }
-    ],
-    "total": 3,
-    "page": 1,
-    "pageSize": 12
-  }
-  ```
+ ```json
+ {
+ "items": [
+ {
+ "id": "card-id",
+ "title": "NetAmplify: post once, get seen everywhere",
+ "summary": "A multi-platform publisher for students.",
+ "techStack": ["nextjs", "prisma", "redis"],
+ "repoUrl": "https://github.com/alice/netamplify",
+ "liveUrl": "https://netamplify.app",
+ "imageUrl": null,
+ "createdAt": "2025-01-15T10:00:00Z",
+ "updatedAt": "2025-01-15T10:30:00Z"
+ }
+ ],
+ "total": 3,
+ "page": 1,
+ "pageSize": 12
+ }
+ ```
 - `401 UNAUTHENTICATED`
 
 ---
@@ -259,25 +259,25 @@ Create a new post card.
 **Request**
 ```json
 {
-  "title": "NetAmplify: post once, get seen everywhere",
-  "summary": "A multi-platform publisher for students.",
-  "description": "# NetAmplify\n\nA student creates a Post Card once...",
-  "techStack": ["nextjs", "prisma", "redis", "typescript"],
-  "repoUrl": "https://github.com/alice/netamplify",
-  "liveUrl": "https://netamplify.app"
+ "title": "NetAmplify: post once, get seen everywhere",
+ "summary": "A multi-platform publisher for students.",
+ "description": "# NetAmplify\n\nA student creates a Post Card once...",
+ "techStack": ["nextjs", "prisma", "redis", "typescript"],
+ "repoUrl": "https://github.com/alice/netamplify",
+ "liveUrl": "https://netamplify.app"
 }
 ```
 
 **Zod**
 ```typescript
 postCardCreateSchema = z.object({
-  title: z.string().min(1).max(120),
-  summary: z.string().min(1).max(200),
-  description: z.string().max(5000),
-  techStack: z.array(z.string().min(1).max(24)).min(1).max(10),
-  repoUrl: z.string().url().optional().or(z.literal('')),
-  liveUrl: z.string().url().optional().or(z.literal('')),
-  imageUrl: z.string().url().optional(),
+ title: z.string().min(1).max(120),
+ summary: z.string().min(1).max(200),
+ description: z.string().max(5000),
+ techStack: z.array(z.string().min(1).max(24)).min(1).max(10),
+ repoUrl: z.string().url().optional().or(z.literal('')),
+ liveUrl: z.string().url().optional().or(z.literal('')),
+ imageUrl: z.string().url().optional(),
 });
 ```
 
@@ -326,39 +326,38 @@ Delete a post card. Cascades to Posts and PostTargets.
 
 ---
 
-### GET `/api/postcards/:id/preview?platform=REDDIT&subreddit=sideproject`
 
 Live preview of formatted output for a single platform. Used by the
 publish page to show real formatter output + char counter.
 
 **Query params**
-- `platform` (required, enum: REDDIT, DISCORD, DEVTO, TELEGRAM, BLUESKY,
-  HASHNODE, TWITTER, LINKEDIN)
-- `subreddit` (string, required if platform=REDDIT)
+- `platform` (required, enum: , DISCORD, DEVTO, TELEGRAM, BLUESKY,
+ HASHNODE, TWITTER, LINKEDIN)
+- `community` (string, required if platform=)
 
 **Responses**
 - `200 OK` →
-  ```json
-  {
-    "platform": "REDDIT",
-    "formatted": {
-      "title": "NetAmplify: post once, get seen everywhere",
-      "body": "# NetAmplify\n\nA student creates a Post Card once..."
-    },
-    "charCount": { "title": 42, "body": 580 },
-    "limit": { "title": 300, "body": null }
-  }
-  ```
-- `400 VALIDATION_ERROR` → if `platform` missing/invalid or subreddit
-  missing for Reddit
+ ```json
+ {
+ "platform": "",
+ "formatted": {
+ "title": "NetAmplify: post once, get seen everywhere",
+ "body": "# NetAmplify\n\nA student creates a Post Card once..."
+ },
+ "charCount": { "title": 42, "body": 580 },
+ "limit": { "title": 300, "body": null }
+ }
+ ```
+- `400 VALIDATION_ERROR` → if `platform` missing/invalid or community
+ missing for 
 - `401 UNAUTHENTICATED`
 - `404 NOT_FOUND` (post card not found or not owned)
 
 **Notes**
 - This endpoint calls the pure formatter only — no DB write, no
-  platform API call. Cheap.
+ platform API call. Cheap.
 - Response shape varies per platform (`formatted` is a discriminated
-  union). See `src/lib/formatters/types.ts`.
+ union). See `src/lib/formatters/types.ts`.
 
 ---
 
@@ -371,63 +370,63 @@ ciphertext.** Whitelist projection.
 
 **Responses**
 - `200 OK` →
-  ```json
-  [
-    {
-      "platform": "REDDIT",
-      "type": "OAUTH",
-      "username": "alice_dev",
-      "status": "ACTIVE",
-      "configured": true,            // false for Tier B unconfigured
-      "connectedAt": "2025-01-10T...",
-      "lastUsedAt": "2025-01-15T...",
-      "scopes": ["identity", "submit"]
-    },
-    {
-      "platform": "DISCORD",
-      "type": "WEBHOOK",
-      "username": "#side-projects in Code Club",
-      "status": "ACTIVE",
-      "configured": true,
-      "connectedAt": "2025-01-11T...",
-      "lastUsedAt": null,
-      "scopes": []
-    },
-    {
-      "platform": "TWITTER",
-      "type": "OAUTH",
-      "username": null,
-      "status": "ACTIVE",
-      "configured": false,           // Tier B not configured → "Setup pending"
-      "connectedAt": null,
-      "lastUsedAt": null,
-      "scopes": []
-    }
-  ]
-  ```
+ ```json
+ [
+ {
+ "platform": "",
+ "type": "OAUTH",
+ "username": "alice_dev",
+ "status": "ACTIVE",
+ "configured": true, // false for Tier B unconfigured
+ "connectedAt": "2025-01-10T...",
+ "lastUsedAt": "2025-01-15T...",
+ "scopes": ["identity", "submit"]
+ },
+ {
+ "platform": "DISCORD",
+ "type": "WEBHOOK",
+ "username": "#side-projects in Code Club",
+ "status": "ACTIVE",
+ "configured": true,
+ "connectedAt": "2025-01-11T...",
+ "lastUsedAt": null,
+ "scopes": []
+ },
+ {
+ "platform": "TWITTER",
+ "type": "OAUTH",
+ "username": null,
+ "status": "ACTIVE",
+ "configured": false, // Tier B not configured → "Setup pending"
+ "connectedAt": null,
+ "lastUsedAt": null,
+ "scopes": []
+ }
+ ]
+ ```
 - `401 UNAUTHENTICATED`
 
 **Notes**
 - Includes ALL platforms (Tier A + Tier B), even unconnected ones, so
-  the UI can render the full checklist. Unconnected platforms have
-  `connectedAt: null`, `username: null`.
+ the UI can render the full checklist. Unconnected platforms have
+ `connectedAt: null`, `username: null`.
 - `configured: false` only for Tier B platforms whose env vars are
-  missing. Tier A platforms are always `configured: true` (we ship
-  with their credentials).
+ missing. Tier A platforms are always `configured: true` (we ship
+ with their credentials).
 
 ---
 
 ### GET `/api/oauth/:platform/start`
 
-Start an OAuth flow for `REDDIT`, `TWITTER`, or `LINKEDIN`.
+Start an OAuth flow for ``, `TWITTER`, or `LINKEDIN`.
 
 **Responses**
 - `302 Found` → redirect to platform authorize URL with PKCE challenge
-  + state. Sets `oauth_state` httpOnly signed cookie (10 min TTL,
-  single-use).
+ + state. Sets `oauth_state` httpOnly signed cookie (10 min TTL,
+ single-use).
 - `400 PLATFORM_NOT_CONFIGURED` → if Tier B env vars missing
-  (`{ error: { code: "PLATFORM_NOT_CONFIGURED", message: "Coming
-  soon — setup pending" } }`)
+ (`{ error: { code: "PLATFORM_NOT_CONFIGURED", message: "Coming
+ soon — setup pending" } }`)
 - `400 VALIDATION_ERROR` → if `:platform` not in supported list
 
 ---
@@ -441,10 +440,10 @@ checklist.
 **Responses**
 - `302 Found` → redirect to `/dashboard/connections?connected=<platform>`
 - `400 BAD_STATE` → if state missing, expired, or mismatched (audit
-  `TOKEN_FAIL`)
+ `TOKEN_FAIL`)
 - `404 NOT_FOUND` → if `:platform` not supported or not configured
 - `502 OAUTH_EXCHANGE_FAILED` → if code exchange fails (platform API
-  4xx/5xx)
+ 4xx/5xx)
 
 ---
 
@@ -465,7 +464,7 @@ z.object({ apiKey: z.string().min(20).max(100) });
 **Responses**
 - `201 Created` → `{ username: "@alice" }`
 - `400 INVALID_CREDENTIALS` → `{ error: { code: "INVALID_CREDENTIALS",
-  message: "Key rejected by Dev.to — check and re-paste" } }`
+ message: "Key rejected by Dev.to — check and re-paste" } }`
 - `502 IDENTITY_CHECK_FAILED` → network error during validation
 
 ---
@@ -498,7 +497,7 @@ Connect Discord with a webhook URL.
 **Zod**
 ```typescript
 z.object({
-  webhookUrl: z.string().url().startsWith('https://discord.com/api/webhooks/')
+ webhookUrl: z.string().url().startsWith('https://discord.com/api/webhooks/')
 });
 ```
 
@@ -522,18 +521,18 @@ Connect Telegram with a bot token + channel.
 **Zod**
 ```typescript
 z.object({
-  botToken: z.string().regex(/^\d+:.+$/),
-  channel: z.string().regex(/^@[\w_]+$/),
+ botToken: z.string().regex(/^\d+:.+$/),
+ channel: z.string().regex(/^@[\w_]+$/),
 });
 ```
 
 **Responses**
 - `201 Created` → `{ channelTitle: "My Project Updates" }`
 - `400 INVALID_CREDENTIALS` → `{ error: { code: "INVALID_CREDENTIALS",
-  message: "...", reason: "BAD_TOKEN" | "NOT_ADMIN" | "BAD_CHANNEL" } }`
-  - `BAD_TOKEN`: "Bot token invalid — get a fresh one from @BotFather"
-  - `NOT_ADMIN`: "Make your bot an admin of the channel first"
-  - `BAD_CHANNEL`: "Channel not found — check the @username"
+ message: "...", reason: "BAD_TOKEN" | "NOT_ADMIN" | "BAD_CHANNEL" } }`
+ - `BAD_TOKEN`: "Bot token invalid — get a fresh one from @BotFather"
+ - `NOT_ADMIN`: "Make your bot an admin of the channel first"
+ - `BAD_CHANNEL`: "Channel not found — check the @username"
 - `502 IDENTITY_CHECK_FAILED`
 
 ---
@@ -550,8 +549,8 @@ Connect Bluesky with handle + app password.
 **Zod**
 ```typescript
 z.object({
-  handle: z.string().min(3).max(100),
-  appPassword: z.string().min(8).max(200),
+ handle: z.string().min(3).max(100),
+ appPassword: z.string().min(8).max(200),
 });
 ```
 
@@ -582,78 +581,77 @@ Amplify a post card to N platforms. See Flow A in `03-ARCHITECTURE.md`.
 **Request**
 ```json
 {
-  "platforms": [
-    { "platform": "REDDIT", "options": { "subreddit": "sideproject" } },
-    { "platform": "DISCORD" },
-    { "platform": "DEVTO" }
-  ],
-  "requestId": "550e8400-e29b-41d4-a716-446655440000"
+ "platforms": [
+ { "platform": "", "options": { "community": "sideproject" } },
+ { "platform": "DISCORD" },
+ { "platform": "DEVTO" }
+ ],
+ "requestId": "550e8400-e29b-41d4-a716-446655440000"
 }
 ```
 
 **Zod**
 ```typescript
 publishSchema = z.object({
-  platforms: z.array(z.object({
-    platform: z.enum(['REDDIT','DISCORD','DEVTO','TELEGRAM','BLUESKY','HASHNODE','TWITTER','LINKEDIN']),
-    options: z.record(z.unknown()).optional(),
-  })).min(1).max(8),
-  requestId: z.string().uuid(),
+ platforms: z.array(z.object({
+ platform: z.enum(['','DISCORD','DEVTO','TELEGRAM','BLUESKY','HASHNODE','TWITTER','LINKEDIN']),
+ options: z.record(z.unknown()).optional(),
+ })).min(1).max(8),
+ requestId: z.string().uuid(),
 });
 ```
 
 **Responses**
 - `201 Created` →
-  ```json
-  {
-    "post": {
-      "id": "post-id",
-      "createdAt": "2025-01-15T10:30:00Z",
-      "targets": [
-        { "id": "t1", "platform": "REDDIT", "status": "QUEUED" },
-        { "id": "t2", "platform": "DISCORD", "status": "QUEUED" },
-        { "id": "t3", "platform": "DEVTO", "status": "QUEUED" }
-      ]
-    }
-  }
-  ```
+ ```json
+ {
+ "post": {
+ "id": "post-id",
+ "createdAt": "2025-01-15T10:30:00Z",
+ "targets": [
+ { "id": "t1", "platform": "", "status": "QUEUED" },
+ { "id": "t2", "platform": "DISCORD", "status": "QUEUED" },
+ { "id": "t3", "platform": "DEVTO", "status": "QUEUED" }
+ ]
+ }
+ }
+ ```
 - `400 VALIDATION_ERROR` → field errors
 - `400 INVALID_CREDENTIALS` (invalidPlatforms) →
-  ```json
-  {
-    "error": {
-      "code": "INVALID_CREDENTIALS",
-      "message": "Connect these platforms first",
-      "invalidPlatforms": ["REDDIT", "TWITTER"]
-    }
-  }
-  ```
+ ```json
+ {
+ "error": {
+ "code": "INVALID_CREDENTIALS",
+ "message": "Connect these platforms first",
+ "invalidPlatforms": ["", "TWITTER"]
+ }
+ }
+ ```
 - `401 UNAUTHENTICATED`
 - `404 NOT_FOUND` (post card not found or not owned)
 - `409 DUPLICATE_REQUEST` →
-  ```json
-  {
-    "error": {
-      "code": "DUPLICATE_REQUEST",
-      "message": "Already publishing this card",
-      "postId": "existing-post-id"
-    }
-  }
-  ```
+ ```json
+ {
+ "error": {
+ "code": "DUPLICATE_REQUEST",
+ "message": "Already publishing this card",
+ "postId": "existing-post-id"
+ }
+ }
+ ```
 
 **Notes**
 - Server validates every requested platform has the user's ACTIVE
-  Connection. If any platform is missing or REVOKED → 400 with
-  `invalidPlatforms`.
+ Connection. If any platform is missing or REVOKED → 400 with
+ `invalidPlatforms`.
 - X quota check (FR-018) happens here. If X over budget → X target
-  created with `status: SKIPPED`, `errorClass: "QUOTA"`, NOT enqueued.
-  Other targets proceed normally.
+ created with `status: SKIPPED`, `errorClass: "QUOTA"`, NOT enqueued.
+ Other targets proceed normally.
 - BullMQ job enqueued per non-SKIPPED target.
 - Audit `PUBLISH` logged once (one row per Post, not per target).
 
 ---
 
-### GET `/api/posts?page=1&platform=REDDIT&status=SUCCESS`
 
 History list. Owner-scoped.
 
@@ -662,51 +660,51 @@ History list. Owner-scoped.
 - `pageSize` (int, default 20, max 50)
 - `platform` (enum, optional filter)
 - `status` (enum, optional filter — filters by Posts that have at
-  least one target with this status)
+ least one target with this status)
 
 **Responses**
 - `200 OK` →
-  ```json
-  {
-    "items": [
-      {
-        "id": "post-id",
-        "createdAt": "2025-01-15T10:30:00Z",
-        "postCard": {
-          "id": "card-id",
-          "title": "NetAmplify: post once, get seen everywhere"
-        },
-        "targets": [
-          {
-            "id": "t1",
-            "platform": "REDDIT",
-            "status": "SUCCESS",
-            "platformPostUrl": "https://reddit.com/r/sideproject/comments/...",
-            "platformPostId": "t3_abc123",
-            "error": null,
-            "errorClass": null,
-            "attempts": 1,
-            "publishedAt": "2025-01-15T10:30:45Z"
-          },
-          {
-            "id": "t2",
-            "platform": "DISCORD",
-            "status": "FAILED",
-            "platformPostUrl": null,
-            "platformPostId": null,
-            "error": "Webhook deleted — recreate it",
-            "errorClass": "AUTH",
-            "attempts": 1,
-            "publishedAt": null
-          }
-        ]
-      }
-    ],
-    "total": 53,
-    "page": 1,
-    "pageSize": 20
-  }
-  ```
+ ```json
+ {
+ "items": [
+ {
+ "id": "post-id",
+ "createdAt": "2025-01-15T10:30:00Z",
+ "postCard": {
+ "id": "card-id",
+ "title": "NetAmplify: post once, get seen everywhere"
+ },
+ "targets": [
+ {
+ "id": "t1",
+ "platform": "",
+ "status": "SUCCESS",
+ "platformPostUrl": "https://.com/r/sideproject/comments/...",
+ "platformPostId": "t3_abc123",
+ "error": null,
+ "errorClass": null,
+ "attempts": 1,
+ "publishedAt": "2025-01-15T10:30:45Z"
+ },
+ {
+ "id": "t2",
+ "platform": "DISCORD",
+ "status": "FAILED",
+ "platformPostUrl": null,
+ "platformPostId": null,
+ "error": "Webhook deleted — recreate it",
+ "errorClass": "AUTH",
+ "attempts": 1,
+ "publishedAt": null
+ }
+ ]
+ }
+ ],
+ "total": 53,
+ "page": 1,
+ "pageSize": 20
+ }
+ ```
 - `401 UNAUTHENTICATED`
 
 ---
@@ -717,15 +715,15 @@ Single post + targets. Used by status board poll.
 
 **Responses**
 - `200 OK` → Post with targets (same shape as items[] above, single
-  object)
+ object)
 - `401 UNAUTHENTICATED`
 - `404 NOT_FOUND`
 
 **Notes**
 - Polled by UI every 3s until all targets terminal (SUCCESS / FAILED /
-  SKIPPED). Max 5 min, then abort.
+ SKIPPED). Max 5 min, then abort.
 - Server-side: this is a cheap query (one Post + N targets by postId
-  index).
+ index).
 
 ---
 
@@ -734,14 +732,14 @@ Single post + targets. Used by status board poll.
 Retry a FAILED target. See Flow E.
 
 **Responses**
-- `200 OK` → `{ target: { ...updated target with attempts+1, status: QUEUED } }`
+- `200 OK` → `{ target: {...updated target with attempts+1, status: QUEUED } }`
 - `401 UNAUTHENTICATED`
 - `404 NOT_FOUND` (post or target not found or not owned)
 - `409 NOT_FAILED` → target not in FAILED state
 - `409 MAX_RETRIES` → attempts ≥ 3
 - `409 INVALID_CREDENTIALS` (AUTH-class) → `{ error: { code:
-  "INVALID_CREDENTIALS", message: "Reconnect this platform first",
-  needsReconnect: true } }`
+ "INVALID_CREDENTIALS", message: "Reconnect this platform first",
+ needsReconnect: true } }`
 
 ---
 
@@ -758,10 +756,10 @@ Delete the user's account. Typed confirmation in UI ("DELETE").
 **Notes**
 - Audit `ACCOUNT_DELETE` row written BEFORE deletion (with userId).
 - Cascades: Profile, PostCard (→ Post → PostTarget), Connection
-  (ciphertext gone), Post (→ PostTarget). AuditLog rows kept
-  (NoAction) for forensics.
+ (ciphertext gone), Post (→ PostTarget). AuditLog rows kept
+ (NoAction) for forensics.
 - In-flight BullMQ jobs for this user's targets: worker re-reads
-  Connection at execution → null → SKIPPED "connection removed".
+ Connection at execution → null → SKIPPED "connection removed".
 
 ---
 
@@ -771,21 +769,20 @@ Export all user data as JSON. Used by Settings → Danger zone → Export.
 
 **Responses**
 - `200 OK` → JSON file download (`Content-Disposition: attachment;
-  filename="netamplify-export-<userId>-<timestamp>.json"`)
-  ```json
-  {
-    "user": { "id": "...", "email": "...", "name": "...", "createdAt": "..." },
-    "profile": { ... },
-    "postCards": [ ... ],
-    "connections": [
-      // Metadata only — NO credentialsCipher
-      { "platform": "REDDIT", "username": "...", "connectedAt": "...", "scopes": ["identity","submit"] },
-      ...
-    ],
-    "posts": [ ... with targets ... ],
-    "auditLogs": [ ... ]
-  }
-  ```
+ filename="netamplify-export-<userId>-<timestamp>.json"`)
+ ```json
+ {
+ "user": { "id": "...", "email": "...", "name": "...", "createdAt": "..." },
+ "profile": {... },
+ "postCards": [... ],
+ "connections": [
+ // Metadata only — NO credentialsCipher
+ { "platform": "", "username": "...", "connectedAt": "...", "scopes": ["identity","submit"] }...
+ ],
+ "posts": [... with targets... ],
+ "auditLogs": [... ]
+ }
+ ```
 - `401 UNAUTHENTICATED`
 
 **Notes**
@@ -804,8 +801,8 @@ monitor.
 **Responses**
 - `200 OK` → `{ db: "up", redis: "up" }`
 - `503 Service Unavailable` → `{ db: "down", redis: "up" }` (or vice
-  versa, with the failing component marked `down` and an `error`
-  message)
+ versa, with the failing component marked `down` and an `error`
+ message)
 
 ---
 
@@ -815,22 +812,21 @@ Basic stats for the dashboard stats strip (S2). Owner-scoped.
 
 **Responses**
 - `200 OK` →
-  ```json
-  {
-    "posts": 53,
-    "successRate": 0.94,        // 0-1
-    "byPlatform": {
-      "REDDIT": { "total": 30, "success": 28, "failed": 2 },
-      "DISCORD": { "total": 18, "success": 18, "failed": 0 },
-      "DEVTO": { "total": 5, "success": 4, "failed": 1 }
-    }
-  }
-  ```
+ ```json
+ {
+ "posts": 53,
+ "successRate": 0.94, // 0-1
+ "byPlatform": {
+ "DISCORD": { "total": 18, "success": 18, "failed": 0 },
+ "DEVTO": { "total": 5, "success": 4, "failed": 1 }
+ }
+ }
+ ```
 - `401 UNAUTHENTICATED`
 
 **Notes**
 - Computed by aggregating PostTarget rows for this user. Indexed by
-  `[platform, status]`.
+ `[platform, status]`.
 - Cache 60s in Redis (stretch goal; MVP computes each call).
 
 ---
@@ -851,7 +847,7 @@ resource:
 The pattern (enforced by integration test per resource):
 ```typescript
 const resource = await prisma.postCard.findUnique({
-  where: { id, userId: session.user.id },
+ where: { id, userId: session.user.id },
 });
 if (!resource) return notFound();
 ```
@@ -864,23 +860,23 @@ if (!resource) return notFound();
 
 ```typescript
 describe('credential scanner', () => {
-  for (const endpoint of ALL_ENDPOINTS) {
-    it(`${endpoint} response contains no credential patterns`, async () => {
-      const res = await callWithMockedAuth(endpoint);
-      const body = JSON.stringify(res.body);
-      const patterns = [
-        /sk-[A-Za-z0-9]{20,}/,                  // Dev.to / OpenAI-style keys
-        /xoxb-[A-Za-z0-9-]+/,                    // Slack-style (defensive)
-        /did:plc:[A-Za-z2-7]{24}/,               // Bluesky DID
-        /\d{6,}:[A-Za-z0-9_-]{30,}/,            // Telegram bot token
-        /https:\/\/discord\.com\/api\/webhooks\/\d+\/[A-Za-z0-9_-]+/,
-        /eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/,  // JWT shape
-      ];
-      for (const p of patterns) {
-        expect(body).not.toMatch(p);
-      }
-    });
-  }
+ for (const endpoint of ALL_ENDPOINTS) {
+ it(`${endpoint} response contains no credential patterns`, async () => {
+ const res = await callWithMockedAuth(endpoint);
+ const body = JSON.stringify(res.body);
+ const patterns = [
+ /sk-[A-Za-z0-9]{20,}/, // Dev.to / OpenAI-style keys
+ /xoxb-[A-Za-z0-9-]+/, // Slack-style (defensive)
+ /did:plc:[A-Za-z2-7]{24}/, // Bluesky DID
+ /\d{6,}:[A-Za-z0-9_-]{30,}/, // Telegram bot token
+ /https:\/\/discord\.com\/api\/webhooks\/\d+\/[A-Za-z0-9_-]+/,
+ /eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/, // JWT shape
+ ];
+ for (const p of patterns) {
+ expect(body).not.toMatch(p);
+ }
+ });
+ }
 });
 ```
 

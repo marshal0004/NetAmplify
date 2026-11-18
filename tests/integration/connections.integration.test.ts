@@ -1,7 +1,6 @@
 // /home/z/my-project/netamplify-app/tests/integration/connections.integration.test.ts
 // NetAmplify — Integration tests for /api/connections/* endpoints.
 //
-// Connections to Reddit/X/LinkedIn require OAuth (real browser redirect).
 // Connections to Dev.to/Discord/Telegram/Bluesky/Hashnode accept user-pasted
 // credentials + validate them via real platform API calls. Tests use
 // mocked adapters to simulate platform responses.
@@ -78,8 +77,8 @@ describe('Integration: Connections', () => {
         .set('Authorization', `Bearer ${token}`);
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
-      // 9 registered adapters: 5 mocked below + 4 real (LinkedIn, X-cookie, Facebook, Instagram)
-      expect(res.body.length).toBe(9);
+      // 11 registered adapters: 5 mocked below + 6 real (LinkedIn, X-cookie, Facebook, Instagram, YouTube, Threads)
+      expect(res.body.length).toBe(11);
       const platforms = res.body.map((c: { platform: string }) => c.platform);
       // SIMPLE platforms (mocked in this test)
       expect(platforms).toContain('DISCORD');
@@ -92,6 +91,8 @@ describe('Integration: Connections', () => {
       expect(platforms).toContain('TWITTER_COOKIE');
       expect(platforms).toContain('FACEBOOK');
       expect(platforms).toContain('INSTAGRAM');
+      expect(platforms).toContain('YOUTUBE');
+      expect(platforms).toContain('THREADS');
       // Removed-from-product platforms must NOT appear (no adapter registered)
       expect(platforms).not.toContain('MASTODON');
       expect(platforms).not.toContain('WORDPRESS');
@@ -233,9 +234,8 @@ describe('Integration: Connections', () => {
     });
 
     it('returns 400 for an unrecognized platform (validation)', async () => {
-      // 'reddit' is not in PLATFORM_SCHEMA, so parsePlatformParam rejects it
       // with a VALIDATION_ERROR → 400 (not 404).
-      const res = await test.request.delete('/api/connections/reddit')
+      const res = await test.request.delete('/api/connections/myspace')
         .set('Authorization', `Bearer ${token}`);
       expect(res.status).toBe(400);
     });

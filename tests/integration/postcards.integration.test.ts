@@ -176,15 +176,15 @@ describe('Integration: PostCards', () => {
   });
 
   describe('GET /api/postcards/:id/preview', () => {
-    it('returns Format Engine output for REDDIT', async () => {
+    it('returns Format Engine output for HASHNODE', async () => {
       const card = await test.createPostCard(token, {
         title: 'My Project',
         description: 'A description',
       });
-      const res = await test.request.get(`/api/postcards/${card.id}/preview?platform=REDDIT&subreddit=test`)
+      const res = await test.request.get(`/api/postcards/${card.id}/preview?platform=HASHNODE`)
         .set('Authorization', `Bearer ${token}`);
       expect(res.status).toBe(200);
-      expect(res.body.platform).toBe('REDDIT');
+      expect(res.body.platform).toBe('HASHNODE');
       expect(res.body.formatted.title).toBe('My Project');
       expect(res.body.formatted.body).toContain('A description');
       expect(res.body.formatted.charCount).toBeGreaterThan(0);
@@ -192,7 +192,7 @@ describe('Integration: PostCards', () => {
 
     it('returns 200 for each platform', async () => {
       const card = await test.createPostCard(token, {});
-      const platforms = ['REDDIT', 'TWITTER', 'LINKEDIN', 'DISCORD', 'DEVTO', 'HASHNODE', 'TELEGRAM', 'BLUESKY'];
+      const platforms = ['TWITTER', 'LINKEDIN', 'DISCORD', 'DEVTO', 'HASHNODE', 'TELEGRAM', 'BLUESKY'];
       for (const p of platforms) {
         const res = await test.request.get(`/api/postcards/${card.id}/preview?platform=${p}`)
           .set('Authorization', `Bearer ${token}`);
@@ -204,13 +204,13 @@ describe('Integration: PostCards', () => {
 
     it('returns 400 for unknown platform', async () => {
       const card = await test.createPostCard(token, {});
-      const res = await test.request.get(`/api/postcards/${card.id}/preview?platform=INSTAGRAM`)
+      const res = await test.request.get(`/api/postcards/${card.id}/preview?platform=PINTEREST`)
         .set('Authorization', `Bearer ${token}`);
       expect(res.status).toBe(400);
     });
 
     it('returns 404 for non-existent PostCard', async () => {
-      const res = await test.request.get('/api/postcards/nonexistent/preview?platform=REDDIT')
+      const res = await test.request.get('/api/postcards/nonexistent/preview?platform=HASHNODE')
         .set('Authorization', `Bearer ${token}`);
       expect(res.status).toBe(404);
     });

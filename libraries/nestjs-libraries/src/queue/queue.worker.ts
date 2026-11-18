@@ -150,7 +150,7 @@ export class PublishWorker implements OnModuleInit, OnModuleDestroy {
       liveUrl: postCard.liveUrl ?? undefined,
       imageUrl: postCard.imageUrl ?? undefined,
     };
-    const formatted = formatForPlatform(platform, formatInput, null, target.options as { subreddit?: string } | null);
+    const formatted = formatForPlatform(platform, formatInput, null, (target.options ?? {}) as Record<string, unknown>);
 
     // 6. Call adapter.publish()
     const adapter = this._adapters.get(platform);

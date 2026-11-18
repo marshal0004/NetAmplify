@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
-const platforms = ['Reddit', 'Discord', 'Dev.to', 'Telegram', 'Bluesky', 'Hashnode', 'X', 'LinkedIn'];
+const platforms = ['Discord', 'Dev.to', 'Telegram', 'Bluesky', 'Hashnode', 'X', 'LinkedIn', 'Instagram', 'YouTube'];
 
 const features = [
   {
@@ -48,7 +48,7 @@ const features = [
 
 const testimonials = [
   { name: 'Priya S.', role: 'Final Year CS Student', text: 'I posted my project to 5 platforms in literally 10 seconds. Recruiters found me on LinkedIn the next day.', avatar: '👩‍💻' },
-  { name: 'Rahul K.', role: 'Hackathon Winner', text: 'The Format Engine is genius — my markdown description automatically became a perfect tweet, a Reddit post, and a Discord embed.', avatar: '🧑‍💻' },
+  { name: 'Rahul K.', role: 'Hackathon Winner', text: 'The Format Engine is genius — my markdown description automatically became a perfect tweet, a LinkedIn post, and a Discord embed.', avatar: '🧑‍💻' },
   { name: 'Sneha M.', role: 'Open Source Contributor', text: 'As a student, I couldn\'t afford Buffer\'s $30/month. NetAmplify is free, open-source, and honestly looks better.', avatar: '👩‍🔬' },
 ];
 
@@ -137,7 +137,7 @@ export function Landing() {
             className="mx-auto mt-8 max-w-2xl text-lg md:text-xl text-white/60"
           >
             A student creates a Post Card once; NetAmplify formats it per-platform and
-            publishes to Reddit, Discord, Dev.to, Telegram, Bluesky, and Hashnode
+            publishes to Discord, Dev.to, Telegram, Bluesky, Hashnode, and LinkedIn
             using the user's own credentials. We never see your passwords.
           </motion.p>
 
@@ -230,7 +230,7 @@ export function Landing() {
         <div className="space-y-8">
           {[
             { step: '01', title: 'Create a Post Card', desc: 'Write your project title, summary, markdown description, and tech stack once. No copy-pasting between platforms.' },
-            { step: '02', title: 'Connect platforms', desc: 'OAuth login (Reddit, X, LinkedIn) or paste a key (Dev.to, Discord, Telegram, Bluesky). Encrypted with AES-256-GCM.' },
+            { step: '02', title: 'Connect platforms', desc: 'OAuth login (X, LinkedIn, Instagram, YouTube) or paste a key (Dev.to, Discord, Telegram, Bluesky, Hashnode). Encrypted with AES-256-GCM.' },
             { step: '03', title: 'Amplify', desc: 'One click publishes to all connected platforms with per-platform formatting. Watch real-time status updates.' },
           ].map((s) => (
             <motion.div key={s.step} variants={itemVariants} className="flex items-start gap-6">

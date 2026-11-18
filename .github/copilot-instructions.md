@@ -15,9 +15,9 @@
 - Build all apps: `pnpm run build`
 - Run all apps in dev mode: `pnpm run dev`
 - Test: `pnpm test` (Jest, coverage enabled)
-- Individual app scripts are in each app's `package.json` (e.g., `pnpm --filter ./apps/backend run dev`).
+- Individual app scripts are in each app's `package.json` (e.g., `pnpm --filter./apps/backend run dev`).
 - Prisma DB commands: `pnpm run prisma-generate`, `pnpm run prisma-db-push`, `pnpm run prisma-reset`.
-- Docker: `docker compose -f ./docker-compose.dev.yaml up -d`
+- Docker: `docker compose -f./docker-compose.dev.yaml up -d`
 
 ## Conventions & Patterns
 - Use conventional commits (`feat:`, `fix:`, `chore:`).
@@ -66,9 +66,9 @@ The Sentry initialization needs to be updated to enable the logs feature.
 import * as Sentry from "@sentry/nextjs";
 
 Sentry.init({
-  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+ dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
 
-  enableLogs: true,
+ enableLogs: true,
 });
 ```
 
@@ -76,11 +76,11 @@ Sentry.init({
 
 ```javascript
 Sentry.init({
-  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
-  integrations: [
-    // send console.log, console.error, and console.warn calls as logs to Sentry
-    Sentry.consoleLoggingIntegration({ levels: ["log", "error", "warn"] }),
-  ],
+ dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+ integrations: [
+ // send console.log, console.error, and console.warn calls as logs to Sentry
+ Sentry.consoleLoggingIntegration({ levels: ["log", "error", "warn"] }),
+ ],
 });
 ```
 
@@ -97,16 +97,16 @@ logger.trace("Starting database connection", { database: "users" });
 logger.debug(logger.fmt`Cache miss for user: ${userId}`);
 logger.info("Updated profile", { profileId: 345 });
 logger.warn("Rate limit reached for endpoint", {
-  endpoint: "/api/results/",
-  isEnterprise: false,
+ endpoint: "/api/results/",
+ isEnterprise: false,
 });
 logger.error("Failed to process payment", {
-  orderId: "order_123",
-  amount: 99.99,
+ orderId: "order_123",
+ amount: 99.99,
 });
 logger.fatal("Database connection pool exhausted", {
-  database: "users",
-  activeConnections: 100,
+ database: "users",
+ activeConnections: 100,
 });
 ```
 

@@ -1,7 +1,7 @@
 // /home/z/my-project/netamplify-app/src-tauri/src/commands/backend_proxy.rs
 // NetAmplify — Tauri commands for proxying captured cookies to the local NestJS backend.
 //
-// After the Tauri WebView captures cookies from reddit.com/x.com, we need
+// After the Tauri WebView captures cookies from x.com, we need
 // to send them to the local NestJS backend (running on port 3000) so it
 // can:
 //   1. Validate the cookies by calling the platform's identity endpoint
@@ -44,20 +44,20 @@ pub struct BackendHealthResponse {
 
 /// Proxy captured cookies to the local NestJS backend.
 ///
-/// This command is called by the frontend AFTER `capture_reddit_cookies`
-/// or `capture_x_cookies` returns successfully. It sends the captured
+/// This command is called by the frontend AFTER `capture_x_cookies`
+/// returns successfully. It sends the captured
 /// cookies to the backend's `/api/connections/:platform/auto-capture`
 /// endpoint, which:
 ///
 ///   1. Receives the cookies as JSON
 ///   2. Validates them by calling the platform's identity endpoint
-///      (Reddit: GET /api/v1/me, X: GET /1.1/account/verify_credentials.json)
+///      (X: GET /1.1/account/verify_credentials.json)
 ///   3. Encrypts them with AES-256-GCM via TokenVault
 ///   4. Stores them in the Connection table
 ///   5. Returns the user's platform username
 ///
 /// # Arguments
-/// * `platform` — "REDDIT_COOKIE" or "TWITTER_COOKIE"
+/// * `platform` — "TWITTER_COOKIE"
 /// * `cookies` — the captured cookie map (name → value)
 /// * `jwt_token` — the user's NetAmplify JWT (for authentication)
 ///

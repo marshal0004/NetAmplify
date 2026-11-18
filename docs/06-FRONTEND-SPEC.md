@@ -35,7 +35,7 @@ so adding dark mode later is a token flip, not a refactor.
 
 - **UI font**: Inter (loaded via `next/font/google`).
 - **Mono font**: JetBrains Mono (for tech tags, char counters, platform
-  handles).
+ handles).
 - **Heading font**: Inter (semibold for h1–h3, regular for body).
 
 Type scale (line-height ratio):
@@ -53,34 +53,34 @@ Type scale (line-height ratio):
 
 - **Spacing grid**: 4px base. Common values: 4, 8, 12, 16, 24, 32, 48.
 - **Radius**: 8px default; 12px for cards; 6px for chips/badges; 4px
-  for inputs (subtle).
+ for inputs (subtle).
 - **Border**: 1px solid `border` color.
 - **Max content width**: 1200px (centered).
 - **Dashboard layout** (≥1024px): main 2fr / side 1fr; gap 24px.
 - **Sidebar** (≥1024px): 240px wide; collapses to bottom nav <1024px;
-  collapses to hamburger <768px.
+ collapses to hamburger <768px.
 
 ### 1.4 Components (shadcn/ui only — no other UI lib)
 
 - **Button**: variants `primary` / `secondary` / `ghost` / `destructive`;
-  sizes `sm` / `md` / `lg`; `disabled` shows spinner.
+ sizes `sm` / `md` / `lg`; `disabled` shows spinner.
 - **Input**: text/email/password/url; with label, helper, error
-  message; char counter for textarea.
+ message; char counter for textarea.
 - **Textarea**: markdown editor + char counter; preview toggle.
 - **Select**: native select styled (avoids Radix Select complexity for
-  MVP).
+ MVP).
 - **Badge / Chip**: tech tags, platform chips, status chips (see 1.5).
 - **Card**: rounded-12, border, padding 24; hover: shadow-sm.
 - **Dialog** (Radix): confirm destructive actions (Disconnect, Delete
-  account); modal width 480px.
+ account); modal width 480px.
 - **Toast**: bottom-right, 4s auto-dismiss; `aria-live="polite"`.
 - **Tabs** (Radix): settings page (Profile / Security & Connections /
-  Danger Zone).
+ Danger Zone).
 - **Table**: history list; sticky header on desktop.
 - **Skeleton**: shimmer placeholder for every async surface.
 - **DropdownMenu** (Radix): user menu (Profile, Settings, Logout).
 - **Tooltip** (Radix): error details on FAILED chips; "Why is this
-  safe?" expanders.
+ safe?" expanders.
 
 ### 1.5 Status chips (system-wide)
 
@@ -105,20 +105,20 @@ Platform chip = platform icon (from `simple-icons`) + mono handle (e.g.,
 
 **Sections** (top to bottom):
 1. **Hero**: "Post once. Get seen everywhere." + subtext "NetAmplify
-   formats your project for Reddit, Discord, Dev.to, Telegram, Bluesky,
-   Hashnode, X, and LinkedIn — in one click." + CTA buttons:
-   "Get started" (primary, → /signup) and "How it works" (ghost,
-   scroll to section).
+ formats your project for Discord, Dev.to, Telegram, Bluesky,
+ Hashnode, X, and LinkedIn — in one click." + CTA buttons:
+ "Get started" (primary, → /signup) and "How it works" (ghost,
+ scroll to section).
 2. **How it works** (3 steps with icons):
-   - Step 1: "Connect your platforms once" (icon: link)
-   - Step 2: "Compose a Post Card" (icon: edit)
-   - Step 3: "Amplify to N platforms in one click" (icon: rocket)
-3. **Platform logo row**: simple-icons for Reddit, Discord, Dev.to,
-   Telegram, Bluesky, Hashnode, X, LinkedIn (grayscale).
+ - Step 1: "Connect your platforms once" (icon: link)
+ - Step 2: "Compose a Post Card" (icon: edit)
+ - Step 3: "Amplify to N platforms in one click" (icon: rocket)
+3. **Platform logo row**: simple-icons for Discord, Dev.to,
+ Telegram, Bluesky, Hashnode, X, LinkedIn (grayscale).
 4. **Trust blurb** (centered, 2 sentences): "We never see your
-   passwords. Each platform uses OAuth or a key you generate yourself,
-   AES-256 encrypted, revocable anytime." + "See how →" link to
-   trust details.
+ passwords. Each platform uses OAuth or a key you generate yourself,
+ AES-256 encrypted, revocable anytime." + "See how →" link to
+ trust details.
 5. **Footer**: copyright, GitHub link, privacy policy stub.
 
 **States**: N/A (static page).
@@ -146,8 +146,8 @@ Platform chip = platform icon (from `simple-icons`) + mono handle (e.g.,
 - Email (input)
 - Submit (primary, "Send reset link")
 - On submit: show success message "If that email exists, a reset link
-  is on its way." (regardless of whether the account exists — no
-  enumeration).
+ is on its way." (regardless of whether the account exists — no
+ enumeration).
 
 **States**:
 - Loading: submit button shows spinner, disabled.
@@ -164,17 +164,17 @@ bar: logo, user dropdown (Profile, Settings, Logout).
 
 **Sections**:
 1. **Onboarding strip** (top, dismissible per user until all 3 done):
-   - `[1 Create profile]` (green if Profile has any field filled)
-   - `[2 Connect platforms]` (green if ≥1 Connection ACTIVE)
-   - `[3 Amplify first project]` (green if ≥1 Post exists)
+ - `[1 Create profile]` (green if Profile has any field filled)
+ - `[2 Connect platforms]` (green if ≥1 Connection ACTIVE)
+ - `[3 Amplify first project]` (green if ≥1 Post exists)
 2. **Stats strip** (S2): posts count, success rate, per-platform counts.
 3. **Post Cards grid**: cards with title, summary, tech tags (3 chips +
-   "+N more"), updatedAt, "Amplify" + "Edit" buttons.
+ "+N more"), updatedAt, "Amplify" + "Edit" buttons.
 
 **States**:
 - Loading: 6 skeleton cards.
 - Empty: "No post cards yet → create your first" with primary "New
-  Post Card" button.
+ Post Card" button.
 - Error: error banner with retry.
 
 ### Screen 4 — Connect Checklist
@@ -186,18 +186,18 @@ col mobile). Progress bar at top "3/6 connected".
 
 **Per-card states**:
 - **(a) Not connected**: platform icon, name, "Connect" button
-  (primary), "Why is this safe?" expander (ghost button → tooltip
-  with copy from `12-TRUST-COPY.md` §1).
+ (primary), "Why is this safe?" expander (ghost button → tooltip
+ with copy from `12-TRUST-COPY.md` §1).
 - **(b) Connected**: green check + "Connected as @handle" + mono
-  handle + "Disconnect" button (ghost).
+ handle + "Disconnect" button (ghost).
 - **(c) Setup pending** (Tier B unconfigured): amber state, disabled
-  "Connect" button, "Coming soon" tooltip with "App review pending"
-  message.
+ "Connect" button, "Coming soon" tooltip with "App review pending"
+ message.
 
 **Validation feedback**:
 - Discord: after valid webhook, "Will post to #channel in Server".
 - Telegram: errors map to precise hints (BAD_TOKEN / NOT_ADMIN /
-  BAD_CHANNEL per FR-007).
+ BAD_CHANNEL per FR-007).
 - All: after invalid credential, red error message + "Try again".
 
 **States**:
@@ -211,15 +211,15 @@ col mobile). Progress bar at top "3/6 connected".
 
 **Sections**:
 1. **Basics**: title input (with `42/120` char counter), summary
-   input (`87/200` counter).
+ input (`87/200` counter).
 2. **Story**: description textarea (markdown, `0/5000` counter),
-   "Preview" toggle shows rendered markdown (sanitized).
+ "Preview" toggle shows rendered markdown (sanitized).
 3. **Tech tags**: chips input; type + Enter to add; max 10 chips;
-   kebab-case hint; remove chip on click.
+ kebab-case hint; remove chip on click.
 4. **Links**: repoUrl, liveUrl (URL validation client-side; server is
-   source of truth).
+ source of truth).
 5. **Image** (S3): optional; drag-drop or click; preview thumbnail;
-   remove button; 5MB / jpg/png/webp validation.
+ remove button; 5MB / jpg/png/webp validation.
 6. **Save** button (primary); Cancel link.
 
 **States**:
@@ -241,29 +241,29 @@ previews), bottom bar with Amplify button.
 **Right column** — platform checklist:
 - Only connected platforms (Status ACTIVE) selectable.
 - Each platform row: checkbox, platform icon, name, live preview panel
-  (collapsible), char counter.
-- Reddit row: extra input "Subreddit" (default to last-used for this
-  user; required if Reddit checked).
+ (collapsible), char counter.
+- row: extra input "community" (default to last-used for this
+ user; required if checked).
 - Live preview: calls `GET /api/postcards/:id/preview?platform=X`
-  with debounce 300ms; shows formatted output + `charCount/limit`
-  counter (red if over).
+ with debounce 300ms; shows formatted output + `charCount/limit`
+ counter (red if over).
 - "🚀 Amplify to N platforms" button (N live count of selected).
 
 **After click Amplify**:
 - Bottom bar transitions to inline status board (replaces the
-  Amplify button).
+ Amplify button).
 - Status board: one row per platform, status chip + permalink button
-  (if SUCCESS) + error tooltip + Retry (if FAILED).
+ (if SUCCESS) + error tooltip + Retry (if FAILED).
 - Polls `GET /api/posts/:id` every 3s; stops when all terminal.
 - Partial-success banner (amber) if any FAILED: "Some platforms
-  failed — retry them individually."
+ failed — retry them individually."
 
 **States**:
 - Loading: skeletons for previews while debounced.
 - Empty: "No connected platforms → connect one to amplify" with link
-  to /dashboard/connections.
+ to /dashboard/connections.
 - Error: per-platform error from `errorClass` mapped to message per
-  `07-SECURITY-ACCESS.md` §4.
+ `07-SECURITY-ACCESS.md` §4.
 
 ### Screen 7 — History
 
@@ -274,12 +274,12 @@ previews), bottom bar with Amplify button.
 **Columns** (desktop):
 - Date (createdAt, formatted with `Intl.DateTimeFormat`)
 - Title (Post Card title, links to Post Card view)
-- Platforms (chips: REDDIT + status color)
+- Platforms (chips: + status color)
 - Permalinks (if SUCCESS: "View post" link per platform)
 - Actions (Retry button if any FAILED target)
 
 **Filters** (top bar):
-- Platform select (All / REDDIT / DISCORD / ...)
+- Platform select (All / / DISCORD /...)
 - Status select (All / SUCCESS / FAILED / SKIPPED)
 - Search input (filters by Post Card title — stretch)
 
@@ -288,7 +288,7 @@ previews), bottom bar with Amplify button.
 **States**:
 - Loading: 5 skeleton rows.
 - Empty: "No posts yet → amplify your first post card" with link to
-  dashboard.
+ dashboard.
 - Error: error banner with retry.
 
 ### Screen 8 — Settings
@@ -301,18 +301,18 @@ previews), bottom bar with Amplify button.
 
 **Security & Connections tab**:
 - Per-connection card: platform icon, handle, scopes granted (OAuth),
-  connectedAt, lastUsedAt, lastValidatedAt, big Disconnect button
-  (destructive).
+ connectedAt, lastUsedAt, lastValidatedAt, big Disconnect button
+ (destructive).
 - "How we protect you" section (verbatim from `12-TRUST-COPY.md` §2).
 - Disconnect confirmation: Dialog "Disconnect {Platform}? Future
-  publishes won't include it." with "Disconnect" / "Cancel".
+ publishes won't include it." with "Disconnect" / "Cancel".
 
 **Danger Zone tab**:
 - **Export data** button (secondary) → triggers download of
-  `/api/account/export` JSON.
+ `/api/account/export` JSON.
 - **Delete account** button (destructive) → Dialog with text input
-  "Type DELETE to confirm" → on submit, `DELETE /api/account` →
-  redirect to landing.
+ "Type DELETE to confirm" → on submit, `DELETE /api/account` →
+ redirect to landing.
 
 **States**:
 - Loading: skeleton for each tab.
@@ -326,9 +326,9 @@ previews), bottom bar with Amplify button.
 
 - `POST /api/auth/signup` (custom — not NextAuth)
 - `GET/POST /api/auth/[...nextauth]` (NextAuth — login, logout,
-  session, csrf)
+ session, csrf)
 - `POST /api/auth/reset-request`, `POST /api/auth/reset-confirm`
-  (custom)
+ (custom)
 
 Session cookie is HttpOnly; client never reads it. Use `next-auth/react`
 `useSession()` hook for client-side session state.
@@ -341,59 +341,58 @@ Per `05-API-SPEC.md`. Frontend uses a typed client
 - Error envelope parsing (`{ error: { code, message, fieldErrors } }`)
 - Throw on non-2xx; consumer catches and renders
 - Typed responses via Zod schemas (the SAME schemas as server, shared
-  from `src/lib/validation/schemas.ts`)
+ from `src/lib/validation/schemas.ts`)
 
 ### 3.3 OAuth connects are full-page redirects
 
 ```typescript
-// On clicking "Connect Reddit":
-window.location.href = '/api/oauth/reddit/start';
+window.location.href = '/api/oauth//start';
 
 // NOT:
-fetch('/api/oauth/reddit/start');  // FORBIDDEN — platform login pages
-                                    // can't be iframed, and redirect
-                                    // must be top-level for OAuth
+fetch('/api/oauth//start'); // FORBIDDEN — platform login pages
+ // can't be iframed, and redirect
+ // must be top-level for OAuth
 ```
 
-After callback, server redirects to `/dashboard/connections?connected=reddit`.
+After callback, server redirects to `/dashboard/connections?connected=`.
 UI shows a success toast.
 
 ### 3.4 Image upload
 
 - MVP: 1 image per Post Card.
 - Upload via `POST /api/postcards/:id/image` (multipart/form-data) →
-  returns `{ imageUrl }`.
+ returns `{ imageUrl }`.
 - Client validation BEFORE upload: max 5MB, jpg/png/webp only. Show
-  inline error if invalid; never call the API for invalid files.
+ inline error if invalid; never call the API for invalid files.
 - Server validation: same + magic-byte check (don't trust Content-
-  Type).
+ Type).
 - Storage: local disk `/public/uploads/<userId>/<cuid>.<ext>` in dev;
-  Cloudinary interface in prod (config-only swap).
+ Cloudinary interface in prod (config-only swap).
 
 ### 3.5 Polling (publish status)
 
 ```typescript
 // usePostStatus(postId) hook
 useEffect(() => {
-  if (!postId) return;
-  let active = true;
-  let timeoutId: NodeJS.Timeout;
-  const start = Date.now();
+ if (!postId) return;
+ let active = true;
+ let timeoutId: NodeJS.Timeout;
+ const start = Date.now();
 
-  const poll = async () => {
-    if (Date.now() - start > 5 * 60 * 1000) return; // max 5 min
-    const post = await api.getPost(postId);
-    if (!active) return;
-    setPost(post);
-    if (post.targets.every(t => isTerminal(t.status))) return; // stop
-    timeoutId = setTimeout(poll, 3000);
-  };
+ const poll = async () => {
+ if (Date.now() - start > 5 * 60 * 1000) return; // max 5 min
+ const post = await api.getPost(postId);
+ if (!active) return;
+ setPost(post);
+ if (post.targets.every(t => isTerminal(t.status))) return; // stop
+ timeoutId = setTimeout(poll, 3000);
+ };
 
-  poll();
-  return () => {
-    active = false;
-    clearTimeout(timeoutId);
-  };
+ poll();
+ return () => {
+ active = false;
+ clearTimeout(timeoutId);
+ };
 }, [postId]);
 ```
 
@@ -411,27 +410,26 @@ All toasts use `aria-live="polite"` and `role="status"`. Errors use
 ### 4.1 Responsive breakpoints
 
 - `<640px` (mobile): single column everywhere; dashboard sidebar
-  collapses to hamburger; composer stacks vertically; publish page
-  stacks vertically.
+ collapses to hamburger; composer stacks vertically; publish page
+ stacks vertically.
 - `640–1024px` (tablet): 2-col grids; sidebar becomes icon-only.
 - `≥1024px` (desktop): full layout per §1.3.
 
 ### 4.2 A11y requirements (enforced by Playwright + axe-core)
 
 - **Labels**: every input has `<label for=...>` (or `aria-label` for
-  icon-only buttons).
+ icon-only buttons).
 - **Keyboard**: every interactive element reachable via Tab; every
-  action operable via Enter / Space; no keyboard traps.
+ action operable via Enter / Space; no keyboard traps.
 - **Focus**: `:focus-visible` rings on all interactive elements (2px
-  primary color, 2px offset).
+ primary color, 2px offset).
 - **Contrast**: AA (4.5:1 body text; 3:1 large text + UI components).
 - **Toasts**: `aria-live="polite"` (info) / `assertive` (error).
 - **Status chips**: `aria-label="Status: success"` (or queued / etc.).
 - **Forms**: error messages linked via `aria-describedby`.
 - **Modals**: focus trap; Escape to close; focus returns to trigger.
 - **Images**: `alt` text; decorative images: `alt=""`.
-- **Dynamic content**: announce status changes (e.g., "Publishing to
-  Reddit...") via `aria-live` regions.
+- **Dynamic content**: announce status changes (e.g., "Publishing to...") via `aria-live` regions.
 
 ### 4.3 Lighthouse targets
 
@@ -453,27 +451,27 @@ All user-facing strings live in `src/lib/copy.ts`:
 
 ```typescript
 export const copy = {
-  landing: {
-    heroTitle: "Post once. Get seen everywhere.",
-    heroSubtitle: "NetAmplify formats your project for Reddit, Discord, Dev.to, Telegram, Bluesky, Hashnode, X, and LinkedIn — in one click.",
-    ctaPrimary: "Get started",
-    ctaSecondary: "How it works",
-    trustBlurb: "We never see your passwords. Each platform uses OAuth or a key you generate yourself, AES-256 encrypted, revocable anytime.",
-    // ... etc
-  },
-  dashboard: {
-    title: "Your post cards",
-    empty: "No post cards yet",
-    emptyCta: "Create your first",
-    // ... etc
-  },
-  publish: {
-    amplify: "🚀 Amplify to N platforms",
-    publishing: "Amplifying...",
-    partialFailure: "Some platforms failed — retry them individually.",
-    // ... etc
-  },
-  // ... etc
+ landing: {
+ heroTitle: "Post once. Get seen everywhere.",
+ heroSubtitle: "NetAmplify formats your project for Discord, Dev.to, Telegram, Bluesky, Hashnode, X, and LinkedIn — in one click.",
+ ctaPrimary: "Get started",
+ ctaSecondary: "How it works",
+ trustBlurb: "We never see your passwords. Each platform uses OAuth or a key you generate yourself, AES-256 encrypted, revocable anytime.",
+ //... etc
+ },
+ dashboard: {
+ title: "Your post cards",
+ empty: "No post cards yet",
+ emptyCta: "Create your first",
+ //... etc
+ },
+ publish: {
+ amplify: "🚀 Amplify to N platforms",
+ publishing: "Amplifying...",
+ partialFailure: "Some platforms failed — retry them individually.",
+ //... etc
+ },
+ //... etc
 } as const;
 ```
 
@@ -486,13 +484,13 @@ re-typed) via a `trustCopy` export.
 ## 6. State management
 
 - **Server state**: TanStack Query (React Query v5) for all `/api/*`
-  data. Cache keys: `[resource, id?, params?]`. Default stale-while-
-  revalidate.
+ data. Cache keys: `[resource, id?, params?]`. Default stale-while-
+ revalidate.
 - **Form state**: React Hook Form + Zod resolver. Schema is the SAME
-  Zod schema from `src/lib/validation/schemas.ts` (shared with
-  server).
+ Zod schema from `src/lib/validation/schemas.ts` (shared with
+ server).
 - **Local UI state**: React `useState` for ephemeral state (modal
-  open, preview toggle, etc.). No Redux, no Zustand.
+ open, preview toggle, etc.). No Redux, no Zustand.
 - **Auth state**: `next-auth/react` `useSession()`.
 
 ---
@@ -504,15 +502,15 @@ Every screen has three async-boundary states:
 ```tsx
 // Pattern (simplified):
 function DashboardPage() {
-  const { data, isLoading, error, refetch } = usePostCards();
+ const { data, isLoading, error, refetch } = usePostCards();
 
-  if (isLoading) return <PostCardGridSkeleton />;
-  if (error) return <ErrorBanner message={error.message} onRetry={refetch} />;
-  if (!data.items.length) return <EmptyState
-    title="No post cards yet"
-    cta={<Button onClick={...}>Create your first</Button>}
-  />;
-  return <PostCardGrid items={data.items} />;
+ if (isLoading) return <PostCardGridSkeleton />;
+ if (error) return <ErrorBanner message={error.message} onRetry={refetch} />;
+ if (!data.items.length) return <EmptyState
+ title="No post cards yet"
+ cta={<Button onClick={...}>Create your first</Button>}
+ />;
+ return <PostCardGrid items={data.items} />;
 }
 ```
 

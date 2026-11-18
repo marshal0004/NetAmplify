@@ -196,28 +196,17 @@ describe('PostCardService', () => {
   describe('preview', () => {
     it('returns formatted preview for each platform', async () => {
       const created = await service.create('user-1', validPostCardInput);
-      const preview = await service.preview('user-1', created.id, 'REDDIT', 'sideproject');
-      expect(preview.platform).toBe('REDDIT');
+      const preview = await service.preview('user-1', created.id, 'HASHNODE');
+      expect(preview.platform).toBe('HASHNODE');
       expect(preview.formatted.title).toBe('My Project');
       expect(preview.formatted.body).toContain('A one-line summary');
       expect(preview.formatted.charCount).toBeGreaterThan(0);
-      // Reddit title limit is 300 (PLATFORM_CONFIG.REDDIT.charLimit); the formatter's
-      // limit field uses the BODY limit (40_000) since Reddit's body is the larger field.
       expect(preview.formatted.limit).toBeGreaterThan(0);
-    });
-
-    it('passes subreddit option to formatter for Reddit', async () => {
-      const created = await service.create('user-1', validPostCardInput);
-      const preview = await service.preview('user-1', created.id, 'REDDIT', 'mytestsub');
-      // Reddit formatter puts subreddit in options
-      // (Note: preview endpoint returns formatted output, options.subreddit is internal to formatter)
-      // We just verify the call doesn't throw
-      expect(preview).toBeDefined();
     });
 
     it('throws NOT_FOUND when PostCard does not exist', async () => {
       await expect(
-        service.preview('user-1', 'nonexistent', 'REDDIT', 'test')
+        service.preview('user-1', 'nonexistent', 'HASHNODE')
       ).rejects.toThrow(ServiceError);
     });
   });

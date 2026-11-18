@@ -99,7 +99,6 @@ const platformConfig: Record<string, PlatformConfig> = {
     steps: [{ text: 'Click "Connect via OAuth" to log in on LinkedIn\'s official page.' }],
   },
   // ==========================================================================
-  // Cookie-based platforms (Option A — bypass X/Reddit paywalls)
   // ==========================================================================
   TWITTER_COOKIE: {
     steps: [
@@ -231,29 +230,16 @@ export function ConnectChecklist() {
 
       // Use the backend Playwright-based publish endpoint.
       // This spawns a headless Chromium on the backend which has a real
-      // Chrome TLS fingerprint — bypasses Reddit's/X's WAF.
       // The Tauri WebView approach (WebKitGTK) was failing because
-      // Reddit's WAF fingerprints the TLS layer, not just HTTP headers.
-      const endpoint = platform === 'TWITTER_COOKIE'
-        ? '/api/publish/twitter-cookie-web'
-        : '/api/publish/reddit-cookie-web';
+      const endpoint = '/api/publish/twitter-cookie-web';
 
-      const payload =
-        platform === 'TWITTER_COOKIE'
-          ? {
-              title: 'Test Post from NetAmplify',
-              // Use a unique timestamp so X doesn't reject as duplicate
-              body: `Hello from NetAmplify! This is a test post via Playwright (real Chrome TLS). ${new Date().toISOString()}`,
-              url: 'https://github.com/marshal0004/NetAmplify',
-              hashtags: ['netamplify', 'test'],
-            }
-          : {
-              title: 'Test Post from NetAmplify',
-              body: 'Hello from NetAmplify! This is a test post via Playwright (real Chrome TLS).',
-              url: 'https://github.com/marshal0004/NetAmplify',
-              hashtags: ['netamplify'],
-              options: { subreddit: 'test' },
-            };
+      const payload = {
+        title: 'Test Post from NetAmplify',
+        // Use a unique timestamp so X doesn't reject as duplicate
+        body: `Hello from NetAmplify! This is a test post via Playwright (real Chrome TLS). ${new Date().toISOString()}`,
+        url: 'https://github.com/marshal0004/NetAmplify',
+        hashtags: ['netamplify', 'test'],
+      };
 
       const resp = await fetch(endpoint, {
         method: 'POST',

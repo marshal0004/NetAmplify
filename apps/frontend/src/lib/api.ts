@@ -292,9 +292,8 @@ export const postcardApi = {
     return request(`/postcards/${id}`, { method: 'DELETE' });
   },
 
-  async preview(id: string, platform: string, subreddit?: string): Promise<Preview> {
+  async preview(id: string, platform: string): Promise<Preview> {
     const params = new URLSearchParams({ platform });
-    if (subreddit) params.set('subreddit', subreddit);
     return request(`/postcards/${id}/preview?${params}`, {}, PreviewSchema);
   },
 };

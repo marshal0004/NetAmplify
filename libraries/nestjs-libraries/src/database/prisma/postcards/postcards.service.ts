@@ -132,15 +132,12 @@ export class PostCardService {
 
   /**
    * Format-engine preview for the publish page. Returns the formatted
-   * output for a specific platform (with optional subreddit for Reddit).
    * Per docs/05-API-SPEC.md:
-   *   GET /api/postcards/:id/preview?platform=REDDIT&subreddit=test
    */
   async preview(
     userId: string,
     id: string,
     platform: Platform,
-    subreddit?: string
   ): Promise<PostCardPreview> {
     const card = await this._repo.findById(userId, id);
     if (!card) {
@@ -155,7 +152,7 @@ export class PostCardService {
       liveUrl: card.liveUrl ?? undefined,
       imageUrl: card.imageUrl ?? undefined,
     };
-    const formatted = formatForPlatform(platform, formatInput, null, subreddit ? { subreddit } : {});
+    const formatted = formatForPlatform(platform, formatInput, null);
     return {
       platform,
       formatted: {

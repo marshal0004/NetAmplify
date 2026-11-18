@@ -13,33 +13,33 @@
 
 - Email + password (bcrypt cost ≥10).
 - NextAuth.js v4 (credentials provider) — sessions, CSRF, cookie
-  management handled.
+ management handled.
 - Session duration: 7 days (rolling refresh on activity).
 - Cookie: `next-auth.session-token`, HttpOnly, SameSite=Lax, Secure
-  in prod.
+ in prod.
 
 ### 1.2 Password reset
 
 - User requests reset: `POST /api/auth/reset-request { email }`.
 - Server ALWAYS returns 204 (no user enumeration). Audit `LOGIN_FAIL`
-  if email not found (for monitoring).
+ if email not found (for monitoring).
 - Email sent via Resend with a 1-hour single-use token (32 random
-  bytes, base64url, stored hashed in `PasswordReset` table).
+ bytes, base64url, stored hashed in `PasswordReset` table).
 - User confirms: `POST /api/auth/reset-confirm { token, newPassword }`.
 - On success: update passwordHash, delete the token row, invalidate
-  all existing sessions for that user.
+ all existing sessions for that user.
 - On failure (token not found / expired / used): 400 `INVALID_TOKEN`.
 - Rate-limited: 3 reset requests per email per hour.
 
 ### 1.3 What we explicitly DON'T do in MVP
 
 - Google OAuth (cut from MVP — adds Google API console setup, OAuth
-  flow maintenance, and a "what if Google rejects our app review"
-  scenario).
+ flow maintenance, and a "what if Google rejects our app review"
+ scenario).
 - Email verification on signup (we don't verify the email at signup;
-  we send the reset email to whatever they typed). MVP risk: fake
-  emails can sign up but can't reset (no email to receive the link).
-  Trade-off acceptable for v1; add email verification post-MVP.
+ we send the reset email to whatever they typed). MVP risk: fake
+ emails can sign up but can't reset (no email to receive the link).
+ Trade-off acceptable for v1; add email verification post-MVP.
 - 2FA / TOTP (post-MVP).
 - Passkeys / WebAuthn (post-MVP).
 - "Remember this device" emails (post-MVP).
@@ -54,19 +54,19 @@ MVP has **ONE role**: `USER` (any authenticated account).
 
 **Rules**:
 - A `USER` sees / edits ONLY their own `Profile`, `PostCard`s,
-  `Connection`s, `Post`s, and their own `AuditLog` rows.
+ `Connection`s, `Post`s, and their own `AuditLog` rows.
 - Cross-user access MUST return 404 (preferred) or 403 (if explicitly
-  authorized by some future role). 404 is preferred to avoid leaking
-  existence.
+ authorized by some future role). 404 is preferred to avoid leaking
+ existence.
 - Anonymous: landing + login / signup / reset only. Everything else
-  → 302 to `/login?returnTo=<path>`.
+ → 302 to `/login?returnTo=<path>`.
 
 ### 2.2 ADMIN role (deferred)
 
 - The schema leaves room for a future `role` column on `User`
-  (`@default('USER')`), but **NO admin UI exists in MVP**.
+ (`@default('USER')`), but **NO admin UI exists in MVP**.
 - Nobody but the DBA touches prod data directly. MVP has no admin
-  actions exposed through the app.
+ actions exposed through the app.
 
 ### 2.3 Permission matrix
 
@@ -99,7 +99,7 @@ const card = await prisma.postCard.findUnique({ where: { id } });
 
 // RIGHT (owner-scoped):
 const card = await prisma.postCard.findUnique({
-  where: { id, userId: session.user.id },
+ where: { id, userId: session.user.id },
 });
 if (!card) return notFound(); // 404, not 403 — never leak existence
 ```
@@ -108,36 +108,36 @@ if (!card) return notFound(); // 404, not 403 — never leak existence
 - Code review checklist item.
 - Per-resource integration test: user B calls user A's endpoint → 404.
 - (Stretch) ESLint custom rule forbidding `prisma.<userModel>.find*`
-  without `userId` in `where`.
+ without `userId` in `where`.
 
 ### R2 — Connection credentials: selected ONLY inside TokenVault consumers
 
 - API responses build from a whitelist projection — never `select *`
-  on `Connection`.
+ on `Connection`.
 - The `connectionsService.list()` function returns only:
-  `platform, type, username, status, configured, connectedAt,
-  lastUsedAt, scopes`.
+ `platform, type, username, status, configured, connectedAt,
+ lastUsedAt, scopes`.
 - The `credentialsCipher` column is NEVER selected by services. Only
-  `src/workers/publish-worker.ts` and
-  `src/server/services/connections.ts` (during validation) read it,
-  via `prisma.connection.findUnique({ select: { credentialsCipher:
-  true, ... } })` and immediately pass to `TokenVault.decrypt`.
+ `src/workers/publish-worker.ts` and
+ `src/server/services/connections.ts` (during validation) read it,
+ via `prisma.connection.findUnique({ select: { credentialsCipher:
+ true... } })` and immediately pass to `TokenVault.decrypt`.
 
 ### R3 — Publish validates ownership + ACTIVE connections
 
 - `postCard.userId === session.user.id` (else 404).
 - For every requested platform, that user's `Connection` with
-  `status === ACTIVE` exists (else 400 with `invalidPlatforms`).
+ `status === ACTIVE` exists (else 400 with `invalidPlatforms`).
 - This validation is server-side, on every publish. No trusting the
-  client.
+ client.
 
 ### R4 — Webhook / Discord / Telegram validation calls happen server-side only
 
 - The browser never receives echoed credentials back.
 - After `POST /api/connections/discord { webhookUrl }`, the response
-  is `{ channelName, guildName }` — never the webhookUrl.
+ is `{ channelName, guildName }` — never the webhookUrl.
 - After `POST /api/connections/telegram { botToken, channel }`, the
-  response is `{ channelTitle }` — never the bot token.
+ response is `{ channelTitle }` — never the bot token.
 
 ### R5 — Rate limits per FR-016 (Redis counters)
 
@@ -153,7 +153,7 @@ if (!card) return notFound(); // 404, not 403 — never leak existence
 - Deleted on read (single-use).
 - Signed with `NEXTAUTH_SECRET` (HMAC-SHA256).
 - 10-min TTL — short enough to limit replay, long enough for a user
-  to log in to the platform + consent.
+ to log in to the platform + consent.
 
 ---
 
@@ -179,7 +179,7 @@ if (!card) return notFound(); // 404, not 403 — never leak existence
 | Publish AUTH failure | — | target `FAILED` + "Reconnect this platform" (Connection → `REVOKED`) | `PUBLISH` (one per post) |
 | Publish RATE failure (transient) | — | "Platform is rate-limiting — auto-retrying" | — |
 | Publish RATE failure (terminal, 3 attempts) | — | "Platform is rate-limiting — try later" + Retry button | — |
-| Publish VALIDATION failure | — | platform's own message verbatim (e.g., "Subreddit banned") | — |
+| Publish VALIDATION failure | — | platform's own message verbatim (e.g., "community banned") | — |
 | Publish NETWORK failure (transient) | — | "Network issue — auto-retrying" | — |
 | Publish NETWORK failure (terminal) | — | "Network issue — try again" + Retry button | — |
 | X quota exhausted | — | target `SKIPPED` + "X quota for this month is used — other platforms unaffected" | — |
@@ -199,92 +199,92 @@ if (!card) return notFound(); // 404, not 403 — never leak existence
 ### 5.1 Content edge cases
 
 - **Empty `techStack` or >10 tags**: block with message "Add 1–10 tech
-  tags."
+ tags."
 - **Title exactly at limit (120)**: allowed; +1 char → 400.
 - **Description with emoji / unicode / ZWJ sequences**: formatter
-  counts graphemes for X (280) and Bluesky (300). Test with `"👨‍👩‍👧"` (a
-  family ZWJ sequence) — must count as 1 grapheme, not 7 code units.
+ counts graphemes for X (280) and Bluesky (300). Test with `"👨‍👩‍👧"` (a
+ family ZWJ sequence) — must count as 1 grapheme, not 7 code units.
 - **Description >5000 chars**: 400 with field error.
 - **Massive markdown description** (just under 5000): formatter
-  truncation strategy (FR-011) guarantees limits per platform;
-  preview shows the truncated result truthfully.
+ truncation strategy (FR-011) guarantees limits per platform;
+ preview shows the truncated result truthfully.
 
 ### 5.2 Concurrency / race edge cases
 
 - **Double-click Amplify**: idempotency via `requestId` → one Post.
-  Second click sees `409 DUPLICATE_REQUEST` → UI shows "Already
-  publishing — view status" link.
+ Second click sees `409 DUPLICATE_REQUEST` → UI shows "Already
+ publishing — view status" link.
 - **Two tabs Amplify same card**: same as double-click — first POST
-  wins; second gets 409 with link to existing post.
+ wins; second gets 409 with link to existing post.
 - **User disconnects platform between click and worker run**: worker
-  re-reads `Connection` at execution; null → SKIPPED "connection
-  removed". Never crashes.
+ re-reads `Connection` at execution; null → SKIPPED "connection
+ removed". Never crashes.
 - **Token revoked on platform between posts**: AUTH class failure →
-  Connection REVOKED badge in UI; target FAILED with reconnect hint.
+ Connection REVOKED badge in UI; target FAILED with reconnect hint.
 - **Same platform reconnected with different account**: upsert; old
-  ciphertext overwritten; `platformUsername` updated; audit `CONNECT`
-  (not `DISCONNECT`).
+ ciphertext overwritten; `platformUsername` updated; audit `CONNECT`
+ (not `DISCONNECT`).
 - **Race on X quota increment**: two concurrent publishes both
-  checking `QuotaUsage`. Use `prisma.$transaction` with row-level lock
-  (`SELECT ... FOR UPDATE` via raw SQL or `update` with conditional
-  `where: { used: { lt: budget } }`). One succeeds in incrementing;
-  the other sees updated count and either succeeds (if still under
-  budget) or SKIPPED.
+ checking `QuotaUsage`. Use `prisma.$transaction` with row-level lock
+ (`SELECT... FOR UPDATE` via raw SQL or `update` with conditional
+ `where: { used: { lt: budget } }`). One succeeds in incrementing;
+ the other sees updated count and either succeeds (if still under
+ budget) or SKIPPED.
 
 ### 5.3 Platform-specific edge cases
 
-- **Reddit subreddit invalid / banned / private**: adapter surfaces
-  platform's VALIDATION error verbatim ("This subreddit is private"
-  / "Subreddit not found"). PostTarget FAILED.
+- ** community invalid / banned / private**: adapter surfaces
+ platform's VALIDATION error verbatim ("This community is private"
+ / "community not found"). PostTarget FAILED.
 - **Discord webhook deleted after connect**: AUTH failure on next
-  publish → Connection REVOKED; user sees "Reconnect this platform"
-  hint.
+ publish → Connection REVOKED; user sees "Reconnect this platform"
+ hint.
 - **Telegram bot removed from channel (admin revoked)**: `getChat`
-  returns 403 → AUTH class failure → Connection REVOKED; user sees
-  "Make your bot an admin of the channel first".
+ returns 403 → AUTH class failure → Connection REVOKED; user sees
+ "Make your bot an admin of the channel first".
 - **Bluesky app password revoked**: `createSession` would have
-  succeeded at connect time, but later publishes fail with 401 → AUTH
-  → Connection REVOKED.
+ succeeded at connect time, but later publishes fail with 401 → AUTH
+ → Connection REVOKED.
 - **Dev.to API key rate-limited during validation**: 429 → RATE class
-  failure at connect time → user sees "Dev.to is rate-limiting — try
-  again in a minute".
+ failure at connect time → user sees "Dev.to is rate-limiting — try
+ again in a minute".
 
 ### 5.4 Scale / performance edge cases
 
 - **50+ posts history**: pagination 20/page; no layout shift (skeleton
-  during fetch; same row heights).
+ during fetch; same row heights).
 - **100+ post cards**: pagination 12/page on dashboard; same.
 - **Slow 3G**: skeletons everywhere; publish polling degrades
-  gracefully (3s intervals on 3G are fine).
+ gracefully (3s intervals on 3G are fine).
 - **Image upload > 5MB**: client-side rejection (no API call);
-  server-side rejection (defensive, magic-byte check) if client
-  bypassed.
+ server-side rejection (defensive, magic-byte check) if client
+ bypassed.
 
 ### 5.5 Account lifecycle edge cases
 
 - **Account deleted while jobs queued**: workers check `User` existence
-  at execution; null user → SKIPPED "user deleted"; audit `ACCOUNT_DELETE`
-  already logged.
+ at execution; null user → SKIPPED "user deleted"; audit `ACCOUNT_DELETE`
+ already logged.
 - **Account deleted with active sessions**: server invalidates
-  sessions (delete session rows if using DB strategy, or rely on JWT
-  expiry if using JWT strategy). We use NextAuth DB sessions in MVP,
-  so deletion cascades.
+ sessions (delete session rows if using DB strategy, or rely on JWT
+ expiry if using JWT strategy). We use NextAuth DB sessions in MVP,
+ so deletion cascades.
 - **Re-activate a deleted email**: signup with same email after
-  deletion → fresh User row (no soft-delete in MVP, so the old row is
-  gone; new row has new id).
+ deletion → fresh User row (no soft-delete in MVP, so the old row is
+ gone; new row has new id).
 
 ### 5.6 OAuth edge cases
 
 - **OAuth state cookie expired**: 400 `BAD_STATE` on callback.
 - **OAuth state mismatch (tampering)**: 400 `BAD_STATE`, audit
-  `TOKEN_FAIL`, no Connection row.
+ `TOKEN_FAIL`, no Connection row.
 - **OAuth code reused (replay)**: platform API rejects (code is
-  single-use); we surface 502 `OAUTH_EXCHANGE_FAILED`.
+ single-use); we surface 502 `OAUTH_EXCHANGE_FAILED`.
 - **OAuth redirect URI mismatch**: platform rejects before reaching
-  us; user sees platform's error.
+ us; user sees platform's error.
 - **User denies consent on platform**: platform redirects back with
-  `?error=access_denied` (no `code`); our callback handles this →
-  user sees "Connection cancelled — try again if you'd like."
+ `?error=access_denied` (no `code`); our callback handles this →
+ user sees "Connection cancelled — try again if you'd like."
 
 ---
 
@@ -309,23 +309,23 @@ if (!card) return notFound(); // 404, not 403 — never leak existence
 
 - [ ] No credentials in logs (scanner test) / responses / client bundles
 - [ ] CSP allowing only `self` + platform OAuth redirects; HSTS;
-      frame-ancestors `'none'`
+ frame-ancestors `'none'`
 - [ ] Zod on every route; markdown rendered sanitized (no raw HTML)
 - [ ] bcrypt ≥10; NextAuth secrets from env; no secret in
-      `.env.example` values
+ `.env.example` values
 - [ ] Dependency audit (`npm audit --production`) clean or justified
 - [ ] DB dump grep test for token patterns in CI
-- [ ] OAuth redirect URIs exact-match registered URIs in Reddit / X /
-      LinkedIn app settings
+- [ ] OAuth redirect URIs exact-match registered URIs in / X /
+ LinkedIn app settings
 - [ ] Rate limit works (burst test yields 429)
 - [ ] Account deletion cascades everything; audit `ACCOUNT_DELETE`
-      row kept
+ row kept
 - [ ] Export JSON contains no credential ciphertext
 - [ ] Lighthouse ≥90 (perf, a11y, best-practice)
 - [ ] `axe-core` clean on every screen
 - [ ] All FRs have at least one test (unit / integration / E2E)
-- [ ] Manual smoke (Discord + Reddit real posts) — evidence in
-      PROGRESS.md
+- [ ] Manual smoke (Discord + real posts) — evidence in
+ PROGRESS.md
 
 ### 6.3 Secrets management
 
@@ -333,22 +333,22 @@ if (!card) return notFound(); // 404, not 403 — never leak existence
 - `.env.example` has placeholders only (`generate-with-openssl-rand-base64-32`).
 - `.env.local` is gitignored.
 - Prod secrets in Vercel env / Doppler / AWS Secrets Manager (per
-  `14-DEPLOYMENT.md`).
+ `14-DEPLOYMENT.md`).
 - Rotate `TOKEN_ENCRYPTION_KEY`: post-MVP (MVP: one key; rotation
-  requires dual-key support in the vault).
+ requires dual-key support in the vault).
 - Rotate `NEXTAUTH_SECRET`: rotating invalidates all sessions —
-  schedule for low-traffic window.
+ schedule for low-traffic window.
 
 ### 6.4 CSP (Content Security Policy)
 
 ```
 default-src 'self';
-script-src 'self' 'unsafe-inline';   /* Next.js needs unsafe-inline for
-                                        dev; prod: nonce-based */
-style-src 'self' 'unsafe-inline';    /* Tailwind needs unsafe-inline */
+script-src 'self' 'unsafe-inline'; /* Next.js needs unsafe-inline for
+ dev; prod: nonce-based */
+style-src 'self' 'unsafe-inline'; /* Tailwind needs unsafe-inline */
 img-src 'self' data: https://*.githubusercontent.com https://res.cloudinary.com;
 font-src 'self' data:;
-connect-src 'self' https://oauth.reddit.com https://bsky.social;
+connect-src 'self' https://oauth..com https://bsky.social;
 frame-ancestors 'none';
 form-action 'self';
 base-uri 'self';
@@ -358,68 +358,68 @@ upgrade-insecure-requests;
 
 Notes:
 - `script-src 'unsafe-inline'` is required for Next.js dev mode; in
-  prod, use nonce-based CSP (`script-src 'self' 'nonce-...'`).
+ prod, use nonce-based CSP (`script-src 'self' 'nonce-...'`).
 - `connect-src` allows platform OAuth API hosts for any client-side
-  fetches (we don't do any; this is defensive).
+ fetches (we don't do any; this is defensive).
 - `img-src` allows GitHub avatars (for OAuth identity display) and
-  Cloudinary (for prod image uploads).
+ Cloudinary (for prod image uploads).
 - `frame-ancestors 'none'` — no iframing our app anywhere.
 
 ### 6.5 Rate limit details
 
 - **In-memory (MVP)**: Redis atomic INCR + EXPIRE.
 - **Sliding window** (post-MVP): for MVP, fixed window per minute is
-  fine.
+ fine.
 - **Per-IP**: `rate-limit:<ip>:<minute>` → INCR → if >10 on auth,
-  429. TTL 60s.
+ 429. TTL 60s.
 - **Per-user**: `rate-limit:user:<userId>:<minute>` → INCR → if >100
-  global / >10 publish, 429. TTL 60s.
+ global / >10 publish, 429. TTL 60s.
 - **Retry-After**: seconds until the current minute window ends.
 
 ### 6.6 Input sanitization
 
 - All inputs go through Zod (server-side). Zod rejects:
-  - Strings too long / too short.
-  - Invalid URLs (must be `https://` for URLs).
-  - Invalid email format.
-  - Invalid enums.
+ - Strings too long / too short.
+ - Invalid URLs (must be `https://` for URLs).
+ - Invalid email format.
+ - Invalid enums.
 - Markdown description: stored as-is (sanitized on render via
-  `react-markdown` + `remark-gfm` with NO raw HTML allowed).
-  - `react-markdown` doesn't render raw HTML by default; we don't add
-    `rehype-raw`. So `<script>` in markdown is shown as text, not
-    rendered.
+ `react-markdown` + `remark-gfm` with NO raw HTML allowed).
+ - `react-markdown` doesn't render raw HTML by default; we don't add
+ `rehype-raw`. So `<script>` in markdown is shown as text, not
+ rendered.
 - User-supplied URLs (repoUrl, liveUrl, webhookUrl, etc.):
-  - Zod `z.string().url()` ensures valid URL.
-  - For Discord webhook: `startsWith('https://discord.com/api/webhooks/')`.
-  - For GitHub: `startsWith('https://github.com/')`.
-  - For portfolio: any `https://` URL.
+ - Zod `z.string().url()` ensures valid URL.
+ - For Discord webhook: `startsWith('https://discord.com/api/webhooks/')`.
+ - For GitHub: `startsWith('https://github.com/')`.
+ - For portfolio: any `https://` URL.
 
 ### 6.7 Output sanitization
 
 - API responses: never include `credentialsCipher`.
 - Error messages: sanitized via `src/lib/errors/mapper.ts` — strip
-  anything matching the secret regex, strip internal paths (e.g.,
-  `src/server/services/...`), strip stack traces.
+ anything matching the secret regex, strip internal paths (e.g.,
+ `src/server/services/...`), strip stack traces.
 - Logs: structured JSON; never log raw request bodies for credential
-  routes; never log decrypted content; scanner test in CI.
+ routes; never log decrypted content; scanner test in CI.
 
 ---
 
 ## 7. Security review process (per PR)
 
 1. Author fills the per-PR security checklist (from §6.2):
-   ```
-   - [ ] No new `any` introduced
-   - [ ] All new inputs Zod-validated
-   - [ ] All new queries owner-scoped (or N/A — explain)
-   - [ ] No credentials in new logs / responses
-   - [ ] New components pass `axe-core` (if UI)
-   - [ ] Tests cover new logic branches incl. error paths
-   - [ ] Dependency change (if any): approved in PR description
-   ```
+ ```
+ - [ ] No new `any` introduced
+ - [ ] All new inputs Zod-validated
+ - [ ] All new queries owner-scoped (or N/A — explain)
+ - [ ] No credentials in new logs / responses
+ - [ ] New components pass `axe-core` (if UI)
+ - [ ] Tests cover new logic branches incl. error paths
+ - [ ] Dependency change (if any): approved in PR description
+ ```
 2. Reviewer (human) verifies each box.
 3. CI runs the scanner tests + lint + typecheck + unit + integration +
-   build.
+ build.
 4. If any box unchecked OR any CI red: PR is NOT merged.
 
 ---

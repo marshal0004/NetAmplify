@@ -17,12 +17,12 @@
 // Source of truth for data. Migrations only via `prisma migrate dev --name <desc>`.
 
 generator client {
-  provider = "prisma-client-js"
+ provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+ provider = "postgresql"
+ url = env("DATABASE_URL")
 }
 
 // ---------------------------------------------------------------------------
@@ -30,36 +30,36 @@ datasource db {
 // ---------------------------------------------------------------------------
 
 enum Platform {
-  REDDIT
-  DISCORD
-  DEVTO
-  TELEGRAM
-  BLUESKY
-  HASHNODE
-  TWITTER
-  LINKEDIN
+ 
+ DISCORD
+ DEVTO
+ TELEGRAM
+ BLUESKY
+ HASHNODE
+ TWITTER
+ LINKEDIN
 }
 
 enum ConnectionType {
-  OAUTH
-  API_KEY
-  WEBHOOK
-  BOT_TOKEN
-  APP_PASSWORD
+ OAUTH
+ API_KEY
+ WEBHOOK
+ BOT_TOKEN
+ APP_PASSWORD
 }
 
 enum ConnectionStatus {
-  ACTIVE
-  REVOKED
-  ERROR
+ ACTIVE
+ REVOKED
+ ERROR
 }
 
 enum PostTargetStatus {
-  QUEUED
-  PUBLISHING
-  SUCCESS
-  FAILED
-  SKIPPED
+ QUEUED
+ PUBLISHING
+ SUCCESS
+ FAILED
+ SKIPPED
 }
 
 // ---------------------------------------------------------------------------
@@ -67,38 +67,38 @@ enum PostTargetStatus {
 // ---------------------------------------------------------------------------
 
 model User {
-  id            String        @id @default(cuid())
-  email         String        @unique
-  passwordHash  String
-  name          String
-  emailVerified DateTime?     // set when reset token confirms (optional MVP)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+ id String @id @default(cuid())
+ email String @unique
+ passwordHash String
+ name String
+ emailVerified DateTime? // set when reset token confirms (optional MVP)
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
 
-  profile      Profile?
-  postCards    PostCard[]
-  connections  Connection[]
-  posts        Post[]
-  auditLogs    AuditLog[]
+ profile Profile?
+ postCards PostCard[]
+ connections Connection[]
+ posts Post[]
+ auditLogs AuditLog[]
 
-  @@index([email])
+ @@index([email])
 }
 
 model Profile {
-  id             String   @id @default(cuid())
-  userId         String   @unique
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+ id String @id @default(cuid())
+ userId String @unique
+ user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  headline       String?  @db.VarChar(140)
-  college        String?  @db.VarChar(100)
-  graduationYear Int?
-  githubUrl      String?  @db.VarChar(500)
-  portfolioUrl    String?  @db.VarChar(500)
+ headline String? @db.VarChar(140)
+ college String? @db.VarChar(100)
+ graduationYear Int?
+ githubUrl String? @db.VarChar(500)
+ portfolioUrl String? @db.VarChar(500)
 
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
 
-  @@index([userId])
+ @@index([userId])
 }
 
 // ---------------------------------------------------------------------------
@@ -106,24 +106,24 @@ model Profile {
 // ---------------------------------------------------------------------------
 
 model PostCard {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+ id String @id @default(cuid())
+ userId String
+ user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  title       String   @db.VarChar(120)
-  summary     String   @db.VarChar(200)
-  description String   @db.Text          // markdown, ≤5000 enforced by Zod (not DB)
-  techStack   String[]                   // 1–10 enforced by Zod
-  repoUrl     String?  @db.VarChar(500)
-  liveUrl     String?  @db.VarChar(500)
-  imageUrl    String?  @db.VarChar(500)
+ title String @db.VarChar(120)
+ summary String @db.VarChar(200)
+ description String @db.Text // markdown, ≤5000 enforced by Zod (not DB)
+ techStack String[] // 1–10 enforced by Zod
+ repoUrl String? @db.VarChar(500)
+ liveUrl String? @db.VarChar(500)
+ imageUrl String? @db.VarChar(500)
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
 
-  posts       Post[]
+ posts Post[]
 
-  @@index([userId, createdAt])
+ @@index([userId, createdAt])
 }
 
 // ---------------------------------------------------------------------------
@@ -131,27 +131,27 @@ model PostCard {
 // ---------------------------------------------------------------------------
 
 model Connection {
-  id                String           @id @default(cuid())
-  userId            String
-  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+ id String @id @default(cuid())
+ userId String
+ user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  platform          Platform
-  type              ConnectionType
-  platformAccountId String           @db.VarChar(200)  // stable id when available
-  platformUsername  String?          @db.VarChar(200)  // display handle
-  credentialsCipher String           @db.Text           // AES-256-GCM JSON blob — ONLY ciphertext
-  scopes            String[]                            // [] for non-OAuth
-  status            ConnectionStatus @default(ACTIVE)
-  lastUsedAt        DateTime?
-  lastValidatedAt   DateTime?
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
+ platform Platform
+ type ConnectionType
+ platformAccountId String @db.VarChar(200) // stable id when available
+ platformUsername String? @db.VarChar(200) // display handle
+ credentialsCipher String @db.Text // AES-256-GCM JSON blob — ONLY ciphertext
+ scopes String[] // [] for non-OAuth
+ status ConnectionStatus @default(ACTIVE)
+ lastUsedAt DateTime?
+ lastValidatedAt DateTime?
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
 
-  postTargets       PostTarget[]
+ postTargets PostTarget[]
 
-  @@unique([userId, platform])
-  @@index([userId, platform])
-  @@index([status])
+ @@unique([userId, platform])
+ @@index([userId, platform])
+ @@index([status])
 }
 
 // ---------------------------------------------------------------------------
@@ -159,46 +159,46 @@ model Connection {
 // ---------------------------------------------------------------------------
 
 model Post {
-  id          String       @id @default(cuid())
-  userId      String
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  postCardId  String
-  postCard    PostCard     @relation(fields: [postCardId], references: [id], onDelete: Cascade)
+ id String @id @default(cuid())
+ userId String
+ user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+ postCardId String
+ postCard PostCard @relation(fields: [postCardId], references: [id], onDelete: Cascade)
 
-  requestId   String?      @unique @db.VarChar(64)  // client idempotency key (UUID v4)
-  targets     PostTarget[]
+ requestId String? @unique @db.VarChar(64) // client idempotency key (UUID v4)
+ targets PostTarget[]
 
-  createdAt   DateTime     @default(now())
+ createdAt DateTime @default(now())
 
-  @@index([userId, createdAt])
-  @@index([postCardId])
+ @@index([userId, createdAt])
+ @@index([postCardId])
 }
 
 model PostTarget {
-  id              String           @id @default(cuid())
-  postId          String
-  post            Post             @relation(fields: [postId], references: [id], onDelete: Cascade)
+ id String @id @default(cuid())
+ postId String
+ post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
 
-  platform        Platform
-  connectionId    String?          // null if disconnected before execution
-  connection      Connection?      @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+ platform Platform
+ connectionId String? // null if disconnected before execution
+ connection Connection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
 
-  status          PostTargetStatus @default(QUEUED)
-  options         Json?            // e.g., { subreddit: "sideproject" }
-  platformPostUrl String?         @db.VarChar(500)
-  platformPostId  String?          @db.VarChar(200)
+ status PostTargetStatus @default(QUEUED)
+ options Json? // e.g., { community: "sideproject" }
+ platformPostUrl String? @db.VarChar(500)
+ platformPostId String? @db.VarChar(200)
 
-  error           String?          @db.Text          // sanitized platform message
-  errorClass      String?          @db.VarChar(20)   // AUTH|RATE|VALIDATION|NETWORK|QUOTA
-  attempts        Int              @default(0)
+ error String? @db.Text // sanitized platform message
+ errorClass String? @db.VarChar(20) // AUTH|RATE|VALIDATION|NETWORK|QUOTA
+ attempts Int @default(0)
 
-  publishedAt     DateTime?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+ publishedAt DateTime?
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
 
-  @@index([postId])
-  @@index([status])
-  @@index([platform, status])
+ @@index([postId])
+ @@index([status])
+ @@index([platform, status])
 }
 
 // ---------------------------------------------------------------------------
@@ -206,12 +206,12 @@ model PostTarget {
 // ---------------------------------------------------------------------------
 
 model QuotaUsage {
-  id        String   @id @default(cuid())
-  platform  Platform
-  yearMonth String   @db.VarChar(7)  // "2025-01"
-  used      Int      @default(0)
+ id String @id @default(cuid())
+ platform Platform
+ yearMonth String @db.VarChar(7) // "2025-01"
+ used Int @default(0)
 
-  @@unique([platform, yearMonth])
+ @@unique([platform, yearMonth])
 }
 
 // ---------------------------------------------------------------------------
@@ -219,18 +219,18 @@ model QuotaUsage {
 // ---------------------------------------------------------------------------
 
 model AuditLog {
-  id        String   @id @default(cuid())
-  userId    String?  // nullable for LOGIN_FAIL with unknown email
-  user      User?    @relation(fields: [userId], references: [id], onDelete: NoAction)
-  action    String   @db.VarChar(40)  // LOGIN|LOGIN_FAIL|CONNECT|DISCONNECT|PUBLISH|RETRY|TOKEN_FAIL|ACCOUNT_DELETE
-  platform  String?  @db.VarChar(20)  // nullable
-  ip        String?  @db.VarChar(45)
-  userAgent String?  @db.VarChar(500)
-  metadata  Json?
-  createdAt DateTime @default(now())
+ id String @id @default(cuid())
+ userId String? // nullable for LOGIN_FAIL with unknown email
+ user User? @relation(fields: [userId], references: [id], onDelete: NoAction)
+ action String @db.VarChar(40) // LOGIN|LOGIN_FAIL|CONNECT|DISCONNECT|PUBLISH|RETRY|TOKEN_FAIL|ACCOUNT_DELETE
+ platform String? @db.VarChar(20) // nullable
+ ip String? @db.VarChar(45)
+ userAgent String? @db.VarChar(500)
+ metadata Json?
+ createdAt DateTime @default(now())
 
-  @@index([userId, createdAt])
-  @@index([action, createdAt])
+ @@index([userId, createdAt])
+ @@index([action, createdAt])
 }
 ```
 
@@ -247,42 +247,42 @@ credential data.
 
 **Enforcement:**
 - Code review checklist item: "Does this PR add or read any column with
-  credential-like content that is NOT `credentialsCipher`? If yes,
-  reject."
+ credential-like content that is NOT `credentialsCipher`? If yes,
+ reject."
 - CI scanner test (`scripts/scan-db-dump.sh`): take a snapshot of the
-  test DB, grep for token patterns (`sk-`, `xoxb-`, `did:plc:`,
-  `https://discord.com/api/webhooks/`, telegram bot token shape,
-  reddit refresh token shape, Bluesky accessJwt shape) → zero matches.
+ test DB, grep for token patterns (`sk-`, `xoxb-`, `did:plc:`,
+ `https://discord.com/api/webhooks/`, telegram bot token shape,
+ refresh token shape, Bluesky accessJwt shape) → zero matches.
 
 ### Rule 2 — Decrypt happens ONLY inside TokenVault consumers
 
 Plaintext credentials exist only in-memory inside:
 - BullMQ workers (`src/workers/publish-worker.ts`) during the publish
-  job
+ job
 - Connection validation services (`src/server/services/connections.ts`)
-  during the connect flow
+ during the connect flow
 
 Services MUST NOT return decrypted values upward. The boundary:
 - `src/server/services/connections.ts` can call `TokenVault.decrypt`
-  inside `connectDevto()` etc. for validation, but the return type is
-  only metadata (`{ username }`, `{ channelName }`), never the
-  decrypted credential.
+ inside `connectDevto()` etc. for validation, but the return type is
+ only metadata (`{ username }`, `{ channelName }`), never the
+ decrypted credential.
 - `src/server/services/publish.ts` does NOT decrypt; it passes the
-  `connectionId` to the BullMQ job, and the worker decrypts in-process.
+ `connectionId` to the BullMQ job, and the worker decrypts in-process.
 
 **Enforcement:**
 - TypeScript: `TokenVault.decrypt` returns a branded type
-  `DecryptedCredential` that can only be used inside
-  `src/workers/*.ts` and `src/server/services/connections.ts` (via
-  `declare module` scoping trick).
+ `DecryptedCredential` that can only be used inside
+ `src/workers/*.ts` and `src/server/services/connections.ts` (via
+ `declare module` scoping trick).
 - Integration test: response scanner asserts no credential patterns
-  in any API response.
+ in any API response.
 
 ### Rule 3 — Every query includes `userId` (owner scope)
 
 Every Prisma read/write of `Profile`, `PostCard`, `Connection`, `Post`,
 `PostTarget`, `AuditLog` (when reading own logs) MUST include
-`where: { userId: <session.user.id>, ... }`. No unscoped reads.
+`where: { userId: <session.user.id>... }`. No unscoped reads.
 
 The `:id` in a URL locates the row; ownership comes from the session.
 Pattern:
@@ -293,37 +293,37 @@ const card = await prisma.postCard.findUnique({ where: { id } });
 
 // RIGHT:
 const card = await prisma.postCard.findUnique({
-  where: { id, userId: session.user.id },
+ where: { id, userId: session.user.id },
 });
 if (!card) return notFound(); // 404, not 403 — never leak existence
 ```
 
 **Enforcement:**
 - Code review checklist: "Every findUnique / findFirst / findMany /
-  update / delete on user-owned models includes `userId`?"
+ update / delete on user-owned models includes `userId`?"
 - Per-resource integration test: user B calls user A's endpoint → 404
-  (or 403 if explicitly authorized). 404 is preferred to avoid leaking
-  existence.
+ (or 403 if explicitly authorized). 404 is preferred to avoid leaking
+ existence.
 - ESLint custom rule (stretch goal): forbid `prisma.postCard.find*`
-  without `userId` in `where`. (If this rule proves hard to write in
-  MVP, fall back to review checklist.)
+ without `userId` in `where`. (If this rule proves hard to write in
+ MVP, fall back to review checklist.)
 
 ### Rule 4 — Account deletion = single User delete; cascades wipe children
 
 `DELETE /api/account`:
 1. Audit `ACCOUNT_DELETE` row written FIRST (with userId).
 2. `prisma.user.delete({ where: { id: userId } })` → cascades:
-   - `Profile` (onDelete: Cascade) → row deleted
-   - `PostCard` (Cascade) → rows deleted → cascades to `Post` (Cascade)
-     → cascades to `PostTarget` (Cascade)
-   - `Connection` (Cascade) → rows deleted (ciphertext gone)
-   - `Post` (Cascade) → rows deleted → cascades to `PostTarget`
-   - `AuditLog` (NoAction) → rows KEPT (with `userId` for forensics;
-     the userId no longer points to a User, but the log entry remains
-     with the userId string for traceability)
+ - `Profile` (onDelete: Cascade) → row deleted
+ - `PostCard` (Cascade) → rows deleted → cascades to `Post` (Cascade)
+ → cascades to `PostTarget` (Cascade)
+ - `Connection` (Cascade) → rows deleted (ciphertext gone)
+ - `Post` (Cascade) → rows deleted → cascades to `PostTarget`
+ - `AuditLog` (NoAction) → rows KEPT (with `userId` for forensics;
+ the userId no longer points to a User, but the log entry remains
+ with the userId string for traceability)
 3. Test asserts zero residual rows in `User`, `Profile`, `PostCard`,
-   `Connection`, `Post`, `PostTarget` for that userId; `AuditLog`
-   rows for that userId remain (including the `ACCOUNT_DELETE` entry).
+ `Connection`, `Post`, `PostTarget` for that userId; `AuditLog`
+ rows for that userId remain (including the `ACCOUNT_DELETE` entry).
 
 ### Rule 5 — Migrations only via `prisma migrate dev --name <desc>`
 
@@ -331,7 +331,7 @@ No `prisma db push` in dev (loses migration history). No manual SQL.
 Every schema change:
 1. Edit `prisma/schema.prisma`.
 2. `npx prisma migrate dev --name <descriptive-name>` → generates a
-   migration in `prisma/migrations/<timestamp>_<name>/`.
+ migration in `prisma/migrations/<timestamp>_<name>/`.
 3. Commit the migration alongside the schema change.
 4. CI runs `prisma migrate deploy` against the test DB before tests.
 
@@ -367,7 +367,7 @@ Migration naming convention:
 | `Connection.credentialsCipher` | string | AES-256-GCM ciphertext | `String @db.Text` |
 | `Connection.scopes` | string[] | OAuth only; `[]` for others | `String[]` |
 | `Post.requestId` | string? | UUID v4 (client-generated) | `String? @unique @db.VarChar(64)` |
-| `PostTarget.options` | Json? | per-platform Zod (e.g., Reddit: `{ subreddit: string }`) | `Json?` |
+| `PostTarget.options` | Json? | per-platform Zod (e.g.: `{ community: string }`) | `Json?` |
 | `PostTarget.errorClass` | string? | enum: AUTH/RATE/VALIDATION/NETWORK/QUOTA | `String? @db.VarChar(20)` |
 | `PostTarget.attempts` | int | `>= 0`, capped at 3 by service | `Int @default(0)` |
 | `QuotaUsage.yearMonth` | string | `YYYY-MM` format | `String @db.VarChar(7)` |
@@ -407,7 +407,7 @@ User 1:N AuditLog (NoAction on delete — rows kept)
 PostCard 1:N Post
 Post 1:N PostTarget
 Connection 1:N PostTarget (SetNull on delete — connectionId becomes null,
-                            worker sees null → SKIPPED "connection removed")
+ worker sees null → SKIPPED "connection removed")
 ```
 
 ---
@@ -422,18 +422,18 @@ Connection 1:N PostTarget (SetNull on delete — connectionId becomes null,
 ### Test (CI)
 
 - `npx prisma migrate deploy` — applies pending migrations to test DB
-  before tests run.
+ before tests run.
 - Test DB is reset between test suites via `prisma migrate reset --force`
-  (or a TRUNCATE script for speed).
+ (or a TRUNCATE script for speed).
 
 ### Prod
 
 - `npx prisma migrate deploy` — applies pending migrations in order.
 - NEVER `prisma db push` in prod.
 - Destructive migrations (drop column, rename) require a 2-PR dance:
-  1. PR1: deploy code that no longer reads the old column (but DB still
-     has it).
-  2. PR2: deploy the migration that drops the old column.
+ 1. PR1: deploy code that no longer reads the old column (but DB still
+ has it).
+ 2. PR2: deploy the migration that drops the old column.
 
 ---
 
@@ -446,7 +446,7 @@ For demo (T-22) and local dev. NOT for prod.
 - 6 Tier A Connections (ciphertext = encrypted mock credentials).
 - 3 Post Cards (one about NetAmplify itself — meta demo card).
 - 5 Posts with mixed statuses (3 all-SUCCESS, 1 partial-failure, 1
-  with a FAILED target ready for retry demo).
+ with a FAILED target ready for retry demo).
 
 Seed runs via `npm run db:seed` (which calls `tsx prisma/seed.ts`).
 CI does NOT seed; E2E tests use `tests/factories.ts` for deterministic
@@ -476,7 +476,7 @@ Vitest setup (`tests/setup.ts`):
 - Encrypted at rest (Postgres TDE or volume encryption).
 - Restore test: monthly drill (post-MVP).
 - For MVP: Neon / Supabase managed Postgres has automated backups —
-  rely on that.
+ rely on that.
 
 ---
 

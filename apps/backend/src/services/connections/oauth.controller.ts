@@ -1,5 +1,4 @@
 // /home/z/my-project/netamplify-app/apps/backend/src/services/connections/oauth.controller.ts
-// NetAmplify — OAuthController (Reddit, X, LinkedIn, Facebook, Instagram OAuth 2.0 flows).
 //
 // Per docs/05-API-SPEC.md:
 //   GET /api/oauth/:platform/start?token={jwt}    → 302 redirect to platform authorize URL

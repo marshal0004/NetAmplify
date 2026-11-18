@@ -2,7 +2,7 @@
 > "Post once. Get seen everywhere."
 
 A student creates a Post Card once; NetAmplify formats it per-platform and
-publishes it to Reddit, Discord, Dev.to, Telegram, Bluesky, Hashnode
+publishes it to Discord, Dev.to, Telegram, Bluesky, Hashnode
 (+ X, LinkedIn when connected) using the USER'S OWN credentials.
 **We NEVER see or store any platform password. Ever.**
 
@@ -57,26 +57,26 @@ No other dependencies may be added without explicit human approval (see Rule 2).
 
 ```bash
 # Development
-npm run dev                       # Next.js dev server (port 3000)
-npm run build                      # production build
-npm run lint                       # ESLint (Next + strict + Tailwind plugin)
-npm run typecheck                  # tsc --noEmit
-npm run test                       # Vitest unit + integration
-npm run test:e2e                   # Playwright (separate so CI can run in own job)
-npm run test:watch                 # Vitest watch for dev loop
+npm run dev # Next.js dev server (port 3000)
+npm run build # production build
+npm run lint # ESLint (Next + strict + Tailwind plugin)
+npm run typecheck # tsc --noEmit
+npm run test # Vitest unit + integration
+npm run test:e2e # Playwright (separate so CI can run in own job)
+npm run test:watch # Vitest watch for dev loop
 
 # Database
-npx prisma migrate dev             # apply migrations to dev DB
+npx prisma migrate dev # apply migrations to dev DB
 npx prisma migrate dev --name <x> # create a new migration
-npx prisma studio                  # inspect dev DB
-npx prisma generate                # regenerate client (after schema edit)
+npx prisma studio # inspect dev DB
+npx prisma generate # regenerate client (after schema edit)
 
 # Infrastructure
-docker compose up -d                                  # postgres + redis (dev)
-docker compose -f docker-compose.test.yml up -d       # postgres + redis (test)
+docker compose up -d # postgres + redis (dev)
+docker compose -f docker-compose.test.yml up -d # postgres + redis (test)
 
 # Smoke (ONLY place real platform calls happen)
-npm run smoke                      # scripts/smoke.ts — manual, never in CI
+npm run smoke # scripts/smoke.ts — manual, never in CI
 ```
 
 Every command above MUST be green before a commit. CI runs them in the same
@@ -87,87 +87,87 @@ order. A red pipeline = the ticket is NOT done.
 ## 3. Non-Negotiable Rules (numbered — agents cite by number in PRs)
 
 1. **Scope.** Work ONLY on the current ticket(s) from `docs/11-FEATURE-TICKETS.md`
-   for the current week in `docs/10-ROADMAP.md`. Never build ahead. Never build
-   "nice to have" extras. If you discover something adjacent, write a ticket
-   stub in `docs/11-FEATURE-TICKETS.md` and STOP.
+ for the current week in `docs/10-ROADMAP.md`. Never build ahead. Never build
+ "nice to have" extras. If you discover something adjacent, write a ticket
+ stub in `docs/11-FEATURE-TICKETS.md` and STOP.
 
 2. **Dependencies.** NEVER install a new dependency (npm package, even a dev
-   one) without asking me first. Post the proposed package, reason, and a
-   one-line alternative I might prefer; wait for "approved".
+ one) without asking me first. Post the proposed package, reason, and a
+ one-line alternative I might prefer; wait for "approved".
 
 3. **Credentials.** NEVER store a platform password. OAuth flows exchange codes
-   for tokens; API-key / webhook / bot-token / app-password flows store
-   user-pasted credentials. ALL credentials go through the TokenVault
-   (`src/lib/vault/token-vault.ts`) as AES-256-GCM ciphertext. Plaintext exists
-   only in-memory inside workers / connect-validation, never in DB, logs,
-   responses, or client bundles.
+ for tokens; API-key / webhook / bot-token / app-password flows store
+ user-pasted credentials. ALL credentials go through the TokenVault
+ (`src/lib/vault/token-vault.ts`) as AES-256-GCM ciphertext. Plaintext exists
+ only in-memory inside workers / connect-validation, never in DB, logs,
+ responses, or client bundles.
 
 4. **Platform isolation.** All platform API access happens ONLY inside
-   `src/lib/platforms/` adapters. UI components, route handlers, services,
-   and workers MUST NOT import platform SDKs or call platform APIs directly —
-   they go through the adapter interface in `src/lib/platforms/registry.ts`.
+ `src/lib/platforms/` adapters. UI components, route handlers, services,
+ and workers MUST NOT import platform SDKs or call platform APIs directly —
+ they go through the adapter interface in `src/lib/platforms/registry.ts`.
 
 5. **Ownership scoping.** Every Prisma read/write of a user-owned model
-   (`PostCard`, `Connection`, `Post`, `Profile`, `AuditLog`) MUST include
-   `where: { userId: <session.user.id>, ... }`. The `:id` in a URL locates the
-   row; ownership comes from the session. A user must never read/modify
-   another user's data, even by direct API call. Enforced by review checklist
-   AND a 403 test per resource.
+ (`PostCard`, `Connection`, `Post`, `Profile`, `AuditLog`) MUST include
+ `where: { userId: <session.user.id>... }`. The `:id` in a URL locates the
+ row; ownership comes from the session. A user must never read/modify
+ another user's data, even by direct API call. Enforced by review checklist
+ AND a 403 test per resource.
 
 6. **Pure formatters.** Formatters in `src/lib/formatters/` are pure functions:
-   no DB, no network, no `Date.now()`, no `Math.random()`. Deterministic input
-   → identical output, always. This is what makes golden-file tests possible.
+ no DB, no network, no `Date.now()`, no `Math.random()`. Deterministic input
+ → identical output, always. This is what makes golden-file tests possible.
 
 7. **Mocked tests.** Platform APIs are ALWAYS mocked in tests. Real posts
-   happen ONLY when I run the manual smoke script (`scripts/smoke.ts`).
-   Integration tests use the adapter interface as the seam; mock at that
-   boundary, not at `fetch`.
+ happen ONLY when I run the manual smoke script (`scripts/smoke.ts`).
+ Integration tests use the adapter interface as the seam; mock at that
+ boundary, not at `fetch`.
 
 8. **License hygiene.** Do NOT copy code from NetAmplify or any AGPL/GPL project.
-   Read official platform API docs and write our own implementation. If you
-   are unsure whether a snippet is "inspired by" or "copied from", STOP and
-   ask. See `docs/16-OBSERVABILITY.md` §6 and the LICENSE section in the repo.
+ Read official platform API docs and write our own implementation. If you
+ are unsure whether a snippet is "inspired by" or "copied from", STOP and
+ ask. See `docs/16-OBSERVABILITY.md` §6 and the LICENSE section in the repo.
 
 9. **Ticket hygiene.** After every ticket, in this order:
-   1. `npm run lint && npm run typecheck && npm run test && npm run test:e2e`
-   2. Fix ALL failures (no skipping, no `// TODO` for failing tests)
-   3. Update `docs/13-PROGRESS.md` with the log entry template
-   4. Conventional commit: `feat(T-xx): <subject>` / `fix(T-xx): ...` /
-      `test(T-xx): ...` / `docs: ...` / `chore: ...`
-   5. STOP. Do not start the next ticket in the same session unless I say so.
+ 1. `npm run lint && npm run typecheck && npm run test && npm run test:e2e`
+ 2. Fix ALL failures (no skipping, no `// TODO` for failing tests)
+ 3. Update `docs/13-PROGRESS.md` with the log entry template
+ 4. Conventional commit: `feat(T-xx): <subject>` / `fix(T-xx):...` /
+ `test(T-xx):...` / `docs:...` / `chore:...`
+ 5. STOP. Do not start the next ticket in the same session unless I say so.
 
 10. **Config, not magic numbers.** Hardcoded caps from
-    `docs/03-ARCHITECTURE.md` platform table (char limits, retry counts, X
-    monthly quota, rate-limit thresholds) live in `src/lib/config/platforms.ts`
-    and `src/lib/config/limits.ts`. Logic imports from there; tests can override
-    these constants.
+ `docs/03-ARCHITECTURE.md` platform table (char limits, retry counts, X
+ monthly quota, rate-limit thresholds) live in `src/lib/config/platforms.ts`
+ and `src/lib/config/limits.ts`. Logic imports from there; tests can override
+ these constants.
 
 11. **Error surfaces.** Never leak raw DB errors or raw platform API errors to
-    the client. Map them via the error mapper (`src/lib/errors/mapper.ts`)
-    to the error envelope in `docs/05-API-SPEC.md`. Platform messages that
-    ARE surfaced to the user (e.g., "Bluesky rejected these credentials")
-    must pass through a sanitizer that strips tokens, URLs with creds, and
-    internal paths.
+ the client. Map them via the error mapper (`src/lib/errors/mapper.ts`)
+ to the error envelope in `docs/05-API-SPEC.md`. Platform messages that
+ ARE surfaced to the user (e.g., "Bluesky rejected these credentials")
+ must pass through a sanitizer that strips tokens, URLs with creds, and
+ internal paths.
 
 12. **Logging discipline.** Log with `{ route, userId, requestId, latencyMs,
-    outcome }`. NEVER log credentials, decrypted content, full request bodies
-    for credential routes, or anything matching the secret regex in
-    `docs/16-OBSERVABILITY.md` §3. A scanner test runs in CI; a single match
-    fails the build.
+ outcome }`. NEVER log credentials, decrypted content, full request bodies
+ for credential routes, or anything matching the secret regex in
+ `docs/16-OBSERVABILITY.md` §3. A scanner test runs in CI; a single match
+ fails the build.
 
 13. **TypeScript discipline.** Strict mode. No `any` (use `unknown` + narrow).
-    No non-null `!` outside tests. Prefer `Result<T, E>` discriminated unions
-    for service returns. Use branded types for IDs (`type UserId = string &
-    { __brand: 'UserId' }`) — see `docs/08-CODING-STANDARDS.md` §3.
+ No non-null `!` outside tests. Prefer `Result<T, E>` discriminated unions
+ for service returns. Use branded types for IDs (`type UserId = string &
+ { __brand: 'UserId' }`) — see `docs/08-CODING-STANDARDS.md` §3.
 
 14. **Accessibility.** Every interactive element has a visible label, a
-    keyboard-reachable path, and AA contrast. New components must pass
-    `axe-core` in the relevant Playwright test. See `docs/06-FRONTEND-SPEC.md`
-    §A11y.
+ keyboard-reachable path, and AA contrast. New components must pass
+ `axe-core` in the relevant Playwright test. See `docs/06-FRONTEND-SPEC.md`
+ §A11y.
 
 15. **Git hygiene.** One logical change per commit. Branch name:
-    `t<NN>-<kebab-slug>` (e.g., `t07-token-vault`). PR title matches commit
-    subject. Squash-merge is allowed. No `--no-verify` to bypass hooks.
+ `t<NN>-<kebab-slug>` (e.g., `t07-token-vault`). PR title matches commit
+ subject. Squash-merge is allowed. No `--no-verify` to bypass hooks.
 
 ---
 
@@ -219,7 +219,7 @@ a written scope change. If a ticket seems to imply one, STOP and ask.
 
 | Decision | Locked Value |
 |---|---|
-| Platforms — Tier A (build first) | Reddit (OAuth), Discord (webhook), Dev.to (API key), Telegram (bot token), Bluesky (app password), Hashnode (PAT) |
+| Platforms — Tier A (build first) | Discord (webhook), Dev.to (API key), Telegram (bot token), Bluesky (app password), Hashnode (PAT) |
 | Platforms — Tier B (bonus attempts) | X (OAuth, free tier), LinkedIn (OAuth, dev-mode attempt; fallback slide if review pending) |
 | Excluded | Instagram / Facebook (Meta verification — roadmap slide only) |
 | Timeline | 4-week compressed MVP → final review demo |
@@ -235,16 +235,16 @@ a written scope change. If a ticket seems to imply one, STOP and ask.
 ## 7. What to do when you're stuck
 
 - **Ambiguous spec?** Open a `## Open Questions` section at the bottom of
-  `docs/13-PROGRESS.md`, write the question, and STOP. Do NOT guess.
+ `docs/13-PROGRESS.md`, write the question, and STOP. Do NOT guess.
 - **Test fails for a reason you can't fix in 15 minutes?** STOP, write the
-  failing assertion + the error + your hypothesis in PROGRESS.md, commit with
-  `wip(T-xx): <one-line>`, and STOP. I will triage.
+ failing assertion + the error + your hypothesis in PROGRESS.md, commit with
+ `wip(T-xx): <one-line>`, and STOP. I will triage.
 - **Tempted to refactor code outside the ticket?** Don't. Write a ticket stub
-  in `docs/11-FEATURE-TICKETS.md` with the refactor proposal and continue your
-  current ticket.
+ in `docs/11-FEATURE-TICKETS.md` with the refactor proposal and continue your
+ current ticket.
 - **Tempted to "improve" a locked decision?** Don't. Open a `## Proposed
-  Deviations` section at the bottom of PROGRESS.md with the rationale; I will
-  review and either approve or reject.
+ Deviations` section at the bottom of PROGRESS.md with the rationale; I will
+ review and either approve or reject.
 
 ---
 

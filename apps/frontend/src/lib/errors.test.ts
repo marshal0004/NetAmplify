@@ -16,10 +16,10 @@ describe('getErrorMessage', () => {
     const err = new ApiError(
       400,
       'VALIDATION_ERROR',
-      "Invalid publish input: platforms.0.platform — Invalid enum value(s). Expected 'DISCORD' | ..., received 'REDDIT'",
+      "Invalid publish input: platforms.0.platform — Invalid enum value(s). Expected 'DISCORD' | ..., received 'PINTEREST'",
     );
     expect(getErrorMessage(err)).toBe(
-      "Invalid publish input: platforms.0.platform — Invalid enum value(s). Expected 'DISCORD' | ..., received 'REDDIT'",
+      "Invalid publish input: platforms.0.platform — Invalid enum value(s). Expected 'DISCORD' | ..., received 'PINTEREST'",
     );
   });
 
@@ -39,12 +39,10 @@ describe('getErrorMessage', () => {
 describe('getFieldErrors', () => {
   it('returns fieldErrors from an ApiError that has them', () => {
     const err = new ApiError(400, 'VALIDATION_ERROR', 'msg', {
-      'platforms.0.platform': "Invalid enum value(s). Expected 'DISCORD' | ..., received 'REDDIT'",
-      'platforms.1.options.subreddit': 'unrecognized for BLUESKY',
+      'platforms.0.platform': "Invalid enum value(s). Expected 'DISCORD' | ..., received 'PINTEREST'",
     });
     expect(getFieldErrors(err)).toEqual({
-      'platforms.0.platform': "Invalid enum value(s). Expected 'DISCORD' | ..., received 'REDDIT'",
-      'platforms.1.options.subreddit': 'unrecognized for BLUESKY',
+      'platforms.0.platform': "Invalid enum value(s). Expected 'DISCORD' | ..., received 'PINTEREST'",
     });
   });
 

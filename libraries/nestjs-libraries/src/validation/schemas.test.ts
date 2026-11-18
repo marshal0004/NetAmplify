@@ -360,8 +360,6 @@ describe('POSTCARD_UPDATE_SCHEMA (partial)', () => {
 
 describe('PUBLISH_SCHEMA', () => {
   it('accepts a valid publish payload', () => {
-    // REDDIT is a cookie-bypass platform (published via
-    // /api/publish/reddit-cookie-web, NOT the normal /api/postcards/:id/publish
     // flow) so it is intentionally absent from PLATFORM_SCHEMA. Use BLUESKY +
     // DISCORD (both in the enum).
     expect(
@@ -382,7 +380,7 @@ describe('PUBLISH_SCHEMA', () => {
   it('rejects > 8 platforms', () => {
     expect(
       PUBLISH_SCHEMA.safeParse({
-        platforms: Array(9).fill({ platform: 'REDDIT' }),
+        platforms: Array(9).fill({ platform: 'PINTEREST' }),
       }).success
     ).toBe(false);
   });

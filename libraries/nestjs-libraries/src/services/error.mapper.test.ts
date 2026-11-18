@@ -98,7 +98,7 @@ describe('errorMapper', () => {
   });
 
   it('maps OAUTH_EXCHANGE_FAILED → 502', () => {
-    const http = errorMapper(new ServiceError('OAUTH_EXCHANGE_FAILED', 'reddit failed'));
+    const http = errorMapper(new ServiceError('OAUTH_EXCHANGE_FAILED', 'oauth exchange failed'));
     expect(http.getStatus()).toBe(502);
   });
 

@@ -8,7 +8,6 @@
 //
 // When running in Tauri:
 //   - Cookie capture uses native WebView windows (zero copy-paste)
-//   - The user clicks "Connect via Auto-Capture" → Tauri opens reddit.com/login
 //   - User logs in normally → Tauri reads cookies → sends to backend
 //
 // When running in browser (no Tauri):
@@ -19,7 +18,6 @@
 /// Type representing the result of a Tauri cookie capture operation.
 /// Must match the `CookieCaptureResult` struct in `src-tauri/src/commands/mod.rs`.
 export interface CookieCaptureResult {
-  /** The platform identifier (e.g., "TWITTER_COOKIE", "REDDIT_COOKIE") */
   platform: string;
   /** The captured cookies as a key-value map (cookie name → value) */
   cookies: Record<string, string>;
@@ -83,7 +81,6 @@ export function isTauri(): boolean {
  * (running in browser), it throws an error indicating that the feature
  * requires the desktop app.
  *
- * @param command — the Tauri command name (e.g., "capture_reddit_cookies")
  * @param args — the command arguments (serialized as JSON)
  * @returns the command result (deserialized from JSON)
  * @throws Error if Tauri is not available or the command fails
@@ -114,28 +111,8 @@ async function invokeTauri<T>(command: string, args?: Record<string, unknown>): 
 }
 
 /**
- * Capture Reddit session cookies via the Tauri WebView.
- *
- * When called in Tauri:
- *   1. Opens a native window to reddit.com/login
- *   2. User logs in normally (types username + password into Reddit's real form)
- *   3. Tauri reads cookies from the WebView's cookie jar (including httpOnly)
- *   4. Returns the captured cookies
- *
- * When called in browser:
- *   Throws an error directing the user to the manual cookie input form.
- *
- * @returns the captured cookies + user identity
- * @throws CookieCaptureError on failure
- */
-export async function captureRedditCookies(): Promise<CookieCaptureResult> {
-  return invokeTauri<CookieCaptureResult>('capture_reddit_cookies');
-}
-
-/**
  * Capture X (Twitter) session cookies via the Tauri WebView.
  *
- * Same flow as `captureRedditCookies` but for x.com.
  *
  * @returns the captured cookies + user identity
  * @throws CookieCaptureError on failure
@@ -145,31 +122,15 @@ export async function captureXCookies(): Promise<CookieCaptureResult> {
 }
 
 /**
- * Check if a Reddit `token_v2` JWT has expired.
  *
  * Decodes the JWT payload and checks the `exp` field against the current
  * time. Returns true if the token has expired or will expire within 1 hour
  * (proactive refresh).
  *
- * @param token — the Reddit `token_v2` JWT string
  * @returns true if the token is expired or about to expire
  */
 export async function checkCookieExpiry(token: string): Promise<boolean> {
   return invokeTauri<boolean>('check_cookie_expiry', { token });
-}
-
-/**
- * Refresh Reddit cookies by re-opening the login window.
- *
- * If the long-lived `token` cookie is still valid, Reddit auto-logs in
- * and issues a fresh `token_v2` without user interaction. If it has
- * expired, the user types their password (3 seconds).
- *
- * @returns the fresh captured cookies
- * @throws CookieCaptureError on failure
- */
-export async function refreshRedditCookies(): Promise<CookieCaptureResult> {
-  return invokeTauri<CookieCaptureResult>('refresh_reddit_cookies');
 }
 
 /**
@@ -190,7 +151,6 @@ export async function refreshXCookies(): Promise<CookieCaptureResult> {
  * The backend validates the cookies by calling the platform's identity
  * endpoint, then encrypts + stores them.
  *
- * @param platform — "REDDIT_COOKIE" or "TWITTER_COOKIE"
  * @param cookies — the captured cookie map
  * @param jwtToken — the user's NetAmplify JWT for authentication
  * @returns the connection ID + platform username
@@ -247,19 +207,16 @@ export async function stopBackendSidecar(): Promise<void> {
  *   3. Sends the cookies to the backend for validation + storage
  *   4. Returns the user's platform username
  *
- * @param platform — "REDDIT_COOKIE" or "TWITTER_COOKIE"
  * @param jwtToken — the user's NetAmplify JWT
  * @returns the connection ID + platform username
  * @throws CookieCaptureError on failure (with user-friendly error message)
  */
 export async function captureAndConnect(
-  platform: 'REDDIT_COOKIE' | 'TWITTER_COOKIE',
+  platform: 'TWITTER_COOKIE',
   jwtToken: string
 ): Promise<BackendConnectionResponse> {
   // Step 1: Capture cookies via Tauri WebView
-  const captureResult = platform === 'REDDIT_COOKIE'
-    ? await captureRedditCookies()
-    : await captureXCookies();
+  const captureResult = await captureXCookies();
 
   // Step 2: Proxy cookies to the backend for validation + storage
   const connection = await proxyCookieConnection(platform, captureResult.cookies, jwtToken);
@@ -311,35 +268,6 @@ export async function publishToXViaWebview(
   return invokeTauri<WebViewPublishResult>('publish_to_x_via_webview', {
     request: {
       platform: 'TWITTER_COOKIE',
-      cookies,
-      formatted,
-      jwtToken,
-      postTargetId,
-    },
-  });
-}
-
-/**
- * Publish to Reddit via the Tauri WebView.
- *
- * Same approach as publishToXViaWebview — makes the request from inside
- * a hidden WebView window so Reddit sees WebKitGTK's TLS fingerprint.
- *
- * @param cookies — the captured Reddit cookies (token_v2 + csrf_token + reddit_session)
- * @param formatted — the formatted post content from the Format Engine
- * @param jwtToken — the user's NetAmplify JWT
- * @param postTargetId — the PostTarget ID
- * @returns the publish result (success/failure + URL)
- */
-export async function publishToRedditViaWebview(
-  cookies: Record<string, string>,
-  formatted: WebViewFormattedPost,
-  jwtToken: string,
-  postTargetId: string
-): Promise<WebViewPublishResult> {
-  return invokeTauri<WebViewPublishResult>('publish_to_reddit_via_webview', {
-    request: {
-      platform: 'REDDIT_COOKIE',
       cookies,
       formatted,
       jwtToken,

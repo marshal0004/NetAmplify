@@ -10,7 +10,6 @@
 //   POST   /api/connections/bluesky       { handle, appPassword } → 201 { did }
 //   DELETE /api/connections/:platform     → 204
 //
-// OAuth flows (Reddit, X, LinkedIn) are handled by a separate OAuthController
 // in Phase 4 — they need /api/oauth/:platform/start + /callback endpoints.
 
 import {
@@ -156,7 +155,6 @@ export class ConnectionsController {
   }
 
   // ==========================================================================
-  // Cookie-based platforms (Option A — bypass X/Reddit paywalls)
   // ==========================================================================
 
   /**
@@ -266,7 +264,6 @@ export class ConnectionsController {
    * POST /api/connections/:platform/auto-capture  { cookies }
    *
    * Called by the Tauri desktop app after it captures cookies from the
-   * native WebView login window. The Tauri app opens reddit.com/x.com
    * in a native browser window → user logs in normally → Tauri reads
    * the cookies via WebviewWindow::cookies() → sends them here.
    *
@@ -314,7 +311,6 @@ export class ConnectionsController {
       // The Tauri WebView already proved the cookies are valid (the user
       // logged in successfully in a real browser window). Calling
       // validateCredentials() from Node.js would fail due to TLS
-      // fingerprinting — X/Reddit reject Node.js requests even with
       // valid cookies.
       //
       // Instead, we trust the cookies + store them directly (encrypted).

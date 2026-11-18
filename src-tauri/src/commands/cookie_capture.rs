@@ -14,11 +14,11 @@
 // are accessible.
 //
 // Flow:
-//   1. Frontend calls `window.__TAURI__.invoke('capture_reddit_cookies')`
-//   2. Tauri opens a new window to https://www.reddit.com/login
-//   3. User logs in normally (Reddit sets token_v2, csrf_token, token cookies)
+//   1. Frontend calls `window.__TAURI__.invoke('capture_x_cookies')`
+//   2. Tauri opens a new window to https://x.com/i/flow/login
+//   3. User logs in normally (X sets auth_token, ct0 cookies)
 //   4. We poll WebviewWindow::cookies() every 2 seconds
-//   5. When we detect the `token_v2` cookie → capture all cookies → close window
+//   5. When we detect the `auth_token` cookie → capture all cookies → close window
 //   6. Return the cookies to the frontend
 //   7. Frontend calls `proxy_cookie_connection` to send them to the local backend
 //
@@ -40,28 +40,19 @@ const CAPTURE_TIMEOUT_SECS: u64 = 300;
 /// Fast enough to feel instant, slow enough to not hammer the cookie API.
 const POLL_INTERVAL_SECS: u64 = 2;
 
-/// The cookie name used to detect a successful Reddit login.
-/// When this cookie appears, the user has logged in successfully.
-const REDDIT_LOGIN_COOKIE: &str = "token_v2";
-
 /// The cookie name used to detect a successful X (Twitter) login.
 const X_LOGIN_COOKIE: &str = "auth_token";
-
-/// The cookies we need to extract from Reddit after login.
-/// These are sent to the NestJS backend for encrypted storage.
-const REDDIT_REQUIRED_COOKIES: &[&str] = &["token_v2", "csrf_token", "token"];
 
 /// The cookies we need to extract from X after login.
 const X_REQUIRED_COOKIES: &[&str] = &["auth_token", "ct0"];
 
 /// Platform login URLs.
-const REDDIT_LOGIN_URL: &str = "https://www.reddit.com/login";
 const X_LOGIN_URL: &str = "https://x.com/i/flow/login";
 
 /// Firefox on Windows User-Agent string.
 ///
 /// WHY FIREFOX (not Chrome):
-/// We previously tried Chrome's UA. Reddit's WAF still blocked us with
+/// We previously tried Chrome's UA. Platform WAFs still blocked us with
 /// HTTP 403 {"message":"Forbidden","error":403}. The reason: Chrome
 /// automatically sends "Client Hints" headers (sec-ch-ua, sec-ch-ua-platform,
 /// sec-ch-ua-mobile) with every request. WebKitGTK does NOT send these.
@@ -70,7 +61,7 @@ const X_LOGIN_URL: &str = "https://x.com/i/flow/login";
 ///
 /// Firefox does NOT send Client Hints headers. So if we claim to be
 /// Firefox via UA, the absence of sec-ch-ua headers is consistent with
-/// Firefox's real behavior, and Reddit's WAF can't detect the spoofing
+/// Firefox's real behavior, and the platform WAF can't detect the spoofing
 /// via that signal.
 ///
 /// This UA is set at the WebView level (via WebviewWindowBuilder::user_agent)
@@ -82,50 +73,11 @@ const CHROME_USER_AGENT: &str =
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:130.0) \
      Gecko/20100101 Firefox/130.0";
 
-/// Capture Reddit session cookies by opening a native login window.
-///
-/// This command:
-///   1. Opens a Tauri WebView window to reddit.com/login
-///   2. Polls the cookie jar every 2s for the `token_v2` cookie
-///   3. When found, extracts token_v2 + csrf_token + token (if present)
-///   4. Closes the login window
-///   5. Returns the cookies as a HashMap
-///
-/// The frontend then calls `proxy_cookie_connection` to send these
-/// cookies to the local NestJS backend, which validates them via
-/// the RedditCookieAdapter and stores them encrypted (AES-256-GCM).
-///
-/// # Arguments
-/// * `app` — The Tauri app handle (injected by Tauri)
-///
-/// # Returns
-/// * `Ok(CookieCaptureResult)` — cookies + user identity on success
-/// * `Err(CookieCaptureError)` — on timeout, user cancellation, or error
-///
-/// # Errors
-/// - `USER_CANCELLED` — user closed the login window before logging in
-/// - `TIMEOUT` — 5 minutes elapsed without detecting the login cookie
-/// - `NO_COOKIES` — login succeeded but required cookies are missing
-/// - `TAURI_ERROR` — failed to create the WebView window
-#[tauri::command]
-pub async fn capture_reddit_cookies(app: AppHandle) -> Result<CookieCaptureResult, CookieCaptureError> {
-    capture_cookies_generic(
-        &app,
-        "reddit-login",
-        "Log in to Reddit — NetAmplify",
-        REDDIT_LOGIN_URL,
-        REDDIT_LOGIN_COOKIE,
-        REDDIT_REQUIRED_COOKIES,
-        "REDDIT_COOKIE",
-    )
-    .await
-}
-
 /// Capture X (Twitter) session cookies by opening a native login window.
 ///
-/// Same flow as `capture_reddit_cookies` but for x.com.
-/// Detects the `auth_token` cookie (long-lived, ~1 year) which is
-/// the primary auth cookie for X's internal API.
+/// Opens a Tauri WebView window to x.com/i/flow/login and detects the
+/// `auth_token` cookie (long-lived, ~1 year) which is the primary auth
+/// cookie for X's internal API.
 ///
 /// # Arguments
 /// * `app` — The Tauri app handle (injected by Tauri)
@@ -147,7 +99,7 @@ pub async fn capture_x_cookies(app: AppHandle) -> Result<CookieCaptureResult, Co
     .await
 }
 
-/// Generic cookie capture function — used by both Reddit and X commands.
+/// Generic cookie capture function — used by the X command.
 ///
 /// This is the shared implementation that:
 ///   1. Creates a WebView window with the given label + URL
@@ -157,12 +109,12 @@ pub async fn capture_x_cookies(app: AppHandle) -> Result<CookieCaptureResult, Co
 ///
 /// # Arguments
 /// * `app` — Tauri app handle
-/// * `window_label` — unique label for the WebView window (e.g., "reddit-login")
+/// * `window_label` — unique label for the WebView window (e.g., "x-login")
 /// * `window_title` — title bar text
 /// * `login_url` — the platform's login page URL
 /// * `login_cookie` — the cookie name that indicates successful login
 /// * `required_cookies` — list of cookie names to extract after login
-/// * `platform` — the NetAmplify platform identifier (e.g., "REDDIT_COOKIE")
+/// * `platform` — the NetAmplify platform identifier (e.g., "TWITTER_COOKIE")
 pub async fn capture_cookies_generic(
     app: &AppHandle,
     window_label: &str,
@@ -196,10 +148,10 @@ pub async fn capture_cookies_generic(
         .min_inner_size(400.0, 500.0)
         .center()  // Tauri 2.0 uses .center(), not .centered()
         .visible(true)
-        // CRITICAL: Spoof Chrome's User-Agent. Without this, WebKitGTK sends
-        // its own UA which Reddit's/X's WAFs recognize as non-browser and
-        // return HTTP 403 "forbidden" for /api/submit POSTs. This UA applies
-        // to the initial page load AND all XHR/fetch calls from injected JS.
+            // CRITICAL: Spoof Chrome's User-Agent. Without this, WebKitGTK sends
+            // its own UA which X's WAF recognizes as non-browser and
+            // returns HTTP 403 "forbidden" for /api/submit POSTs. This UA applies
+            // to the initial page load AND all XHR/fetch calls from injected JS.
         .user_agent(CHROME_USER_AGENT)
         .build()
         .map_err(|e| CookieCaptureError {
@@ -248,10 +200,9 @@ pub async fn capture_cookies_generic(
 
         if has_login_cookie {
             // CRITICAL: Verify the user has ACTUALLY logged in.
-            // Reddit's login page itself sets token_v2 (an anonymous/guest
-            // token) even before the user logs in. If we capture it immediately,
-            // we get a guest token with no 'submit' scope → publish fails with
-            // "USER_REQUIRED".
+            // Some login pages set a cookie even before the user logs in
+            // (e.g., an anonymous/guest token). If we capture it immediately,
+            // we may get a guest token with no real session.
             //
             // Fix: Check if the URL has changed AWAY from the login page.
             // If still on /login, the user hasn't logged in yet — keep polling.
@@ -259,7 +210,6 @@ pub async fn capture_cookies_generic(
             let url_str = current_url.as_str();
 
             let is_still_on_login_page = match platform {
-                "REDDIT_COOKIE" => url_str.contains("/login"),
                 "TWITTER_COOKIE" => url_str.contains("/i/flow/login") || url_str.contains("/login"),
                 _ => false,
             };
@@ -282,7 +232,6 @@ pub async fn capture_cookies_generic(
                 // cookie.domain() returns Option<&str>, so we use map().unwrap_or(false)
                 let domain = cookie.domain().unwrap_or("");
                 let is_platform_domain = match platform {
-                    "REDDIT_COOKIE" => domain.contains("reddit.com"),
                     "TWITTER_COOKIE" => domain.contains("twitter.com") || domain.contains("x.com"),
                     _ => true,
                 };
@@ -299,10 +248,6 @@ pub async fn capture_cookies_generic(
             let mut missing: Vec<&str> = Vec::new();
             for &required in required_cookies {
                 if !cookie_map.contains_key(required) {
-                    // For Reddit, the legacy `token` cookie is optional.
-                    if platform == "REDDIT_COOKIE" && required == "token" {
-                        continue;
-                    }
                     missing.push(required);
                 }
             }
@@ -310,21 +255,20 @@ pub async fn capture_cookies_generic(
             if !missing.is_empty() {
                 log::warn!("Login detected but missing required cookies: {:?}", missing);
                 // Don't fail immediately — the cookies might appear on the next poll
-                // (Reddit sometimes sets cookies with a slight delay after redirect).
+                // (the platform sometimes sets cookies with a slight delay after redirect).
                 tokio::time::sleep(poll_interval).await;
                 continue;
             }
 
             // HIDE the login window instead of closing it.
-            // The window's cookie jar (including httpOnly cookies like
-            // token_v2) is preserved so we can reuse it for publishing
+            // The window's cookie jar (including httpOnly cookies) is
+            // preserved so we can reuse it for publishing
             // via the WebView publish command. If we close the window,
             // the cookie jar is destroyed and httpOnly cookies are lost
             // (they can't be re-set via JavaScript's document.cookie).
             let _ = login_window.hide();
 
             // Determine the username from the cookie values.
-            // For Reddit: we can decode the JWT's `lid` field.
             // For X: we don't have a username in the cookies; the backend
             // will fetch it via /1.1/account/verify_credentials.json.
             let (username, user_id) = extract_identity(platform, &cookie_map);
@@ -348,29 +292,17 @@ pub async fn capture_cookies_generic(
 
 /// Extract the user's identity (username + user ID) from the captured cookies.
 ///
-/// For Reddit: decodes the `token_v2` JWT's payload to read the `lid` field
-///   (which contains the Reddit user ID, format: t2_xxxxx).
 /// For X: returns empty strings — the backend will fetch the username
 ///   via /1.1/account/verify_credentials.json using the captured cookies.
 ///
 /// # Arguments
-/// * `platform` — "REDDIT_COOKIE" or "TWITTER_COOKIE"
-/// * `cookies` — the captured cookie map
+/// * `platform` — "TWITTER_COOKIE"
+/// * `cookies` — the captured cookie map (reserved for future platforms)
 ///
 /// # Returns
 /// * `(username, user_id)` — may be empty strings if not extractable from cookies alone
-fn extract_identity(platform: &str, cookies: &HashMap<String, String>) -> (String, String) {
+fn extract_identity(platform: &str, _cookies: &HashMap<String, String>) -> (String, String) {
     match platform {
-        "REDDIT_COOKIE" => {
-            // The token_v2 JWT contains the user ID in the `lid` field.
-            // We decode the payload (middle part of the JWT) as base64url + JSON.
-            if let Some(token_v2) = cookies.get("token_v2") {
-                if let Some(user_id) = decode_jwt_field(token_v2, "lid") {
-                    return (format!("u/{}", user_id), user_id);
-                }
-            }
-            (String::new(), String::new())
-        }
         "TWITTER_COOKIE" => {
             // X's cookies don't contain the username directly.
             // The backend will fetch it via /1.1/account/verify_credentials.json.
@@ -378,78 +310,4 @@ fn extract_identity(platform: &str, cookies: &HashMap<String, String>) -> (Strin
         }
         _ => (String::new(), String::new()),
     }
-}
-
-/// Decode a JWT's payload (middle part) and extract a specific field.
-///
-/// JWTs are 3 base64url-encoded parts separated by dots: header.payload.signature
-/// This function decodes the payload and extracts the value of the given field name.
-///
-/// # Arguments
-/// * `jwt` — the full JWT string
-/// * `field` — the field name to extract (e.g., "lid", "sub", "exp")
-///
-/// # Returns
-/// * `Some(String)` — the field value if found
-/// * `None` — if the JWT is malformed or the field doesn't exist
-fn decode_jwt_field(jwt: &str, field: &str) -> Option<String> {
-    let parts: Vec<&str> = jwt.split('.').collect();
-    if parts.len() != 3 {
-        return None;
-    }
-
-    // Decode the payload (parts[1]) as base64url.
-    // JWT uses base64url (no padding), so we add padding if needed.
-    let payload_b64 = parts[1];
-    let padded = match payload_b64.len() % 4 {
-        2 => format!("{}==", payload_b64),
-        3 => format!("{}=", payload_b64),
-        _ => payload_b64.to_string(),
-    };
-
-    let decoded = base64_decode(&padded).ok()?;
-    let json: serde_json::Value = serde_json::from_slice(&decoded).ok()?;
-
-    json.get(field)
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string())
-}
-
-/// Decode a base64 string (with padding) into raw bytes.
-///
-/// Uses a custom decoder to avoid adding the `base64` crate as a dependency
-/// (keeping the dependency tree lean). Handles both standard and URL-safe
-/// base64 alphabets.
-///
-/// # Errors
-/// Returns `Err` if the input contains characters outside the base64 alphabet.
-fn base64_decode(input: &str) -> Result<Vec<u8>, String> {
-    const STD_ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    const URL_ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
-
-    let input: Vec<u8> = input.bytes().filter(|&b| b != b'=' && b != b'\n' && b != b'\r').collect();
-    let mut output = Vec::with_capacity(input.len() * 3 / 4);
-
-    for chunk in input.chunks(4) {
-        let mut vals = [0u8; 4];
-        for (i, &byte) in chunk.iter().enumerate() {
-            vals[i] = if let Some(pos) = STD_ALPHABET.iter().position(|&b| b == byte) {
-                pos as u8
-            } else if let Some(pos) = URL_ALPHABET.iter().position(|&b| b == byte) {
-                pos as u8
-            } else {
-                return Err(format!("Invalid base64 character: {}", byte as char));
-            };
-        }
-
-        output.push((vals[0] << 2) | (vals[1] >> 4));
-        if chunk.len() > 2 {
-            output.push((vals[1] << 4) | (vals[2] >> 2));
-        }
-        if chunk.len() > 3 {
-            output.push((vals[2] << 6) | vals[3]);
-        }
-    }
-
-    Ok(output)
 }

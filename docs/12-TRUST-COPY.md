@@ -15,13 +15,12 @@
 These appear under each platform card on the Connect Checklist
 (`06-FRONTEND-SPEC.md` Screen 4) inside a "Why is this safe?" expander.
 
-### Generic OAuth (Reddit / X / LinkedIn)
 
 > You'll log in on {Platform}'s official page — NetAmplify never sees
 > your password. We receive only a limited permission to submit posts,
 > and you can revoke it anytime in your {Platform} settings.
 
-Replace `{Platform}` with the platform name (e.g., "Reddit", "X",
+Replace `{Platform}` with the platform name (e.g., "", "X",
 "LinkedIn").
 
 ### Discord
@@ -59,31 +58,31 @@ heading "How we protect you".
 ### How we protect you
 
 1. **We never see or store your platform passwords** — OAuth or keys
-   you control, only.
+ you control, only.
 2. **Credentials are encrypted (AES-256)** — even a database breach
-   alone can't expose usable credentials (keys live outside the DB).
+ alone can't expose usable credentials (keys live outside the DB).
 3. **We request the minimum permissions possible: posting only.** No
-   DMs, no password changes, no account access.
+ DMs, no password changes, no account access.
 4. **Everything is revocable instantly** — disconnect here, or revoke
-   on the platform; we detect it and stop immediately.
+ on the platform; we detect it and stop immediately.
 5. **Every connection and publish is audit-logged** — you can export
-   or delete ALL your data anytime.
+ or delete ALL your data anytime.
 
 ### Per-connection display (under "How we protect you")
 
 Each connected platform shows:
 
 - Platform icon + name
-- Handle / username (e.g., `@alice_dev` for Reddit, `#side-projects in
-  Code Club` for Discord)
+- Handle / username (e.g., `@alice_dev` for `#side-projects in
+ Code Club` for Discord)
 - Scopes granted (OAuth platforms only; `[]` for non-OAuth with a
-  tooltip "Not applicable — this credential type doesn't use scopes")
+ tooltip "Not applicable — this credential type doesn't use scopes")
 - Connected date (`connectedAt`)
 - Last used date (`lastUsedAt`)
 - Last validated date (`lastValidatedAt`)
 - Big Disconnect button (destructive) with confirm dialog "Disconnect
-  {Platform}? Future publishes won't include it. You can reconnect
-  anytime."
+ {Platform}? Future publishes won't include it. You can reconnect
+ anytime."
 
 ---
 
@@ -119,7 +118,7 @@ in the panel's eyes.
 ### Q5 — "Who pays for APIs?"
 
 > Posting to your own account is free on every platform. Users post
-> with their own credentials. Reddit/Discord/Dev.to/Telegram/Bluesky/
+> with their own credentials. /Discord/Dev.to/Telegram/Bluesky/
 > Hashnode are free to us too. X is the only app-level cost; its free
 > tier covers student posting volumes at MVP scale, and a quota guard
 > prevents overruns. If we ever outgrow it, a freemium tier (covered
@@ -137,49 +136,49 @@ in the panel's eyes.
 
 > Three layers of defense:
 > 1. **Prevent**: AES-256-GCM at rest, plaintext only in-memory during
->    publish, scoped credentials (post-only), server-side Zod on every
->    input, CSP + HSTS + frame-ancestors none.
+> publish, scoped credentials (post-only), server-side Zod on every
+> input, CSP + HSTS + frame-ancestors none.
 > 2. **Detect**: CI scanner test greps DB dumps + logs + API responses
->    for token patterns; a single match fails the build. AuditLog
->    records every credential-touching action.
+> for token patterns; a single match fails the build. AuditLog
+> records every credential-touching action.
 > 3. **Respond**: User can disconnect a platform instantly (hard-
->    delete the Connection row + ciphertext). User can delete their
->    entire account (cascade wipes everything, audit row kept for
->    forensics). If we detect a leaked token pattern in logs, we
->    rotate the vault key (post-MVP — requires dual-key support).
+> delete the Connection row + ciphertext). User can delete their
+> entire account (cascade wipes everything, audit row kept for
+> forensics). If we detect a leaked token pattern in logs, we
+> rotate the vault key (post-MVP — requires dual-key support).
 
 ### Q8 — "What's your threat model?"
 
 > Two main threats:
 > 1. **External attacker breaches our DB.** Mitigation: AES-256-GCM
->    ciphertext-only column; key in secrets manager (not DB); Postgres
->    encrypted at rest; Vercel/Doppler-managed secrets.
+> ciphertext-only column; key in secrets manager (not DB); Postgres
+> encrypted at rest; Vercel/Doppler-managed secrets.
 > 2. **Insider (us) goes rogue.** Mitigation: we don't have a
->    "decrypt everything" admin endpoint. Decryption happens only
->    inside workers per-target, in-memory, with no logging. Audit
->    logs are immutable (delete is NoAction on User cascade). Post-
->    MVP: dual-key control + access logging on secrets manager.
+> "decrypt everything" admin endpoint. Decryption happens only
+> inside workers per-target, in-memory, with no logging. Audit
+> logs are immutable (delete is NoAction on User cascade). Post-
+> MVP: dual-key control + access logging on secrets manager.
 >
 > Not in scope (post-MVP): SSRF attacks on adapters (mitigated by
 > hardcoded platform URLs + Discord webhook URL allowlist), supply
 > chain attacks (mitigated by lockfile + Dependabot), phishing of
 > users (mitigated by user education — show them the consent screen
-> on Reddit before they accept).
+> on before they accept).
 
 ### Q9 — "How would you scale this to 10k users?"
 
 > The architecture is horizontally scalable by design:
 > 1. **Postgres**: vertical scaling (Neon autoscale or RDS) handles
->    10k users easily; sharding post-MVP.
+> 10k users easily; sharding post-MVP.
 > 2. **Redis**: Upstash or self-hosted cluster; BullMQ handles job
->    distribution across multiple worker processes.
+> distribution across multiple worker processes.
 > 3. **Workers**: split to a separate Node process per worker type
->    (publish-worker, audit-worker); scale horizontally.
+> (publish-worker, audit-worker); scale horizontally.
 > 4. **Next.js**: Vercel autoscaling; or self-host on Hetzner with
->    PM2 + Nginx.
+> PM2 + Nginx.
 > 5. **Image uploads**: Cloudinary handles unlimited scale.
 > 6. **Platform APIs**: per-user rate limits; our rate limit + X
->    quota guard prevent per-user abuse.
+> quota guard prevent per-user abuse.
 >
 > No architectural rewrite needed. The 4-week MVP architecture IS the
 > scale architecture.
@@ -231,19 +230,17 @@ Appears at the top of the dashboard (`/dashboard`) until dismissed
 
 ## §5 Connect-dialog copy (per platform — for the connect modal / inline flow)
 
-### Reddit connect — pre-redirect
 
-> **Connect Reddit**
+> **Connect **
 >
-> You'll be redirected to Reddit's official login page. NetAmplify
-> never sees your Reddit password.
+> You'll be redirected to 's official login page. NetAmplify
+> never sees your password.
 >
-> What we ask Reddit for:
+> What we ask for:
 > - **identity** — to show "Connected as @your-username"
-> - **submit** — to post to subreddits on your behalf
 >
-> You can revoke this permission anytime on Reddit's settings page or
-> by clicking Disconnect here. [Continue to Reddit →]
+> You can revoke this permission anytime on 's settings page or
+> by clicking Disconnect here. [Continue to →]
 
 ### Discord connect — paste-webhook modal
 
@@ -281,9 +278,9 @@ Tokens".)
 > **Connect Telegram**
 >
 > 1. Create a bot with [@BotFather](https://t.me/BotFather) →
->    `/newbot` → name + username.
+> `/newbot` → name + username.
 > 2. Add the bot as an **admin** of your channel with the "Post
->    Messages" permission.
+> Messages" permission.
 > 3. Paste the bot token + your channel @username below.
 >
 > The bot is YOURS — you create it with @BotFather and control it. We
@@ -321,14 +318,14 @@ returns false.)
 
 ## §6 Disconnect confirm dialog
 
-> **Disconnect Reddit?**
+> **Disconnect ?**
 >
-> Future publishes won't include Reddit. Your existing posts stay on
-> Reddit. You can reconnect anytime.
+> Future publishes won't include. Your existing posts stay on
+>. You can reconnect anytime.
 >
 > [Cancel] [Disconnect]
 
-(Same for other platforms — replace "Reddit" with the platform name.)
+(Same for other platforms — replace "" with the platform name.)
 
 ---
 
@@ -337,59 +334,59 @@ returns false.)
 ### OAuth errors
 
 - **State mismatch / expired**: "Security check failed — please
-  reconnect. This can happen if you took too long on the platform's
-  login page or if your browser blocked the temporary cookie."
+ reconnect. This can happen if you took too long on the platform's
+ login page or if your browser blocked the temporary cookie."
 - **Code exchange failed**: "{Platform} didn't complete the
-  handshake — try again. If it keeps failing, the platform may be
-  experiencing issues."
+ handshake — try again. If it keeps failing, the platform may be
+ experiencing issues."
 
 ### Connect errors
 
 - **Dev.to invalid key**: "Key rejected by Dev.to — check and
-  re-paste. Get a fresh key from Settings → Extensions → API Keys."
+ re-paste. Get a fresh key from Settings → Extensions → API Keys."
 - **Hashnode invalid PAT**: "Key rejected by Hashnode — check and
-  re-paste. Get a fresh PAT from Settings → Developer → Personal
-  Access Tokens."
+ re-paste. Get a fresh PAT from Settings → Developer → Personal
+ Access Tokens."
 - **Discord invalid webhook**: "Discord rejected this webhook —
-  check the URL or recreate it in your server settings (Channel
-  Settings → Integrations → Webhooks)."
+ check the URL or recreate it in your server settings (Channel
+ Settings → Integrations → Webhooks)."
 - **Telegram BAD_TOKEN**: "Bot token invalid — get a fresh one from
-  @BotFather."
+ @BotFather."
 - **Telegram NOT_ADMIN**: "Make your bot an admin of the channel
-  first."
+ first."
 - **Telegram BAD_CHANNEL**: "Channel not found — check the
-  @username."
+ @username."
 - **Bluesky invalid pair**: "Bluesky rejected these credentials —
-  create the app password in Settings → App passwords (not your real
-  password)."
+ create the app password in Settings → App passwords (not your real
+ password)."
 
 ### Publish errors
 
 - **AUTH class (Connection REVOKED)**: "Reconnect this platform —
-  the credential was rejected. Other platforms in this publish
-  weren't affected."
+ the credential was rejected. Other platforms in this publish
+ weren't affected."
 - **RATE class (after 3 attempts)**: "{Platform} is rate-limiting —
-  try again in a few minutes. Other platforms in this publish weren't
-  affected."
+ try again in a few minutes. Other platforms in this publish weren't
+ affected."
 - **VALIDATION class**: "{Platform}'s response: '<sanitized
-  platform message verbatim>'"
+ platform message verbatim>'"
 - **NETWORK class (after 3 attempts)**: "Network issue reaching
-  {Platform} — try again. Other platforms in this publish weren't
-  affected."
+ {Platform} — try again. Other platforms in this publish weren't
+ affected."
 - **QUOTA class (X only)**: "X quota for this month is used — other
-  platforms in this publish weren't affected. Try X again next
-  month."
+ platforms in this publish weren't affected. Try X again next
+ month."
 
 ### General errors
 
 - **Not found**: "Not found — this may belong to another account or
-  may have been deleted."
+ may have been deleted."
 - **Rate limited (global)**: "Too many requests — wait {Retry-After}
-  seconds and try again."
+ seconds and try again."
 - **Server error**: "Something went wrong — we've been notified. Try
-  again in a moment."
+ again in a moment."
 - **Offline (client-side)**: "You're offline — actions will fail
-  until you reconnect."
+ until you reconnect."
 
 ---
 
@@ -398,20 +395,20 @@ returns false.)
 ### DO
 - Use the exact words from §1, §2, §4, §5, §6, §7 in the UI.
 - Replace `{Platform}` consistently (capitalize first letter in UI
-  display; lowercase in URLs / code).
+ display; lowercase in URLs / code).
 - Add a tooltip on every "Why is this safe?" expander explaining the
-  trust model in one sentence: "OAuth or self-generated keys,
-  AES-256 encrypted, revocable anytime."
+ trust model in one sentence: "OAuth or self-generated keys,
+ AES-256 encrypted, revocable anytime."
 
 ### DON'T
 - Paraphrase. The trust story depends on word-for-word consistency.
 - Translate to marketing speak ("We use industry-standard
-  security..."). Specifics beat platitudes.
+ security..."). Specifics beat platitudes.
 - Show real credential examples (e.g., "sk-1234567890abcdef..."). Use
-  placeholders ("sk-...") in UI examples.
+ placeholders ("sk-...") in UI examples.
 - Promise more than we deliver. We don't do "bank-grade security"
-  (banks have different threat models). We do "student-grade
-  trustworthy" — and we mean it.
+ (banks have different threat models). We do "student-grade
+ trustworthy" — and we mean it.
 
 ---
 
@@ -430,8 +427,8 @@ When you click "Amplify" during the demo, narrate:
 
 When asked about credentials during the demo:
 
-> "We never see the user's platform passwords. OAuth — like Reddit —
-> sends the user to Reddit's own login page; we exchange a one-time
+> "We never see the user's platform passwords. OAuth — like —
+> sends the user to 's own login page; we exchange a one-time
 > code for a limited-scope token. For key-based platforms — Dev.to,
 > Hashnode — the user generates the key themselves and pastes it;
 > we encrypt it with AES-256-GCM and store only the ciphertext. The

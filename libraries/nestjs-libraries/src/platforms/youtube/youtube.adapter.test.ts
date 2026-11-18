@@ -275,7 +275,7 @@ describe('YouTubeAdapter', () => {
           body: 'A description of the demo.',
           url: 'https://example.com',
           hashtags: ['demo', 'netamplify'],
-          options: { videoUrl: 'https://cdn.example.com/demo.mp4' },
+          options: { imageUrl: 'https://cdn.example.com/demo.mp4' },
         },
       );
 
@@ -298,7 +298,7 @@ describe('YouTubeAdapter', () => {
       expect(uploadOpts.method).toBe('PUT');
     });
 
-    it('throws PublishError(VALIDATION) when videoUrl missing', async () => {
+    it('throws PublishError(VALIDATION) when imageUrl missing', async () => {
       await expect(
         adapter.publish(
           { accessToken: 'tok', channelId: 'UC123' },
@@ -311,7 +311,7 @@ describe('YouTubeAdapter', () => {
       await expect(
         adapter.publish(
           { channelId: 'UC123' },
-          { title: 't', body: 'b', options: { videoUrl: 'https://x.com/v.mp4' } },
+          { title: 't', body: 'b', options: { imageUrl: 'https://x.com/v.mp4' } },
         ),
       ).rejects.toThrow(PublishError);
     });
@@ -321,7 +321,7 @@ describe('YouTubeAdapter', () => {
       await expect(
         adapter.publish(
           { accessToken: 'tok', channelId: 'UC123' },
-          { title: 't', body: 'b', options: { videoUrl: 'https://x.com/v.mp4' } },
+          { title: 't', body: 'b', options: { imageUrl: 'https://x.com/v.mp4' } },
         ),
       ).rejects.toThrow(PublishError);
     });
@@ -331,7 +331,7 @@ describe('YouTubeAdapter', () => {
       await expect(
         adapter.publish(
           { accessToken: 'tok', channelId: 'UC123' },
-          { title: 't', body: 'b', options: { videoUrl: 'https://x.com/v.mp4' } },
+          { title: 't', body: 'b', options: { imageUrl: 'https://x.com/v.mp4' } },
         ),
       ).rejects.toThrow(PublishError);
     });
@@ -341,7 +341,7 @@ describe('YouTubeAdapter', () => {
       await expect(
         adapter.publish(
           { accessToken: 'tok', channelId: 'UC123' },
-          { title: 't', body: 'b', options: { videoUrl: 'https://x.com/v.mp4' } },
+          { title: 't', body: 'b', options: { imageUrl: 'https://x.com/v.mp4' } },
         ),
       ).rejects.toThrow(PublishError);
     });
@@ -358,7 +358,7 @@ describe('YouTubeAdapter', () => {
       await expect(
         adapter.publish(
           { accessToken: 'tok', channelId: 'UC123' },
-          { title: 't', body: 'b', options: { videoUrl: 'https://x.com/missing.mp4' } },
+          { title: 't', body: 'b', options: { imageUrl: 'https://x.com/missing.mp4' } },
         ),
       ).rejects.toThrow(PublishError);
     });
@@ -375,7 +375,7 @@ describe('YouTubeAdapter', () => {
       await expect(
         adapter.publish(
           { accessToken: 'tok', channelId: 'UC123' },
-          { title: 't', body: 'b', options: { videoUrl: 'https://x.com/empty.mp4' } },
+          { title: 't', body: 'b', options: { imageUrl: 'https://x.com/empty.mp4' } },
         ),
       ).rejects.toThrow(PublishError);
     });
@@ -393,7 +393,7 @@ describe('YouTubeAdapter', () => {
       await expect(
         adapter.publish(
           { accessToken: 'tok', channelId: 'UC123' },
-          { title: 't', body: 'b', options: { videoUrl: 'https://x.com/v.mp4' } },
+          { title: 't', body: 'b', options: { imageUrl: 'https://x.com/v.mp4' } },
         ),
       ).rejects.toThrow(PublishError);
     });
@@ -411,7 +411,7 @@ describe('YouTubeAdapter', () => {
       await expect(
         adapter.publish(
           { accessToken: 'tok', channelId: 'UC123' },
-          { title: 't', body: 'b', options: { videoUrl: 'https://x.com/v.mp4' } },
+          { title: 't', body: 'b', options: { imageUrl: 'https://x.com/v.mp4' } },
         ),
       ).rejects.toThrow(PublishError);
     });
@@ -427,7 +427,7 @@ describe('YouTubeAdapter', () => {
       const longTitle = 'T'.repeat(200);
       await adapter.publish(
         { accessToken: 'tok', channelId: 'UC123' },
-        { title: longTitle, body: 'b', options: { videoUrl: 'https://x.com/v.mp4' } },
+        { title: longTitle, body: 'b', options: { imageUrl: 'https://x.com/v.mp4' } },
       );
       const metaBody = JSON.parse(vi.mocked(fetch).mock.calls[0][1].body);
       expect(metaBody.snippet.title.length).toBeLessThanOrEqual(100);

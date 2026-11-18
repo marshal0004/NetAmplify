@@ -7,7 +7,6 @@
 //
 // Usage:
 //   import { formatForPlatform } from '@netamplify/nestjs-libraries/format-engine';
-//   const result = formatForPlatform('REDDIT', postCard, profile, { subreddit: 'test' });
 //
 // The Format Engine is registered in DI as a stateless service (FormatEngine)
 // for use in controllers + workers; the pure functions are exported for
@@ -46,7 +45,6 @@ import { wordpressFormatter } from './wordpress';
  * Map of platform → formatter function. Pure functions, no DI.
  *
  * TWITTER_COOKIE reuses the X (OAuth) formatter — both produce ≤280 char
- * tweets. REDDIT_COOKIE reuses the Reddit formatter — both produce
  * title + markdown body submissions.
  */
 export const FORMATTERS: Record<Platform, Formatter> = {

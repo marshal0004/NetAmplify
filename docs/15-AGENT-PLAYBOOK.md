@@ -25,34 +25,34 @@ If `CLAUDE.md` answers "what?", this doc answers "how?".
 
 ```
 Step 1: ORIENT (3 minutes)
-  ├─ Read CLAUDE.md (skim — refresh rules)
-  ├─ Read docs/13-PROGRESS.md (FULL — what the last agent did)
-  ├─ Read docs/11-FEATURE-TICKETS.md (your ticket)
-  ├─ Read every doc your ticket references
-  ├─ Skim docs/15-AGENT-PLAYBOOK.md (this doc)
-  └─ Skim docs/13-PROGRESS.md Open Questions + Proposed Deviations
+ ├─ Read CLAUDE.md (skim — refresh rules)
+ ├─ Read docs/13-PROGRESS.md (FULL — what the last agent did)
+ ├─ Read docs/11-FEATURE-TICKETS.md (your ticket)
+ ├─ Read every doc your ticket references
+ ├─ Skim docs/15-AGENT-PLAYBOOK.md (this doc)
+ └─ Skim docs/13-PROGRESS.md Open Questions + Proposed Deviations
 
 Step 2: CONFIRM (1 minute)
-  ├─ State your ticket's acceptance criteria back to the human
-  ├─ Wait for "approved"
-  └─ Do NOT start coding before approval
+ ├─ State your ticket's acceptance criteria back to the human
+ ├─ Wait for "approved"
+ └─ Do NOT start coding before approval
 
 Step 3: IMPLEMENT (the bulk of the session)
-  ├─ One file at a time; one logical change per commit
-  ├─ Run lint + typecheck + unit tests after each file
-  ├─ Don't build ahead — stay in scope of your ticket
-  └─ Update docs/13-PROGRESS.md "In Progress" line daily
+ ├─ One file at a time; one logical change per commit
+ ├─ Run lint + typecheck + unit tests after each file
+ ├─ Don't build ahead — stay in scope of your ticket
+ └─ Update docs/13-PROGRESS.md "In Progress" line daily
 
 Step 4: VERIFY (end of session)
-  ├─ npm run lint && npm run typecheck && npm run test && npm run test:e2e
-  ├─ Fix ALL failures (no skipping, no TODOs)
-  ├─ Update docs/13-PROGRESS.md (full log entry)
-  └─ Conventional commit: feat(T-xx): <subject>
+ ├─ npm run lint && npm run typecheck && npm run test && npm run test:e2e
+ ├─ Fix ALL failures (no skipping, no TODOs)
+ ├─ Update docs/13-PROGRESS.md (full log entry)
+ └─ Conventional commit: feat(T-xx): <subject>
 
 Step 5: STOP
-  ├─ Reply: what changed, what tests pass, what's next
-  ├─ Do NOT start the next ticket in the same session
-  └─ Wait for "execute T-0Y"
+ ├─ Reply: what changed, what tests pass, what's next
+ ├─ Do NOT start the next ticket in the same session
+ └─ Wait for "execute T-0Y"
 ```
 
 ---
@@ -100,37 +100,37 @@ of bad AI agent work on this project is skipping docs.
 - Work ONLY on the current ticket(s) per `docs/11-FEATURE-TICKETS.md`.
 - NEVER build ahead. NEVER build "nice to have" extras.
 - If you discover adjacent work, write a ticket stub at the bottom of
-  `docs/11-FEATURE-TICKETS.md` and STOP.
+ `docs/11-FEATURE-TICKETS.md` and STOP.
 
 ### 5.2 Dependencies
 - NEVER install a new dependency without asking first. Post the
-  proposed package + reason + alternative; wait for "approved".
+ proposed package + reason + alternative; wait for "approved".
 - This includes dev dependencies. ESLint plugins, TypeScript
-  helpers, etc. — all require approval.
+ helpers, etc. — all require approval.
 
 ### 5.3 Credentials
 - NEVER store a platform password.
 - NEVER log credentials, decrypted content, or anything matching the
-  secret regex (`16-OBSERVABILITY.md` §3).
+ secret regex (`16-OBSERVABILITY.md` §3).
 - NEVER access `process.env` directly — use `env` from
-  `src/lib/config/env.ts`.
+ `src/lib/config/env.ts`.
 - NEVER return decrypted credentials from a service. Only the worker
-  and connection-validation see plaintext, in-memory, transient.
+ and connection-validation see plaintext, in-memory, transient.
 
 ### 5.4 Ownership
 - Every Prisma read/write of a user-owned model MUST include `userId`
-  in `where`. No exceptions.
+ in `where`. No exceptions.
 - A user must never read/modify another user's data, even by direct
-  API call.
+ API call.
 
 ### 5.5 Formatters
 - Formatters are pure: no DB, no network, no `Date.now()`, no
-  `Math.random()`.
+ `Math.random()`.
 - Same input → identical output, always.
 
 ### 5.6 Tests
 - Platform APIs are ALWAYS mocked in tests. The ONLY place real
-  platform calls happen is `scripts/smoke.ts`, run manually.
+ platform calls happen is `scripts/smoke.ts`, run manually.
 - Don't use `setTimeout` to wait — use the polling helper.
 - Don't use `Math.random` in factories — use `counter++`.
 
@@ -141,20 +141,19 @@ of bad AI agent work on this project is skipping docs.
 
 ### 5.8 TypeScript
 - Strict mode. No `any` (use `unknown` + narrow). No non-null `!`
-  outside tests.
+ outside tests.
 - Prefer `Result<T, E>` discriminated unions for service returns.
 - Use branded types for IDs.
 
 ### 5.9 Accessibility
 - Every interactive element has a label, keyboard path, focus ring,
-  AA contrast.
+ AA contrast.
 - New components pass `axe-core` in the relevant Playwright test.
 
 ### 5.10 Git
 - One logical change per commit.
 - Branch: `t<NN>-<kebab-slug>` (e.g., `t07-token-vault`).
-- Commit: `feat(T-xx): <subject>` / `fix(T-xx): ...` / `test(T-xx):
-  ...` / `docs: ...` / `chore: ...`.
+- Commit: `feat(T-xx): <subject>` / `fix(T-xx):...` / `test(T-xx):...` / `docs:...` / `chore:...`.
 - NEVER `--no-verify` to bypass hooks.
 - Squash-merge is allowed.
 
@@ -168,19 +167,19 @@ of bad AI agent work on this project is skipping docs.
 I'm picking up T-<NN> — <short-name>.
 
 Acceptance criteria:
-  - <AC 1>
-  - <AC 2>
-  - ...
+ - <AC 1>
+ - <AC 2>
+ -...
 
 Files I plan to touch:
-  - <file 1>
-  - <file 2>
-  - ...
+ - <file 1>
+ - <file 2>
+ -...
 
 Tests I'll write:
-  - <test 1>
-  - <test 2>
-  - ...
+ - <test 1>
+ - <test 2>
+ -...
 
 Reading: CLAUDE.md, docs/13-PROGRESS.md, docs/11-FEATURE-TICKETS.md#T-<NN>,
 <other docs>.
@@ -192,11 +191,11 @@ Ready to start on "approved".
 
 - After each file: "Wrote `<file>`. Running typecheck + lint + unit."
 - On a test failure: "Test `<name>` failing on `<assertion>`. Root
-  cause: `<hypothesis>`. Fix: `<plan>`. Proceeding."
+ cause: `<hypothesis>`. Fix: `<plan>`. Proceeding."
 - On a decision point: "Reached a decision point: <describe>. Option A
-  / Option B. I'm choosing A because <reason>. Approve?"
+ / Option B. I'm choosing A because <reason>. Approve?"
 - On a blocker: "BLOCKED: <describe>. Need: <what I need from you>.
-  Stopping here."
+ Stopping here."
 
 ### 6.3 End of session
 
@@ -204,16 +203,16 @@ Ready to start on "approved".
 T-<NN> complete.
 
 What changed:
-  - <file 1>: <one-line>
-  - <file 2>: <one-line>
-  - ...
+ - <file 1>: <one-line>
+ - <file 2>: <one-line>
+ -...
 
 Tests:
-  - lint: ✅
-  - typecheck: ✅
-  - unit: ✅ (X passed / 0 failed)
-  - integration: ✅ (Y passed / 0 failed)
-  - e2e: ✅ (Z passed / 0 failed)
+ - lint: ✅
+ - typecheck: ✅
+ - unit: ✅ (X passed / 0 failed)
+ - integration: ✅ (Y passed / 0 failed)
+ - e2e: ✅ (Z passed / 0 failed)
 
 Commit: <hash>
 PROGRESS.md updated: yes
@@ -228,33 +227,33 @@ What's next: T-<NN+1> — <next ticket short name>.
 Stop the session and reply "Stopping — need human input" if:
 
 1. **Ambiguous spec**: the ticket references an FR that's not clear.
-   Write the ambiguity to `docs/13-PROGRESS.md` "Open Questions" and
-   STOP.
+ Write the ambiguity to `docs/13-PROGRESS.md` "Open Questions" and
+ STOP.
 
 2. **Test fails for a reason you can't fix in 15 minutes**: write the
-   failing assertion + error + hypothesis to PROGRESS.md, commit with
-   `wip(T-xx): <one-line>`, and STOP.
+ failing assertion + error + hypothesis to PROGRESS.md, commit with
+ `wip(T-xx): <one-line>`, and STOP.
 
 3. **Tempted to refactor code outside the ticket**: don't. Write a
-   ticket stub at the bottom of `docs/11-FEATURE-TICKETS.md` with the
-   refactor proposal and continue your current ticket.
+ ticket stub at the bottom of `docs/11-FEATURE-TICKETS.md` with the
+ refactor proposal and continue your current ticket.
 
 4. **Tempted to "improve" a locked decision**: don't. Open a
-   `Proposed Deviations` section in PROGRESS.md with the rationale;
-   STOP and wait.
+ `Proposed Deviations` section in PROGRESS.md with the rationale;
+ STOP and wait.
 
 5. **A dependency is missing**: don't `npm install` it. Reply:
-   "Proposed dependency: `<package>@<version>`. Reason: `<why>`.
-   Alternative: `<maybe a different package or DIY>`. Approve?" STOP
-   and wait.
+ "Proposed dependency: `<package>@<version>`. Reason: `<why>`.
+ Alternative: `<maybe a different package or DIY>`. Approve?" STOP
+ and wait.
 
 6. **You finished your ticket**: STOP. Don't start the next one.
-   Reply per §6.3 above.
+ Reply per §6.3 above.
 
 7. **You hit the end of the day / a token limit**: STOP. Update
-   PROGRESS.md "In Progress" line + log entry. Commit (even if WIP).
-   Reply: "Session ending. WIP committed at `<hash>`. Next session
-   continues from there."
+ PROGRESS.md "In Progress" line + log entry. Commit (even if WIP).
+ Reply: "Session ending. WIP committed at `<hash>`. Next session
+ continues from there."
 
 ---
 
@@ -381,9 +380,9 @@ From `CLAUDE.md` §4:
 - [ ] `docs/13-PROGRESS.md` updated with the log entry
 - [ ] Conventional commit message with ticket ID
 - [ ] Manual smoke (only if ticket touches adapters) — evidence in
-      PROGRESS
+ PROGRESS
 - [ ] A11y: new components pass `axe-core` in the relevant Playwright
-      test
+ test
 
 If ANY box unchecked, the ticket is NOT done. Don't commit. Don't
 reply "done". Don't move to the next ticket.
@@ -421,7 +420,7 @@ Before you reply "T-NN complete", audit yourself:
 [ ] Did I install any new dependency? (if yes — was it approved?)
 [ ] Did I write tests for every logic branch?
 [ ] Did I run lint + typecheck + tests + e2e?
-[ ] Are all tests green? (no skipped, no .todo)
+[ ] Are all tests green? (no skipped, no.todo)
 [ ] Is PROGRESS.md updated?
 [ ] Is the commit message conventional with the ticket ID?
 [ ] Did I STOP after the ticket? (not starting the next one)

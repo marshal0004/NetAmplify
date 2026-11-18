@@ -151,7 +151,6 @@ export class ConnectionsService {
       refreshToken: params.tokens.refreshToken,
       expiresAt: params.tokens.expiresAt,
       scopes: params.tokens.scopes ?? [],
-      // LinkedIn stores memberId; X stores userId; Reddit doesn't need it
       ...(params.identity.id ? { memberId: params.identity.id, userId: params.identity.id } : {}),
     };
     const cipher = this._vault.encrypt(credentials);
@@ -277,7 +276,6 @@ export class ConnectionsService {
    * cookies from a native login window, we already know the cookies are
    * valid (the user logged in successfully in a real browser). Calling
    * validateCredentials() from Node.js would fail due to TLS fingerprinting
-   * — X/Reddit reject Node.js requests even with valid cookies.
    *
    * Instead, we:
    *   1. Zod-validate the input shape (format validation, not API validation)

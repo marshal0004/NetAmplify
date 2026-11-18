@@ -9,8 +9,6 @@ import { createTestApp, type TestApp, type MockAdapterConfig } from '../helpers/
 import { PublishError } from '../../libraries/nestjs-libraries/src/platforms/adapter.interface';
 
 const mockAdapters: MockAdapterConfig[] = [
-  { platform: 'REDDIT', validateResult: { identity: { id: 't2_abc', username: 'testuser' }, credentials: { accessToken: 'mock', refreshToken: 'mock', scopes: ['identity', 'submit'] } },
-    publishResult: { id: 't3_xyz', url: 'https://reddit.com/r/test/comments/xyz/title/' } },
   { platform: 'TWITTER', validateResult: { identity: { id: '123', username: '@test' }, credentials: { accessToken: 'mock', refreshToken: 'mock', scopes: [] } },
     publishResult: { id: 'tweet-123', url: 'https://x.com/i/status/tweet-123' } },
   { platform: 'LINKEDIN', validateResult: { identity: { id: 'li-123', username: 'Test User' }, credentials: { accessToken: 'mock', memberId: 'li-123', scopes: [] } },
@@ -34,7 +32,6 @@ async function connectAll(test: TestApp, token: string) {
   await test.request.post('/api/connections/hashnode').set('Authorization', `Bearer ${token}`).send({ pat: 'test-pat' });
   await test.request.post('/api/connections/telegram').set('Authorization', `Bearer ${token}`).send({ botToken: '7812345678:AAH1234567890abcdefghijklmnopqrstuv', channel: '@mychannel' });
   await test.request.post('/api/connections/bluesky').set('Authorization', `Bearer ${token}`).send({ handle: 'jane.bsky.social', appPassword: 'abcd-efgh-ijkl-mnop' });
-  // OAuth platforms (REDDIT, TWITTER, LINKEDIN) require OAuth callback flow;
   // we'll skip them in this test since the callback requires real redirect
 }
 
@@ -63,7 +60,7 @@ describe('Integration: Publish', () => {
     it('returns 400 when no connections exist for any requested platform', async () => {
       const res = await test.request.post(`/api/postcards/${postCardId}/publish`)
         .set('Authorization', `Bearer ${token}`)
-        .send({ platforms: [{ platform: 'REDDIT' }] });
+        .send({ platforms: [{ platform: 'TWITTER' }] });
       expect(res.status).toBe(400);
       expect(res.body.error.message).toContain('No active connection');
     });
@@ -85,13 +82,13 @@ describe('Integration: Publish', () => {
     it('returns 404 on non-existent PostCard', async () => {
       const res = await test.request.post('/api/postcards/nonexistent/publish')
         .set('Authorization', `Bearer ${token}`)
-        .send({ platforms: [{ platform: 'REDDIT' }] });
+        .send({ platforms: [{ platform: 'TWITTER' }] });
       expect(res.status).toBe(404);
     });
 
     it('returns 401 without JWT', async () => {
       const res = await test.request.post(`/api/postcards/${postCardId}/publish`)
-        .send({ platforms: [{ platform: 'REDDIT' }] });
+        .send({ platforms: [{ platform: 'TWITTER' }] });
       expect(res.status).toBe(401);
     });
 

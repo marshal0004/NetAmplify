@@ -228,7 +228,6 @@ export const CONNECT_BLUESKY_SCHEMA = z.object({
 });
 
 // ============================================================================
-// Cookie-based platforms (X + Reddit — Option A)
 // ============================================================================
 //
 // Per docs/01-PRD.md §6: cookie bypass for paywalled platforms. The user
@@ -246,34 +245,6 @@ export const CONNECT_TWITTER_COOKIE_SCHEMA = z.object({
     .min(32, 'ct0 must be at least 32 chars')
     .max(256, 'ct0 is too long (max 256 chars)')
     .regex(/^[a-f0-9]+$/i, 'ct0 must be hex chars only (0-9, a-f)'),
-});
-
-export const CONNECT_REDDIT_COOKIE_SCHEMA = z.object({
-  tokenV2: z
-    .string()
-    .min(100, 'token_v2 (JWT) looks too short — copy the full cookie value')
-    .max(10000, 'token_v2 is too long (max 10000 chars)')
-    // JWT format: 3 dot-separated base64url-encoded parts
-    .regex(
-      /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/,
-      'token_v2 must be a JWT with 3 dot-separated parts (header.payload.signature)'
-    ),
-  // Reddit's csrf_token is a 32-char alphanumeric string (a-z, 0-9).
-  // NOT hex — it can contain any letter, not just a-f. Previous regex
-  // /^[a-f0-9]{32}$/i was rejecting valid csrf_tokens containing g-z.
-  csrfToken: z
-    .string()
-    .min(32, 'csrf_token must be 32 chars')
-    .max(32, 'csrf_token must be 32 chars')
-    .regex(/^[a-z0-9]{32}$/i, 'csrf_token must be 32 alphanumeric chars (0-9, a-z)'),
-  // Optional legacy `reddit_session` cookie. Some Reddit accounts have it,
-  // some don't. Be lenient — just require a reasonable min length if present.
-  redditSession: z
-    .string()
-    .min(50, 'reddit_session looks too short — copy the full value or leave blank')
-    .max(5000, 'reddit_session is too long (max 5000 chars)')
-    .optional()
-    .or(z.literal('').optional()),
 });
 
 // ============================================================================
@@ -294,4 +265,3 @@ export type ConnectDiscordInput = z.infer<typeof CONNECT_DISCORD_SCHEMA>;
 export type ConnectTelegramInput = z.infer<typeof CONNECT_TELEGRAM_SCHEMA>;
 export type ConnectBlueskyInput = z.infer<typeof CONNECT_BLUESKY_SCHEMA>;
 export type ConnectTwitterCookieInput = z.infer<typeof CONNECT_TWITTER_COOKIE_SCHEMA>;
-export type ConnectRedditCookieInput = z.infer<typeof CONNECT_REDDIT_COOKIE_SCHEMA>;

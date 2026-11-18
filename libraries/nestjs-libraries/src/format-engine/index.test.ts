@@ -32,32 +32,6 @@ const SAMPLE_PROFILE: FormatEngineProfile = {
 // ============================================================================
 // Per-platform golden tests
 // ============================================================================
-describe('redditFormatter', () => {
-  it('produces a title ≤ 300 chars + markdown body', () => {
-    const result = formatForPlatform('REDDIT', SAMPLE_POST_CARD, SAMPLE_PROFILE, { subreddit: 'sideproject' });
-    expect(result.title).toBe('My Awesome Project');
-    expect(result.title.length).toBeLessThanOrEqual(300);
-    expect(result.body).toContain('A one-line summary of what it does');
-    expect(result.body).toContain('## Introduction');
-    expect(result.body).toContain('TypeScript, React, Postgres');
-    expect(result.body).toContain('https://github.com/user/repo');
-    expect(result.options?.subreddit).toBe('sideproject');
-    expect(result.hashtags).toEqual(['typescript', 'react', 'postgres']);
-  });
-
-  it('truncates title to 300 chars when too long', () => {
-    const longTitle = 'x'.repeat(350);
-    const result = formatForPlatform('REDDIT', { ...SAMPLE_POST_CARD, title: longTitle }, null, {});
-    expect(result.title.length).toBe(300);
-    expect(result.title.endsWith('…')).toBe(true);
-  });
-
-  it('defaults subreddit to "test" when not provided', () => {
-    const result = formatForPlatform('REDDIT', SAMPLE_POST_CARD, null, {});
-    expect(result.options?.subreddit).toBe('test');
-  });
-});
-
 describe('xFormatter', () => {
   it('produces a tweet ≤ 280 chars including URL + hashtags', () => {
     const result = formatForPlatform('TWITTER', SAMPLE_POST_CARD, SAMPLE_PROFILE, {});
@@ -224,12 +198,12 @@ describe('blueskyFormatter', () => {
 // Determinism test (FR-011: same input → identical output)
 // ============================================================================
 describe('determinism', () => {
-  const platforms: Platform[] = ['REDDIT', 'TWITTER', 'LINKEDIN', 'DISCORD', 'DEVTO', 'HASHNODE', 'TELEGRAM', 'BLUESKY'];
+  const platforms: Platform[] = ['TWITTER', 'LINKEDIN', 'DISCORD', 'DEVTO', 'HASHNODE', 'TELEGRAM', 'BLUESKY'];
 
   for (const platform of platforms) {
     it(`${platform}: same input → identical output (called twice)`, () => {
-      const r1 = formatForPlatform(platform, SAMPLE_POST_CARD, SAMPLE_PROFILE, { subreddit: 'test' });
-      const r2 = formatForPlatform(platform, SAMPLE_POST_CARD, SAMPLE_PROFILE, { subreddit: 'test' });
+      const r1 = formatForPlatform(platform, SAMPLE_POST_CARD, SAMPLE_PROFILE, {});
+      const r2 = formatForPlatform(platform, SAMPLE_POST_CARD, SAMPLE_PROFILE, {});
       expect(r1).toEqual(r2);
     });
   }
@@ -239,7 +213,7 @@ describe('determinism', () => {
 // Property test: output length ≤ limit for random inputs
 // ============================================================================
 describe('property: charCount ≤ limit', () => {
-  const platforms: Platform[] = ['REDDIT', 'TWITTER', 'LINKEDIN', 'DISCORD', 'DEVTO', 'HASHNODE', 'TELEGRAM', 'BLUESKY'];
+  const platforms: Platform[] = ['TWITTER', 'LINKEDIN', 'DISCORD', 'DEVTO', 'HASHNODE', 'TELEGRAM', 'BLUESKY'];
 
   // Generate 10 random PostCards with varying lengths
   function randomPostCard(seed: number): FormatEnginePostCard {
@@ -265,7 +239,7 @@ describe('property: charCount ≤ limit', () => {
     it(`${platform}: output never exceeds limit for 10 random PostCards`, () => {
       for (let i = 0; i < 10; i++) {
         const postCard = randomPostCard(i);
-        const result = formatForPlatform(platform, postCard, null, { subreddit: 'test' });
+        const result = formatForPlatform(platform, postCard, null, {});
         // Allow a small tolerance for grapheme vs UTF-16 approximation
         expect(result.charCount).toBeLessThanOrEqual(result.limit + 5);
       }
@@ -279,11 +253,9 @@ describe('property: charCount ≤ limit', () => {
 describe('formatForAllPlatforms', () => {
   it('returns a FormatResult for all 8 platforms', () => {
     const results = formatForAllPlatforms(SAMPLE_POST_CARD, SAMPLE_PROFILE, {
-      REDDIT: { subreddit: 'test' },
     });
     const platforms = Object.keys(results) as Platform[];
     expect(platforms.length).toBe(14);
-    expect(platforms).toContain('REDDIT');
     expect(platforms).toContain('TWITTER');
     expect(platforms).toContain('LINKEDIN');
     expect(platforms).toContain('DISCORD');

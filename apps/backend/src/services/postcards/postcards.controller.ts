@@ -7,7 +7,6 @@
 //   GET    /api/postcards/:id → 200 | 403 | 404
 //   PATCH  /api/postcards/:id (partial fields) → 200 | 400 | 403 | 404
 //   DELETE /api/postcards/:id → 204 | 403 | 404
-//   GET    /api/postcards/:id/preview?platform=X&subreddit= → 200
 
 import {
   Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query, Req, UseGuards, Inject } from '@nestjs/common';
@@ -92,7 +91,6 @@ export class PostCardController {
   }
 
   /**
-   * GET /api/postcards/:id/preview?platform=REDDIT&subreddit=...
    * Returns the Format Engine's output for the specified platform.
    * Used by the Publish page's live per-platform preview panel.
    */
@@ -101,7 +99,6 @@ export class PostCardController {
   async preview(
     @Param('id') id: string,
     @Query('platform') platformParam: string,
-    @Query('subreddit') subreddit: string | undefined,
     @Req() req: Request,
   ) {
     try {
@@ -109,7 +106,7 @@ export class PostCardController {
         throw new ServiceError('VALIDATION_ERROR', 'platform query param is required');
       }
       const platform = parsePlatformParam(platformParam);
-      return await this._postcards.preview(getUserId(req), id, platform, subreddit);
+      return await this._postcards.preview(getUserId(req), id, platform);
     } catch (e) {
       throw errorMapper(e);
     }
@@ -121,7 +118,7 @@ function parsePlatformParam(raw: string): Platform {
   if (!parsed.success) {
     throw new ServiceError(
       'VALIDATION_ERROR',
-      `Unknown platform: "${raw}". Must be one of: REDDIT, DISCORD, DEVTO, TELEGRAM, BLUESKY, HASHNODE, TWITTER, LINKEDIN.`
+      `Unknown platform: "${raw}". Must be one of: DISCORD, DEVTO, TELEGRAM, BLUESKY, HASHNODE, TWITTER, LINKEDIN, MASTODON, WORDPRESS, TWITTER_COOKIE, FACEBOOK, INSTAGRAM, YOUTUBE, THREADS.`
     );
   }
   return parsed.data;

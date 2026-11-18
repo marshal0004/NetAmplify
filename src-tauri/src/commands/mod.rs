@@ -19,7 +19,7 @@ pub mod webview_publish;
 /// Returned to the frontend as JSON, then proxied to the NestJS backend.
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct CookieCaptureResult {
-    /// The platform identifier (e.g., "TWITTER_COOKIE", "REDDIT_COOKIE")
+    /// The platform identifier (e.g., "TWITTER_COOKIE")
     pub platform: String,
     /// The captured cookies as a key-value map (cookie name → value)
     pub cookies: std::collections::HashMap<String, String>,

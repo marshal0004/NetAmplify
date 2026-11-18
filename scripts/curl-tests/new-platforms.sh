@@ -62,12 +62,11 @@ BODY=$(echo "$RESP" | head -n -1); STATUS=$(echo "$RESP" | tail -n1)
 assert_status "GET connections (with JWT)" "200" "$STATUS"
 PLATFORM_COUNT=$(echo "$BODY" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "0")
 if [ "$PLATFORM_COUNT" = "12" ]; then
-  echo -e "  ${GREEN}✓${NC} 12 platforms returned (incl. TWITTER_COOKIE, REDDIT_COOKIE, MASTODON, WORDPRESS)"; PASS=$((PASS+1))
+  echo -e "  ${GREEN}✓${NC} 11 platforms returned (incl. TWITTER_COOKIE, MASTODON, WORDPRESS)"; PASS=$((PASS+1))
 else
   echo -e "  ${RED}✗${NC} expected 12 platforms, got $PLATFORM_COUNT"; FAIL=$((FAIL+1))
 fi
 assert_contains "TWITTER_COOKIE in response" "TWITTER_COOKIE" "$BODY"
-assert_contains "REDDIT_COOKIE in response" "REDDIT_COOKIE" "$BODY"
 assert_contains "MASTODON in response" "MASTODON" "$BODY"
 assert_contains "WORDPRESS in response" "WORDPRESS" "$BODY"
 echo ""
@@ -99,36 +98,7 @@ STATUS=$(echo "$RESP" | tail -n1)
 assert_status "twitter-cookie connect (mock valid format → 400 from X)" "400" "$STATUS"
 echo ""
 
-echo -e "${YELLOW}[5/14] POST /api/connections/reddit-cookie (no token_v2)${NC}"
-RESP=$(curl -s -w "\n%{http_code}" -X POST "$BASE_URL/api/connections/reddit-cookie" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $ACCESS_TOKEN" \
-  -d '{"csrfToken":"abc"}')
-STATUS=$(echo "$RESP" | tail -n1)
-assert_status "reddit-cookie connect (no token_v2)" "400" "$STATUS"
-echo ""
-
-echo -e "${YELLOW}[6/14] POST /api/connections/reddit-cookie (token_v2 too short)${NC}"
-RESP=$(curl -s -w "\n%{http_code}" -X POST "$BASE_URL/api/connections/reddit-cookie" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $ACCESS_TOKEN" \
-  -d '{"tokenV2":"short.token.sig","csrfToken":"1234567890abcdef1234567890abcdef"}')
-STATUS=$(echo "$RESP" | tail -n1)
-assert_status "reddit-cookie connect (short token_v2)" "400" "$STATUS"
-echo ""
-
-echo -e "${YELLOW}[7/14] POST /api/connections/reddit-cookie (valid JWT format, mock creds)${NC}"
-# Build a synthetic JWT-looking string (3 dot-separated base64url parts, 100+ chars total)
-MOCK_JWT="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0Ml90ZXN0MTIzIiwiZXhwIjoxODA1MjA4MjUxfQ.i_sh3PJq3MLXxk7yWrsebpXdGM6Gul2uPyOLw5AfrVZN6340_vTdPWTVkG0sNfmeoaGGxb3xAet9BT2-_U_uXEVB9Cx1pHEm3o35V3gdGAxPcrqoSiiEPM_LDt36GxqUb"
-RESP=$(curl -s -w "\n%{http_code}" -X POST "$BASE_URL/api/connections/reddit-cookie" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $ACCESS_TOKEN" \
-  -d "{\"tokenV2\":\"$MOCK_JWT\",\"csrfToken\":\"abcdef0123456789abcdef0123456789\"}")
-STATUS=$(echo "$RESP" | tail -n1)
-assert_status "reddit-cookie connect (mock valid format → 400 from Reddit)" "400" "$STATUS"
-echo ""
-
-echo -e "${YELLOW}[8/14] POST /api/connections/mastodon (no accessToken)${NC}"
+echo -e "${YELLOW}[5/11] POST /api/connections/mastodon (no accessToken)${NC}"
 RESP=$(curl -s -w "\n%{http_code}" -X POST "$BASE_URL/api/connections/mastodon" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \

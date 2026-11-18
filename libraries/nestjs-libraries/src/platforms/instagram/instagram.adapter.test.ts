@@ -460,7 +460,7 @@ describe('InstagramAdapter', () => {
           { accessToken: 'IGQVJ-token', igUserId: '17841405822304914' },
           { title: 't', body: 'b' },
         ),
-      ).rejects.toThrow(/require an image/);
+      ).rejects.toThrow(/require media/);
     });
 
     it('throws VALIDATION PublishError when imageUrl is empty string', async () => {
@@ -469,7 +469,7 @@ describe('InstagramAdapter', () => {
           { accessToken: 'IGQVJ-token', igUserId: '17841405822304914' },
           { title: 't', body: 'b', options: { imageUrl: '' } },
         ),
-      ).rejects.toThrow(/require an image/);
+      ).rejects.toThrow(/require media/);
     });
 
     it('throws AUTH PublishError on 401 from /media create', async () => {

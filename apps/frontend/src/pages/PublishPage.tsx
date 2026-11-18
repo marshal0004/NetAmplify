@@ -7,8 +7,6 @@ import { getErrorMessage } from '@/lib/errors';
 import { MediaPreview } from '@/components/MediaPreview';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 
 const statusConfig: Record<string, { color: string; bg: string; label: string; icon: string }> = {
   QUEUED: { color: 'text-gray-400', bg: 'bg-gray-500/10', label: 'Queued', icon: '⏳' },
@@ -21,7 +19,6 @@ const statusConfig: Record<string, { color: string; bg: string; label: string; i
 export function PublishPage() {
   const { id } = useParams<{ id: string }>();
   const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(new Set());
-  const [subreddit, setSubreddit] = useState('test');
   const [post, setPost] = useState<Post | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -54,12 +51,12 @@ export function PublishPage() {
     for (const platform of selectedPlatforms) {
       if (!previews[platform]) {
         postcardApi
-          .preview(id, platform, platform === 'REDDIT' ? subreddit : undefined)
+          .preview(id, platform)
           .then((p) => setPreviews((prev) => ({ ...prev, [platform]: p })))
           .catch(() => {});
       }
     }
-  }, [selectedPlatforms, id, card, subreddit, previews]);
+  }, [selectedPlatforms, id, card, previews]);
 
   useEffect(() => {
     if (!post) return;
@@ -83,7 +80,6 @@ export function PublishPage() {
     try {
       const platforms = Array.from(selectedPlatforms).map((p) => ({
         platform: p,
-        ...(p === 'REDDIT' ? { options: { subreddit } } : {}),
       }));
       const requestId = `publish-${Date.now()}`;
       const result = await publishApi.publish(id, platforms, requestId);
@@ -191,24 +187,6 @@ export function PublishPage() {
               </motion.div>
             ))}
           </div>
-
-          {/* Reddit subreddit input */}
-          {selectedPlatforms.has('REDDIT') && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              className="space-y-2"
-            >
-              <Label htmlFor="subreddit" className="text-white/50">Subreddit for Reddit</Label>
-              <Input
-                id="subreddit"
-                value={subreddit}
-                onChange={(e) => setSubreddit(e.target.value)}
-                placeholder="sideproject"
-                className="max-w-xs border-white/10 bg-white/5 text-white placeholder:text-white/20"
-              />
-            </motion.div>
-          )}
 
           {/* Live preview */}
           {selectedPlatforms.size > 0 && (
@@ -402,7 +380,6 @@ export function PublishPage() {
 
 function platformName(platform: string): string {
   const names: Record<string, string> = {
-    REDDIT: 'Reddit', DISCORD: 'Discord', DEVTO: 'Dev.to', TELEGRAM: 'Telegram',
     BLUESKY: 'Bluesky', HASHNODE: 'Hashnode', TWITTER: 'X (Twitter)', LINKEDIN: 'LinkedIn',
   };
   return names[platform] ?? platform;

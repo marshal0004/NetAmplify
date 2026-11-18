@@ -61,7 +61,7 @@ describe('QuotaService', () => {
 
   describe('wouldExceedBudget', () => {
     it('returns false for non-X platforms (no budget in MVP)', async () => {
-      expect(await quota.wouldExceedBudget('REDDIT')).toBe(false);
+      expect(await quota.wouldExceedBudget('HASHNODE')).toBe(false);
       expect(await quota.wouldExceedBudget('LINKEDIN')).toBe(false);
       expect(await quota.wouldExceedBudget('DISCORD')).toBe(false);
     });
@@ -122,7 +122,7 @@ describe('QuotaService', () => {
 
   describe('getRemaining', () => {
     it('returns Infinity for non-X platforms', async () => {
-      expect(await quota.getRemaining('REDDIT')).toBe(Infinity);
+      expect(await quota.getRemaining('LINKEDIN')).toBe(Infinity);
     });
 
     it('returns budget - used for X', async () => {

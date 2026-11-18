@@ -4,13 +4,10 @@
 // pipeline (BullMQ workers) can call adapter.publish() uniformly.
 
 export type SocialProvider = {
-  /** Display name e.g. "Reddit" */
   name: string;
-  /** Stable identifier e.g. "reddit", "x", "linkedin" */
   identifier: string;
   /** User-facing tooltip shown on connect dialog */
   toolTip: string;
-  /** Editor schema for per-platform options (e.g., subreddit input) */
   editor: any;
   /** External OAuth login URL if applicable */
   externalUrl?: string;
@@ -75,7 +72,6 @@ export interface AuthTokenDetails {
 
 /**
  * Pending-check response — used by providers that need to verify a
- * pending post status (e.g., Reddit's rate-limited post queue).
  */
 export interface PendingCheckResponse {
   status: 'PENDING' | 'SUCCESS' | 'FAILED';

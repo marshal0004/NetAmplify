@@ -158,12 +158,11 @@ STATUS=$(echo "$RESP" | tail -n1)
 assert_status "PATCH nonexistent postcard" "404" "$STATUS"
 echo ""
 
-# 12. GET /api/postcards/:id/preview (Reddit platform)
-echo -e "${YELLOW}[11/14] GET /api/postcards/:id/preview?platform=REDDIT${NC}"
-RESP=$(curl -s -w "\n%{http_code}" -X GET "$BASE_URL/api/postcards/$POSTCARD_ID/preview?platform=REDDIT&subreddit=test" \
+echo -e "${YELLOW}[11/14] GET /api/postcards/:id/preview?platform=TWITTER${NC}"
+RESP=$(curl -s -w "\n%{http_code}" -X GET "$BASE_URL/api/postcards/$POSTCARD_ID/preview?platform=TWITTER" \
   -H "Authorization: Bearer $ACCESS_TOKEN")
 BODY=$(echo "$RESP" | head -n -1); STATUS=$(echo "$RESP" | tail -n1)
-assert_status "GET preview REDDIT" "200" "$STATUS"
+assert_status "GET preview TWITTER" "200" "$STATUS"
 assert_contains "preview has formatted body" "\"body\":" "$BODY"
 echo ""
 

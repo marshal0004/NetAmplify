@@ -1,8 +1,8 @@
 {
   "$schema": "https://raw.githubusercontent.com/nicehash/tauri/dev/crates/tauri-utils/schema.json",
   "identifier": "cookie-capture-capability",
-  "description": "Permissions for cookie-capture windows (Reddit login, X login). Grants webview + cookie read access. No shell/process permissions — these are untrusted external sites.",
-  "windows": ["reddit-login", "x-login", "linkedin-login"],
+  "description": "Permissions for cookie-capture windows (X login). Grants webview + cookie read access. No shell/process permissions — these are untrusted external sites.",
+  "windows": ["x-login", "linkedin-login"],
   "permissions": [
     "core:default",
     "core:window:default",

@@ -60,12 +60,12 @@ enum Platform {
 
 /// How the platform credential was obtained. Drives the Connect Checklist UX.
 enum ConnectionType {
-  OAUTH          /// Reddit, X, LinkedIn (OAuth 2.0 + PKCE)
+  OAUTH          /// X, LinkedIn (OAuth 2.0 + PKCE)
   API_KEY        /// Dev.to, Hashnode, Mastodon (user-pasted)
   WEBHOOK        /// Discord (user-pasted webhook URL)
   BOT_TOKEN      /// Telegram (user-pasted bot token + channel)
   APP_PASSWORD   /// Bluesky, WordPress (user-pasted app password)
-  COOKIE         /// X + Reddit via session cookies (Postiz-style)
+  COOKIE         /// X via session cookies (Postiz-style)
 }
 
 /// Lifecycle of a single Connection row.
@@ -222,7 +222,7 @@ model PostTarget {
   connectionId String? // null if disconnected before execution
 
   status PostTargetStatus @default(QUEUED)
-  options Json? // e.g., { subreddit: "sideproject" } for Reddit
+  options Json? // per-platform publish options (e.g., YouTube privacyStatus)
 
   platformPostUrl String?
   platformPostId String?

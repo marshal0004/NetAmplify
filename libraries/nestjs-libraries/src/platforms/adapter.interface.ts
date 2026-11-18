@@ -1,11 +1,9 @@
 // /home/z/my-project/netamplify-app/libraries/nestjs-libraries/src/platforms/adapter.interface.ts
 // NetAmplify — Platform adapter contract.
 //
-// Every platform adapter (Reddit, X, LinkedIn, Discord, Dev.to, Telegram,
 // Bluesky, Hashnode) implements this interface. Per docs/03-ARCHITECTURE.md
 // "Adapter Contracts":
 //
-//   OAuth-capable adapter (Reddit, X, LinkedIn):
 //     getAuthUrl(pkce, state), exchangeCode(code, pkce), getIdentity(creds),
 //     publish(creds, formatted), refresh?(creds)
 //
@@ -50,7 +48,6 @@ export interface PublishResult {
   url: string;
   /** Platform-side post id (for retry + status polling) */
   id: string;
-  /** True if the post is in a "pending" state (Reddit rate-limit queue, etc.) */
   pending?: boolean;
   /** If pending=true, the platform's pending-id (used to poll for completion) */
   pendingId?: string;
@@ -115,7 +112,6 @@ export class PublishError extends Error {
  * The adapter contract. Every platform adapter implements this.
  *
  * `kind: 'OAUTH'` adapters implement `getAuthUrl`, `exchangeCode`,
- * `getIdentity`, `publish`. They drive the "Connect via Reddit/X/LinkedIn"
  * OAuth flow.
  *
  * `kind: 'SIMPLE'` adapters implement `validateCredentials`, `publish`.
@@ -123,16 +119,13 @@ export class PublishError extends Error {
  * password" flow.
  */
 export interface PlatformAdapter {
-  /** The Prisma Platform enum value (REDDIT, X, etc.) */
   readonly platform: Platform;
 
-  /** Human-readable name (e.g. "Reddit") */
   readonly name: string;
 
   /** Tooltip shown on the Connect Checklist UI (e.g. "OAuth login") */
   readonly toolTip: string;
 
-  /** 'OAUTH' (Reddit/X/LinkedIn) or 'SIMPLE' (Dev.to/Discord/Telegram/Bluesky/Hashnode) */
   readonly kind: 'OAUTH' | 'SIMPLE';
 
   /** Returns true when the platform's required env vars are present. */

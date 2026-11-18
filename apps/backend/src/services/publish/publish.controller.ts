@@ -3,7 +3,6 @@
 //
 // Per docs/05-API-SPEC.md:
 //   POST /api/postcards/:id/publish { platforms: [...], requestId? } → 201 { post: { id, targets: [{ id, platform, status }] } }
-//   GET  /api/posts?page=1&platform=REDDIT&status=SUCCESS → { items, total }
 //   GET  /api/posts/:id → post + targets (for status polling)
 //   POST /api/posts/:id/targets/:targetId/retry → 200 | 409
 //
@@ -129,7 +128,6 @@ export class PublishController {
   // ==========================================================================
   //
   // These bypass the Tauri WebView entirely. The frontend calls these
-  // instead of `publish_to_reddit_via_webview` / `publish_to_x_via_webview`
   // Tauri commands. The backend spawns a headless Chromium, sets the
   // user's cookies, and calls the platform's API from inside the page
   // context — real Chrome TLS → bypasses X's WAF.

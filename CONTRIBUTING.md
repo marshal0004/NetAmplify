@@ -4,7 +4,7 @@ Contributions are welcome - code, docs, whatever it might be! If this is your fi
 
 ## Read the developers guide
 
-The main documentation site has a [developer guide](https://docs.netamplify.com/developer-guide) . That guide provides you a good understanding of the project structure, and how to setup your development environment. Read this document after you have read that guide. This document is intended to provide you a good understanding of how to submit your first contribution.
+The main documentation site has a [developer guide](https://docs.netamplify.com/developer-guide). That guide provides you a good understanding of the project structure, and how to setup your development environment. Read this document after you have read that guide. This document is intended to provide you a good understanding of how to submit your first contribution.
 
 ## Apply via the contribution form
 
@@ -51,18 +51,18 @@ This project follows a Fork/Feature Branch/Pull Request model. If you're not fam
 
 1. **Fork the project:** Create a personal copy of the repository on your GitHub account.
 2. **Clone your fork:** Bring a copy of your fork to your local machine.
-   ```bash
-   git clone https://github.com/YOUR_USERNAME/netamplify.git
-   ```
+ ```bash
+ git clone https://github.com/YOUR_USERNAME/netamplify.git
+ ```
 3. **Create a new branch**: Start a new branch for your changes
-   ```bash
-   git checkout -b feature/your-feature-name
-   ```
+ ```bash
+ git checkout -b feature/your-feature-name
+ ```
 4. **Make your changes**: Implement the changes you wish to contribute.
 5. **Push your changes**: Upload your changes to your fork.
-   ```bash
-   git push -u origin feature/your-feature-name
-   ```
+ ```bash
+ git push -u origin feature/your-feature-name
+ ```
 6. **Create a pull request**: Propose your changes **to the main branch**.
 
 # Need Help?

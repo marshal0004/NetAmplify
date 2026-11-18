@@ -78,7 +78,6 @@ fi
 echo ""
 
 # 3. POST /api/postcards/:id/publish (valid platform, no connection → 400)
-#    REDDIT is cookie-bypass (NOT in PLATFORM_SCHEMA) → would fail Zod first.
 #    Use BLUESKY (in the enum) so the request reaches the connection check and
 #    returns "No active connection" — the actual behavior a user sees.
 echo -e "${YELLOW}[1/9] POST /api/postcards/:id/publish (valid platform, no connection)${NC}"
@@ -120,7 +119,6 @@ echo ""
 
 # 6. POST /api/postcards/:id/publish (nonexistent postcard → 404)
 #    Use BLUESKY (in the enum) so the request passes Zod + reaches the
-#    postcard-ownership lookup, which 404s. (REDDIT would fail Zod first → 400.)
 echo -e "${YELLOW}[4/9] POST /api/postcards/nonexistent/publish${NC}"
 RESP=$(curl -s -w "\n%{http_code}" -X POST "$BASE_URL/api/postcards/nonexistent-id/publish" \
   -H "Content-Type: application/json" \

@@ -18,12 +18,11 @@
 | **Mastodon** | Access token (user-pasted) | ✅ Yes | 2 min |
 | **WordPress** | App password (user-pasted) | ✅ Yes | 2 min |
 | **LinkedIn** | OAuth 2.0 PKCE | ✅ Yes (if you created a LinkedIn dev app) | 5 min |
-| **Reddit** | OAuth 2.0 PKCE | ⚠️ Needs manual developer review (24-48h, often rejected) | — |
+| **** | OAuth 2.0 PKCE | ⚠️ Needs manual developer review (24-48h, often rejected) | — |
 | **X (Twitter)** | OAuth 2.0 PKCE | ❌ \$100/month API paywall | — |
-| **Reddit (Cookie)** | Session cookies (auto-capture via Tauri OR manual paste) | ✅ Yes (residential IP only) | 3 sec with Tauri / 2 min manual |
+| **** | Session cookies (auto-capture via Tauri OR manual paste) | ✅ Yes (residential IP only) | 3 sec with Tauri / 2 min manual |
 | **X (Cookie)** | Session cookies (auto-capture via Tauri OR manual paste) | ✅ Yes (residential IP only) | 3 sec with Tauri / 2 min manual |
 
-**Summary**: 10 out of 12 platforms work on your laptop. Reddit + X work via the cookie method (bypasses their paywall + manual review).
 
 ---
 
@@ -32,16 +31,15 @@
 ### Option A: Web app (browser, no Tauri) — faster to start
 - Run the NestJS backend + Vite frontend
 - Open `http://localhost:4200` in Chrome/Firefox
-- Cookie platforms (Reddit, X) require manual copy-paste via Cookie-Editor extension
+- Cookie platforms (X) require manual copy-paste via Cookie-Editor extension
 - All other platforms work via OAuth or API key paste
 
 ### Option B: Desktop app (Tauri) — better UX, zero copy-paste
 - Build the Tauri desktop app (requires Rust + webkit2gtk)
-- Cookie platforms (Reddit, X) use **auto-capture**: click "Auto-Capture" → native login window opens → log in normally → cookies captured automatically
+- Cookie platforms (X) use **auto-capture**: click "Auto-Capture" → native login window opens → log in normally → cookies captured automatically
 - No browser extension needed, no copy-paste
 - Same React frontend, same NestJS backend — just wrapped in a native window
 
-**Recommendation**: Start with Option A to verify everything works. Then build Option B for the premium UX (zero copy-paste for Reddit + X).
 
 ---
 
@@ -61,19 +59,19 @@ sudo usermod -aG docker $USER
 ### 2. Node.js 20+
 ```bash
 sudo pacman -S nodejs npm
-node --version  # should be v20+ (v24 is fine)
+node --version # should be v20+ (v24 is fine)
 ```
 
 ### 3. pnpm
 ```bash
 sudo npm install -g pnpm@9.5.0
-pnpm --version  # should be 9.5.0
+pnpm --version # should be 9.5.0
 ```
 
 ### 4. (Optional, for Tauri desktop app) Rust + webkit2gtk
 ```bash
 sudo pacman -S rust webkit2gtk gtk3 base-devel
-rustc --version  # should be 1.77+
+rustc --version # should be 1.77+
 ```
 
 ---
@@ -88,7 +86,7 @@ cd netamplify-app
 
 ---
 
-## Step 2: Create .env file
+## Step 2: Create.env file
 
 Create a file named `.env` in the root of `netamplify-app/`:
 
@@ -127,13 +125,12 @@ X_MONTHLY_POST_BUDGET=450
 
 ### Which credentials do you actually need?
 
-| Platform | Needs .env vars? | How users connect |
+| Platform | Needs.env vars? | How users connect |
 |----------|------------------|-------------------|
 | Discord, Dev.to, Telegram, Bluesky, Hashnode, Mastodon, WordPress | ❌ No | User pastes their own credential via the UI |
 | LinkedIn (OAuth) | ✅ `LINKEDIN_CLIENT_ID` + `LINKEDIN_CLIENT_SECRET` | User clicks "Connect via OAuth" → logs in to LinkedIn |
-| Reddit (OAuth) | ✅ `REDDIT_CLIENT_ID` + `REDDIT_CLIENT_SECRET` (but Reddit's manual review blocks this) | Use the Cookie platform instead (below) |
 | X (OAuth) | ✅ `TWITTER_CLIENT_ID` + `TWITTER_CLIENT_SECRET` (but \$100/mo paywall) | Use the Cookie platform instead (below) |
-| **Reddit (Cookie)** | ❌ No env vars | User pastes cookies OR uses Tauri auto-capture |
+| **** | ❌ No env vars | User pastes cookies OR uses Tauri auto-capture |
 | **X (Cookie)** | ❌ No env vars | User pastes cookies OR uses Tauri auto-capture |
 
 **For the demo**: Set `TWITTER_CLIENT_ID=test` + `TWITTER_CLIENT_SECRET=test` (placeholders — the cookie flow doesn't use these). Only LinkedIn needs real OAuth credentials.
@@ -158,22 +155,22 @@ The original `docker-compose.dev.yaml` tries to start Temporal + other postiz se
 ```bash
 cat > docker-compose.simple.yml << 'EOF'
 services:
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: netamplify
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
+ postgres:
+ image: postgres:16-alpine
+ environment:
+ POSTGRES_USER: postgres
+ POSTGRES_PASSWORD: postgres
+ POSTGRES_DB: netamplify
+ ports:
+ - "5432:5432"
+ volumes:
+ - pgdata:/var/lib/postgresql/data
+ redis:
+ image: redis:7-alpine
+ ports:
+ - "6379:6379"
 volumes:
-  pgdata:
+ pgdata:
 EOF
 
 docker compose -f docker-compose.simple.yml up -d
@@ -188,8 +185,8 @@ You should see `postgres:16-alpine` on port 5432 and `redis:7-alpine` on port 63
 
 **If port 5432 or 6379 is already in use** (e.g., from another app), change the ports in `docker-compose.simple.yml`:
 ```yaml
-    ports:
-      - "5433:5432"  # use 5433 instead of 5432
+ ports:
+ - "5433:5432" # use 5433 instead of 5432
 ```
 Then update your `.env`:
 ```env
@@ -218,8 +215,8 @@ pnpm test
 
 Expected output:
 ```
-Test Files  29 passed (29)
-     Tests  548 passed (548)
+Test Files 29 passed (29)
+ Tests 548 passed (548)
 ```
 
 ### Curl tests (require running backend — see Step 7):
@@ -232,7 +229,7 @@ This runs all curl-test scripts:
 - `health.sh` — health endpoint
 - `auth.sh` — signup, login, /me, reset
 - `connections.sh` — 5 SIMPLE platform connect/disconnect
-- `new-platforms.sh` — 4 new platform endpoints (Reddit Cookie, X Cookie, Mastodon, WordPress)
+- `new-platforms.sh` — 4 new platform endpoints (Cookie, X Cookie, Mastodon, WordPress)
 - `auto-capture.sh` — Tauri auto-capture endpoint
 - `postcards.sh` — PostCard CRUD + preview
 - `publish.sh` — Amplify flow
@@ -246,13 +243,8 @@ TELEGRAM_CHANNEL="@netamplify_test" \
 bash scripts/curl-tests/platforms-live.sh
 ```
 
-### Live Reddit cookie test (needs your reddit.com cookies):
 ```bash
-# Install Cookie-Editor extension, log in to reddit.com, export these cookies:
-export REDDIT_TOKEN_V2='<your-token_v2-jwt>'
-export REDDIT_CSRF='<your-csrf-token-32-hex>'
-export REDDIT_TOKEN_LEGACY='<your-legacy-token-jwt>'  # optional
-bash scripts/curl-tests/reddit-cookie-live.sh
+bash scripts/curl-tests/-cookie-live.sh
 ```
 
 ---
@@ -296,8 +288,8 @@ The first build takes ~5 minutes (downloads + compiles Rust dependencies). Subse
 ### What you get
 - A native desktop window (1280×800) running the NetAmplify React frontend
 - The NestJS backend runs as a sidecar process (auto-started by Tauri)
-- On the Connect Checklist page, Reddit + X Cookie cards show a green **"Auto-Capture"** button
-- Click "Auto-Capture" → a native login window opens to reddit.com/x.com
+- On the Connect Checklist page + X Cookie cards show a green **"Auto-Capture"** button
+- Click "Auto-Capture" → a native login window opens to.com/x.com
 - Log in normally (type your username + password into the REAL form)
 - Tauri reads the cookies automatically (including httpOnly) → encrypts + stores them
 - No Cookie-Editor extension, no copy-paste
@@ -323,11 +315,11 @@ This creates:
 ### 8.2 — Create a PostCard
 1. Click "+ New Post Card"
 2. Fill in:
-   - **Title**: `NetAmplify — Post once. Get seen everywhere.`
-   - **Summary**: `A one-click multi-platform posting app for students.`
-   - **Description**: Write some markdown about your project
-   - **Tech Stack**: type `typescript` → press Enter → repeat for `nestjs`, `react`
-   - **Repo URL**: `https://github.com/marshal0004/NetAmplify`
+ - **Title**: `NetAmplify — Post once. Get seen everywhere.`
+ - **Summary**: `A one-click multi-platform posting app for students.`
+ - **Description**: Write some markdown about your project
+ - **Tech Stack**: type `typescript` → press Enter → repeat for `nestjs`, `react`
+ - **Repo URL**: `https://github.com/marshal0004/NetAmplify`
 3. Click "Create Post Card"
 
 ### 8.3 — Connect platforms
@@ -346,7 +338,7 @@ Go to "Connections" (sidebar). You'll see 12 platform cards.
 - **LinkedIn**: Click "Connect via OAuth" → log in to LinkedIn → "Allow" → redirected back
 
 **Cookie platforms** (two options):
-- **Option A (web browser)**: Install Cookie-Editor extension → log in to reddit.com/x.com → export cookies → paste into the form → Connect
+- **Option A (web browser)**: Install Cookie-Editor extension → log in to.com/x.com → export cookies → paste into the form → Connect
 - **Option B (Tauri desktop app)**: Click "Auto-Capture" → native login window opens → log in normally → cookies captured automatically → Connect
 
 ### 8.4 — Amplify (the money shot!)
@@ -368,20 +360,18 @@ Go to "Connections" (sidebar). You'll see 12 platform cards.
 
 ---
 
-## Cookie refresh (when Reddit token_v2 expires)
 
-Reddit's `token_v2` cookie expires every 1-2 days. When this happens:
+'s `` cookie expires every 1-2 days. When this happens:
 
 **In the Tauri desktop app**:
-1. The publish worker gets a 401 from Reddit
-2. The frontend automatically calls `refresh_reddit_cookies`
+1. The publish worker gets a 401 from 
 3. Tauri re-opens the login window
-4. If the long-lived `token` cookie (6-month life) is still valid → Reddit auto-logs in → fresh `token_v2` captured
+4. If the long-lived `token` cookie (6-month life) is still valid → auto-logs in → fresh `` captured
 5. Worker retries the publish with fresh cookies → success
 6. **User doesn't need to do anything** (unless the long-lived `token` also expired after 6 months)
 
 **In the web browser** (no Tauri):
-1. The publish worker gets a 401 from Reddit
+1. The publish worker gets a 401 from 
 2. UI shows "Session expired — click to re-login"
 3. User clicks → Cookie-Editor instructions shown
 4. User re-exports cookies → pastes them → Connect
@@ -398,9 +388,9 @@ Reddit's `token_v2` cookie expires every 1-2 days. When this happens:
 | Frontend shows blank page | Check backend is running on :3000 first |
 | LinkedIn OAuth fails | Check redirect URI is exactly `http://localhost:3000/api/oauth/linkedin/callback` in LinkedIn dev portal |
 | LinkedIn OAuth: "cookieParser secret required" | Fixed in latest commit — `main.ts` now passes `process.env.JWT_SECRET` to cookieParser |
-| Reddit cookie 401/403 | token_v2 expired (1-2 day life) — refresh by browsing reddit.com + re-export cookies |
+| cookie 401/403 | expired (1-2 day life) — refresh by browsing.com + re-export cookies |
 | X cookie 401/403 | auth_token expired (rare — lasts 1 year) — re-export cookies |
-| Reddit/X posting from cloud server fails | Reddit/X block cloud IPs — must post from residential IP (your laptop) |
+| /X posting from cloud server fails | /X block cloud IPs — must post from residential IP (your laptop) |
 | 401 on all API calls | Check `.env` has `JWT_SECRET` + `TOKEN_ENCRYPTION_KEY` set |
 | Prisma errors | `npx prisma db push --schema libraries/nestjs-libraries/src/database/prisma/schema.prisma` |
 | `pnpm: command not found` | `sudo npm install -g pnpm@9.5.0` |
@@ -420,7 +410,7 @@ Reddit's `token_v2` cookie expires every 1-2 days. When this happens:
 3. **Discord**: Delete the webhook in your server settings → create a new one if needed
 4. **Dev.to**: https://dev.to/settings/extensions → delete the API key → generate new one
 5. **Telegram**: Talk to @BotFather → `/revoke` → generate new bot token
-6. **Reddit cookies**: Log out of reddit.com on all devices (invalidates the session)
+6. ** cookies**: Log out of.com on all devices (invalidates the session)
 7. **X cookies**: Log out of x.com on all devices (invalidates the session)
 8. **GitHub PAT**: https://github.com/settings/tokens → revoke the token you gave me
 
@@ -430,62 +420,61 @@ Reddit's `token_v2` cookie expires every 1-2 days. When this happens:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  NetAmplify Desktop App (Tauri 2.0) — OPTIONAL, premium UX      │
-│  ├── src-tauri/ (Rust shell)                                    │
-│  │   ├── cookie_capture.rs — WebviewWindow::cookies() API       │
-│  │   ├── cookie_refresh.rs — auto-refresh expired token_v2     │
-│  │   └── backend_proxy.rs — sends cookies to NestJS             │
-│  └── wraps the React frontend in a native window                │
+│ NetAmplify Desktop App (Tauri 2.0) — OPTIONAL, premium UX │
+│ ├── src-tauri/ (Rust shell) │
+│ │ ├── cookie_capture.rs — WebviewWindow::cookies() API │
+│ │ ├── cookie_refresh.rs — auto-refresh expired │
+│ │ └── backend_proxy.rs — sends cookies to NestJS │
+│ └── wraps the React frontend in a native window │
 └─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
+ │
+ ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  Browser (localhost:4200) OR Tauri window                       │
-│  Vite + React + Tailwind + Framer Motion + shadcn/ui            │
+│ Browser (localhost:4200) OR Tauri window │
+│ Vite + React + Tailwind + Framer Motion + shadcn/ui │
 └─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼ fetch() with JWT Bearer token
-                              │
+ │
+ ▼ fetch() with JWT Bearer token
+ │
 ┌─────────────────────────────────────────────────────────────────┐
-│  Backend (localhost:3000)                                        │
-│  NestJS + TypeScript                                             │
-│  ├── AuthModule (Passport LocalStrategy + JwtStrategy)          │
-│  ├── PostCardsModule (CRUD + Format Engine preview)             │
-│  ├── ConnectionsModule                                          │
-│  │   ├── 7 SIMPLE adapters (Discord, Dev.to, Telegram,         │
-│  │   │   Bluesky, Hashnode, Mastodon, WordPress)                │
-│  │   ├── 3 OAuth adapters (Reddit, X, LinkedIn)                 │
-│  │   └── 2 Cookie adapters (Reddit Cookie, X Cookie)            │
-│  │       └── POST /api/connections/:platform/auto-capture     │
-│  │           (called by Tauri after cookie capture)             │
-│  ├── PublishModule (BullMQ queue + worker)                     │
-│  └── HealthController (/api/health)                             │
+│ Backend (localhost:3000) │
+│ NestJS + TypeScript │
+│ ├── AuthModule (Passport LocalStrategy + JwtStrategy) │
+│ ├── PostCardsModule (CRUD + Format Engine preview) │
+│ ├── ConnectionsModule │
+│ │ ├── 7 SIMPLE adapters (Discord, Dev.to, Telegram, │
+│ │ │ Bluesky, Hashnode, Mastodon, WordPress) │
+│ │ ├── 3 OAuth adapters (X, LinkedIn) │
+│ │ └── 2 Cookie adapters (Cookie, X Cookie) │
+│ │ └── POST /api/connections/:platform/auto-capture │
+│ │ (called by Tauri after cookie capture) │
+│ ├── PublishModule (BullMQ queue + worker) │
+│ └── HealthController (/api/health) │
 └─────────────────────────────────────────────────────────────────┘
-                              │
-              ┌───────────────┼───────────────┐
-              ▼               ▼               ▼
+ │
+ ┌───────────────┼───────────────┐
+ ▼ ▼ ▼
 ┌──────────────────┐ ┌──────────────┐ ┌──────────────┐
-│  PostgreSQL       │ │  Redis        │ │  Platform    │
-│  (9 models,       │ │  (BullMQ      │ │  APIs        │
-│   12 platforms)   │ │   queue)      │ │  (12 total)  │
+│ PostgreSQL │ │ Redis │ │ Platform │
+│ (9 models, │ │ (BullMQ │ │ APIs │
+│ 12 platforms) │ │ queue) │ │ (12 total) │
 └──────────────────┘ └──────────────┘ └──────────────┘
-                                                  │
-                                  ┌───────────────┼───────────────┐
-                                  ▼               ▼               ▼
-                            Discord         Dev.to         Telegram
-                            (webhook)       (API key)      (bot token)
-                                  │
-                                  ▼
-                            Bluesky          Hashnode       Mastodon
-                            (app password)   (PAT)          (access token)
-                                  │
-                                  ▼
-                            WordPress        LinkedIn       Reddit (Cookie)
-                            (app password)   (OAuth 2.0)    (session cookies)
-                                  │
-                                  ▼
-                            X (Cookie)       Reddit (OAuth)  X (OAuth)
-                            (session cookies) (manual review) ($100/mo paywall)
+ │
+ ┌───────────────┼───────────────┐
+ ▼ ▼ ▼
+ Discord Dev.to Telegram
+ (webhook) (API key) (bot token)
+ │
+ ▼
+ Bluesky Hashnode Mastodon
+ (app password) (PAT) (access token)
+ │
+ ▼
+ WordPress LinkedIn (app password) (OAuth 2.0) (session cookies)
+ │
+ ▼
+ X (Cookie) X (OAuth)
+ (session cookies) (manual review) ($100/mo paywall)
 ```
 
 ## Testing summary (for viva)
@@ -493,18 +482,18 @@ Reddit's `token_v2` cookie expires every 1-2 days. When this happens:
 ```
 548 tests total (all passing in 24s):
 ├── Unit (331): TokenVault, Zod, errorMapper, AuthService, 12 adapters,
-│   Format Engine, QuotaService, PostCardService, PKCE, Config
+│ Format Engine, QuotaService, PostCardService, PKCE, Config
 ├── Integration (102): supertest HTTP tests for all API endpoints
-│   ├── Auth (23): signup, login, /me, reset-request, reset-confirm, account delete
-│   ├── PostCards (19): CRUD + preview + ownership enforcement
-│   ├── Connections (18): 5 SIMPLE-platform connect + disconnect + unknown platform
-│   ├── Publish (14): no-connection, empty, unknown, 404, idempotency, retry
-│   ├── Auto-Capture (9): Reddit/X cookie auto-capture endpoint (NEW in Phase 9)
-│   └── Worker (9): AUTH→REVOKED+FAILED, VALIDATION→FAILED, QUOTA→SKIPPED, RATE/NETWORK→retry
+│ ├── Auth (23): signup, login, /me, reset-request, reset-confirm, account delete
+│ ├── PostCards (19): CRUD + preview + ownership enforcement
+│ ├── Connections (18): 5 SIMPLE-platform connect + disconnect + unknown platform
+│ ├── Publish (14): no-connection, empty, unknown, 404, idempotency, retry
+│ ├── Auto-Capture (9): /X cookie auto-capture endpoint (NEW in Phase 9)
+│ └── Worker (9): AUTH→REVOKED+FAILED, VALIDATION→FAILED, QUOTA→SKIPPED, RATE/NETWORK→retry
 ├── E2E (3): full Amplify flow (signup → connect → publish → SUCCESS)
 ├── Non-functional (16): error envelope, ownership, idempotency, JWT, audit log
 └── Tauri bridge (12): isTauri detection, capture commands, proxy, error handling
-    (NEW in Phase 9 — frontend unit tests)
+ (NEW in Phase 9 — frontend unit tests)
 ```
 
 ## Platform support summary (for viva)
@@ -519,9 +508,8 @@ Reddit's `token_v2` cookie expires every 1-2 days. When this happens:
 | 6 | Mastodon | Access token | ✅ | ✅ Yes |
 | 7 | WordPress | App password | ✅ | ✅ Yes |
 | 8 | LinkedIn | OAuth 2.0 PKCE | ✅ | ✅ Yes (needs LinkedIn dev app) |
-| 9 | Reddit (Cookie) | Session cookies | ✅ | ✅ Yes (residential IP) |
+| 9 | | Session cookies | ✅ | ✅ Yes (residential IP) |
 | 10 | X (Cookie) | Session cookies | ✅ | ✅ Yes (residential IP) |
-| 11 | Reddit (OAuth) | OAuth 2.0 PKCE | ✅ | ⚠️ Needs manual developer review |
+| 11 | | OAuth 2.0 PKCE | ✅ | ⚠️ Needs manual developer review |
 | 12 | X (OAuth) | OAuth 2.0 PKCE | ❌ \$100/mo | ❌ API paywall |
 
-**10 out of 12 platforms work on your laptop for free.** Reddit + X work via the cookie method (bypasses their paywall + manual review).

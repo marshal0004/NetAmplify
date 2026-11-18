@@ -2,10 +2,8 @@
 // NetAmplify — Format Engine type definitions.
 //
 // Per docs/02-SRS.md FR-011: "Format Engine (pure) — Input: PostCard +
-// Profile + per-platform options (subreddit for Reddit). Output rules:
 //   X: ≤280 chars; tags → #hashtags appended if room; URL counts as 23.
 //   LinkedIn: plain text ≤3000, line breaks preserved, ≤3 hashtags, link on own line.
-//   Reddit: title ≤300 + markdown body (uses description verbatim-ish).
 //   Discord: embed {title ≤256, description ≤4096, fields: tech stack, links}.
 //   Dev.to: markdown article (title + body), tags ≤4.
 //   Hashnode: markdown, publication optional.
@@ -40,11 +38,9 @@ export interface FormatEngineProfile {
 
 /**
  * Per-platform options passed to the formatter.
- *   - Reddit: subreddit (required)
  *   - Other platforms: ignored
  */
 export interface FormatEngineOptions {
-  subreddit?: string;
   [key: string]: unknown;
 }
 

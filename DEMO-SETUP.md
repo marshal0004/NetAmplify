@@ -16,7 +16,7 @@ git clone https://github.com/marshal0004/NetAmplify.git netamplify-app
 cd netamplify-app
 ```
 
-## Step 2: Create .env
+## Step 2: Create.env
 
 Create `/home/z/my-project/netamplify-app/.env` with these exact contents:
 
@@ -56,7 +56,7 @@ docker compose -f docker-compose.dev.yaml up -d
 
 Wait 10 seconds, then verify:
 ```bash
-docker ps  # should show postgres + redis running
+docker ps # should show postgres + redis running
 ```
 
 ## Step 5: Apply database schema
@@ -111,7 +111,7 @@ Open `http://localhost:4200` in your browser.
 ```markdown
 ## What it does
 
-NetAmplify lets students create a Post Card once and cross-post it to Reddit, Discord, Dev.to, Telegram, Bluesky, and Hashnode automatically.
+NetAmplify lets students create a Post Card once and cross-post it to Discord, Dev.to, Telegram, Bluesky, and Hashnode automatically.
 
 ## Tech Stack
 - Backend: NestJS + TypeScript + Prisma + PostgreSQL + Redis/BullMQ
@@ -126,10 +126,10 @@ NetAmplify lets students create a Post Card once and cross-post it to Reddit, Di
 ### 8.3 — Connect platforms
 1. Dashboard → "Connections" (sidebar)
 2. Connect each platform:
-   - **Discord**: paste webhook URL → `https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN` → click "Connect"
-   - **Dev.to**: paste API key → `your-devto-api-key` → click "Connect"
-   - **Telegram**: paste bot token → `your-telegram-bot-token` → channel → `@your-channel` → click "Connect"
-   - **LinkedIn**: click "Connect via OAuth" → log in to LinkedIn → "Allow" → redirected back → "Connected as Neeraj Rawat"
+ - **Discord**: paste webhook URL → `https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN` → click "Connect"
+ - **Dev.to**: paste API key → `your-devto-api-key` → click "Connect"
+ - **Telegram**: paste bot token → `your-telegram-bot-token` → channel → `@your-channel` → click "Connect"
+ - **LinkedIn**: click "Connect via OAuth" → log in to LinkedIn → "Allow" → redirected back → "Connected as Neeraj Rawat"
 
 ### 8.4 — Amplify (the money shot)
 1. Go to your PostCard → click "🚀 Amplify"
@@ -159,8 +159,6 @@ NetAmplify lets students create a Post Card once and cross-post it to Reddit, Di
 **"Why doesn't X/Twitter work?"**
 > X's Free tier provides 0 write credits — posting requires the Basic tier ($100/month). This is X's corporate policy (Feb 2023 change), documented in docs/01-PRD.md §6. Our XAdapter uses OAuth 2.0 PKCE + the v2 API — when the Basic tier is activated, posting works with zero code changes. We proved the OAuth flow works (the user successfully authorized the app).
 
-**"Why doesn't Reddit work?"**
-> Reddit's 2024 Responsible Builder Policy requires manual developer review for all new API apps. The old self-service prefs/apps page is deprecated. Our RedditAdapter is fully implemented — when Reddit approves the app, posting works immediately.
 
 **"How is security handled?"**
 > OAuth 2.0 PKCE (no passwords stored). AES-256-GCM TokenVault (ciphertext only in DB). JWT 7-day sessions. bcrypt cost 10. Server-side Zod validation on every input. Owner-scoped queries (no cross-user access). Audit logging on every action. Account deletion cascades to all user data.

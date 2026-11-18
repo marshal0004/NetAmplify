@@ -72,10 +72,11 @@ describe('HashnodeAdapter', () => {
       expect(result.credentials.pat).toBe('hashnode-pat-123');
       expect(result.credentials.publicationId).toBe('pub-abc');
 
-      // Verify the adapter hits the NEW endpoint (gql-beta, not gql)
+      // Verify the adapter hits the current official endpoint (gql.hashnode.com,
+      // NOT the deprecated gql-beta host).
       const fetchUrl = fetchMock.mock.calls[0][0] as string;
-      expect(fetchUrl).toBe('https://gql-beta.hashnode.com');
-      expect(fetchUrl).not.toContain('gql.hashnode.com');
+      expect(fetchUrl).toBe('https://gql.hashnode.com');
+      expect(fetchUrl).not.toContain('gql-beta');
     });
 
     it('saves connection even when user has no publications', async () => {

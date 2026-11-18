@@ -15,9 +15,9 @@ This document walks you through:
 2. Log in with your Facebook account
 3. Click **"My Apps"** → **"Create App"**
 4. Fill in:
-   - **App Name**: `NetAmplify`
-   - **App Contact Email**: your email
-   - **App Purpose**: "Manage integrations for myself or my business" (fastest approval)
+ - **App Name**: `NetAmplify`
+ - **App Contact Email**: your email
+ - **App Purpose**: "Manage integrations for myself or my business" (fastest approval)
 5. Click "Create App"
 
 You'll be redirected to your app dashboard. Note the **App ID** (a 15-digit number at the top) and **App Secret** (click "Show" to reveal).
@@ -39,15 +39,15 @@ On your app dashboard:
 
 1. Left sidebar → **Facebook Login** → **Settings**
 2. Under **"Valid OAuth Redirect URIs"**, add BOTH:
-   ```
-   http://localhost:3000/api/oauth/facebook/callback
-   http://localhost:3000/api/oauth/instagram/callback
-   ```
+ ```
+ http://localhost:3000/api/oauth/facebook/callback
+ http://localhost:3000/api/oauth/instagram/callback
+ ```
 3. (For production, add your real domain):
-   ```
-   https://your-domain.com/api/oauth/facebook/callback
-   https://your-domain.com/api/oauth/instagram/callback
-   ```
+ ```
+ https://your-domain.com/api/oauth/facebook/callback
+ https://your-domain.com/api/oauth/instagram/callback
+ ```
 4. Save changes
 
 ---
@@ -124,8 +124,8 @@ Meta requires these items for review:
 > 1. I'm logged out. I click "Connect Facebook".
 > 2. Facebook's official OAuth dialog appears — the user logs in here, on Facebook's domain. NetAmplify never sees their password.
 > 3. The user sees the requested permissions:
->    - pages_show_list — to display their Pages
->    - pages_manage_posts — to publish to the Page they select
+> - pages_show_list — to display their Pages
+> - pages_manage_posts — to publish to the Page they select
 > 4. They click "Continue" → "Allow".
 >
 > **[Show connected state in NetAmplify]**
@@ -158,35 +158,35 @@ Save this as `privacy.html` and host on a public URL (GitHub Pages works):
 <h2>1. What We Collect</h2>
 <p>NetAmplify collects the following data when you connect a platform:</p>
 <ul>
-  <li><strong>OAuth access tokens</strong> for platforms you connect (Facebook, Instagram, X, LinkedIn, etc.). These tokens are stored encrypted (AES-256-GCM).</li>
-  <li><strong>Account identifiers</strong> (your username on each platform).</li>
-  <li><strong>Post content</strong> you create and publish via NetAmplify.</li>
+ <li><strong>OAuth access tokens</strong> for platforms you connect (Facebook, Instagram, X, LinkedIn, etc.). These tokens are stored encrypted (AES-256-GCM).</li>
+ <li><strong>Account identifiers</strong> (your username on each platform).</li>
+ <li><strong>Post content</strong> you create and publish via NetAmplify.</li>
 </ul>
 
 <h2>2. How We Use Your Data</h2>
 <p>We use your OAuth tokens only to publish posts you create in NetAmplify to the platforms you've connected. We do not:</p>
 <ul>
-  <li>Read your private messages or DMs.</li>
-  <li>Post on your behalf without your explicit action.</li>
-  <li>Sell your data to third parties.</li>
-  <li>Share your data with advertisers.</li>
+ <li>Read your private messages or DMs.</li>
+ <li>Post on your behalf without your explicit action.</li>
+ <li>Sell your data to third parties.</li>
+ <li>Share your data with advertisers.</li>
 </ul>
 
 <h2>3. Facebook-Specific Data</h2>
 <p>When you connect Facebook, we access:</p>
 <ul>
-  <li>Your Facebook user ID (to identify you).</li>
-  <li>The list of Facebook Pages you administer (to let you choose which Page to post to).</li>
-  <li>Page access tokens (to publish posts to the selected Page).</li>
+ <li>Your Facebook user ID (to identify you).</li>
+ <li>The list of Facebook Pages you administer (to let you choose which Page to post to).</li>
+ <li>Page access tokens (to publish posts to the selected Page).</li>
 </ul>
 <p>We do NOT access your personal timeline, friends list, or private posts.</p>
 
 <h2>4. Instagram-Specific Data</h2>
 <p>When you connect Instagram, we access:</p>
 <ul>
-  <li>Your Instagram Business account ID.</li>
-  <li>Your Instagram username (for display).</li>
-  <li>The ability to publish posts with image + caption.</li>
+ <li>Your Instagram Business account ID.</li>
+ <li>Your Instagram username (for display).</li>
+ <li>The ability to publish posts with image + caption.</li>
 </ul>
 
 <h2>5. Data Retention</h2>
@@ -195,9 +195,9 @@ Save this as `privacy.html` and host on a public URL (GitHub Pages works):
 <h2>6. Your Rights</h2>
 <p>You can:</p>
 <ul>
-  <li>Disconnect any platform at any time (deletes the token).</li>
-  <li>Delete your NetAmplify account (deletes all your data).</li>
-  <li>Revoke platform access from each platform's settings (Facebook Settings → Apps & Websites).</li>
+ <li>Disconnect any platform at any time (deletes the token).</li>
+ <li>Delete your NetAmplify account (deletes all your data).</li>
+ <li>Revoke platform access from each platform's settings (Facebook Settings → Apps & Websites).</li>
 </ul>
 
 <h2>7. Data Deletion Request</h2>
@@ -228,10 +228,10 @@ Save this as `privacy.html` and host on a public URL (GitHub Pages works):
 <h2>3. User Responsibilities</h2>
 <p>You agree to:</p>
 <ul>
-  <li>Only publish content you have the right to publish.</li>
-  <li>Not use the service for spam, harassment, or illegal content.</li>
-  <li>Comply with each platform's Terms of Service (Facebook, Instagram, X, LinkedIn, etc.).</li>
-  <li>Not abuse the service or attempt to overload it.</li>
+ <li>Only publish content you have the right to publish.</li>
+ <li>Not use the service for spam, harassment, or illegal content.</li>
+ <li>Comply with each platform's Terms of Service (Facebook, Instagram, X, LinkedIn, etc.).</li>
+ <li>Not abuse the service or attempt to overload it.</li>
 </ul>
 
 <h2>4. Account Security</h2>
@@ -259,10 +259,10 @@ Save this as `privacy.html` and host on a public URL (GitHub Pages works):
 1. App dashboard → **App Review** → **Permissions and Features**
 2. For each advanced permission (pages_manage_posts, instagram_content_publish), click **"Request Advanced Access"**
 3. Fill in:
-   - **Justification** (use the table above)
-   - **Screencast URL** (your YouTube unlisted video)
-   - **Privacy Policy URL**
-   - **Terms of Service URL**
+ - **Justification** (use the table above)
+ - **Screencast URL** (your YouTube unlisted video)
+ - **Privacy Policy URL**
+ - **Terms of Service URL**
 4. Submit for review
 
 **Review timeline**: 2-4 weeks. Meta may ask for revisions — address them promptly.
