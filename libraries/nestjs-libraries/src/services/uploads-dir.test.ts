@@ -70,6 +70,29 @@ describe('resolveLocalUploadPath', () => {
     expect(resolveLocalUploadPath('')).toBeNull();
     expect(resolveLocalUploadPath('not-a-url')).toBeNull();
   });
+
+  // Relative URL support ("/uploads/<filename>") — added so the upload
+  // controller can store relative URLs (which render on any origin in the
+  // browser). `new URL()` throws on relative URLs (no base), so these must be
+  // handled before the try/catch URL parse.
+  it('resolves a RELATIVE /uploads/ URL to the absolute on-disk path', () => {
+    expect(resolveLocalUploadPath('/uploads/abc-123.jpg')).toBe(join(UPLOADS_DIR, 'abc-123.jpg'));
+    expect(resolveLocalUploadPath('/uploads/clip.mp4')).toBe(join(UPLOADS_DIR, 'clip.mp4'));
+  });
+
+  it('strips the query string on a relative URL', () => {
+    expect(resolveLocalUploadPath('/uploads/abc.jpg?t=123')).toBe(join(UPLOADS_DIR, 'abc.jpg'));
+  });
+
+  it('returns null for a relative URL that is not under /uploads/', () => {
+    expect(resolveLocalUploadPath('/api/health')).toBeNull();
+    expect(resolveLocalUploadPath('/images/abc.jpg')).toBeNull();
+  });
+
+  it('rejects path-traversal in a relative URL', () => {
+    expect(resolveLocalUploadPath('/uploads/../etc/passwd')).toBeNull();
+    expect(resolveLocalUploadPath('/uploads/foo/bar.jpg')).toBeNull();
+  });
 });
 
 describe('readLocalUploadFile', () => {

@@ -141,6 +141,31 @@ export interface PlatformAdapter {
   getIdentity?(tokens: OAuthTokens): Promise<PlatformIdentity>;
   refresh?(tokens: OAuthTokens): Promise<OAuthTokens>;
 
+  /**
+   * Refresh the platform credentials if they are near expiry.
+   *
+   * Takes the FULL decrypted credential blob (the same shape stored in
+   * Connection.credentialsCipher) and returns a refreshed blob of the SAME
+   * shape — non-token fields (igUserId, did, handle, channelId, ...) are
+   * preserved by the adapter so the worker can re-encrypt + persist the
+   * result directly without knowing each adapter's blob shape.
+   *
+   * The publish worker calls this BEFORE adapter.publish() to proactively
+   * refresh expiring tokens, avoiding mid-publish AUTH failures (the #1
+   * cause of "stuck publishing" for short-lived tokens like Bluesky's ~1h
+   * accessJwt + YouTube's 1h Google OAuth token + Instagram's 60d token).
+   *
+   * Returns the blob UNCHANGED (same object reference) when the token is
+   * still valid — the worker detects "no change" by reference equality and
+   * skips the re-encrypt + persist round-trip, so this is cheap to call on
+   * every job.
+   *
+   * Throws PublishError('AUTH', ...) when the refresh token itself is
+   * invalid or revoked (the worker then marks the Connection REVOKED and
+   * the target FAILED with a reconnect hint — NOT retried).
+   */
+  refreshCredentials?(credentials: AdapterCredentials): Promise<AdapterCredentials>;
+
   // SIMPLE-only method (present when kind === 'SIMPLE')
   validateCredentials?(
     input: Record<string, string>

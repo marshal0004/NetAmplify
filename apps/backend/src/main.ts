@@ -47,6 +47,20 @@ async function start() {
     },
   });
 
+  // Trust the first proxy hop so req.protocol / req.get('host') honor
+  // X-Forwarded-Proto / X-Forwarded-Host (Vite dev proxy sends these via
+  // xfwd:true; production runs behind nginx/a load balancer). Without this,
+  // any code that builds an absolute URL from req.protocol would pin to
+  // http://localhost:3000 even when the user is on a tunnel or prod domain.
+  // (The upload controller now stores RELATIVE /uploads/ URLs, so this is no
+  // longer load-bearing for media — but it is still correct for OAuth
+  // redirect-URI reconstruction + any future absolute-URL construction.)
+  // INestApplication proxies .use/.listen to Express but not .set, so reach
+  // the underlying Express instance via the HttpAdapter to set trust proxy.
+  (app.getHttpAdapter().getInstance() as {
+    set: (key: string, value: unknown) => void;
+  }).set('trust proxy', 1);
+
   app.useGlobalPipes(
     new ValidationPipe({
       transform: true,

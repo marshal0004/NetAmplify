@@ -68,6 +68,21 @@ export function isVideoMedia(url: string): boolean {
  */
 export function resolveLocalUploadPath(url: string): string | null {
   if (!url) return null;
+
+  // Relative URL ("/uploads/<filename>") — the upload controller now stores
+  // relative URLs so media renders on any origin. `new URL()` would throw on
+  // a relative URL (no base), so handle the relative case directly: match the
+  // /uploads/<filename> path + apply the same path-traversal guard.
+  if (url.startsWith('/')) {
+    const match = url.split(/[?#]/)[0].match(/^\/uploads\/(.+)$/);
+    if (!match) return null;
+    const filename = match[1];
+    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      return null;
+    }
+    return join(UPLOADS_DIR, filename);
+  }
+
   try {
     const parsed = new URL(url);
     const match = parsed.pathname.match(/^\/uploads\/(.+)$/);

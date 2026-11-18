@@ -559,7 +559,10 @@ describe('InstagramAdapter', () => {
       ).rejects.toThrow(/no container id/);
     });
 
-    it('throws NETWORK PublishError when /media_publish fails', async () => {
+    it('throws VALIDATION PublishError when /media_publish rejects with 4xx (permanent)', async () => {
+      // A 4xx from /media_publish is a content/parameter rejection (permanent) —
+      // NOT a retryable NETWORK error. Misclassifying it as NETWORK caused the
+      // worker to retry 3× then leave the target stuck in PUBLISHING.
       const fetchMock = vi
         .fn()
         .mockResolvedValueOnce(mockResponse(200, { id: 'container-1' }))
@@ -575,7 +578,32 @@ describe('InstagramAdapter', () => {
             options: { imageUrl: 'https://example.com/image.jpg' },
           },
         ),
-      ).rejects.toThrow(/Instagram \/media_publish failed/);
+      ).rejects.toMatchObject({
+        name: 'PublishError',
+        errorClass: 'VALIDATION',
+      });
+    });
+
+    it('throws NETWORK PublishError when /media_publish fails with 5xx (retryable)', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(mockResponse(200, { id: 'container-1' }))
+        .mockResolvedValueOnce(mockResponse(500, 'upstream down'));
+      vi.stubGlobal('fetch', fetchMock);
+
+      await expect(
+        adapter.publish(
+          { accessToken: 'IGQVJ-token', igUserId: '17841405822304914' },
+          {
+            title: 't',
+            body: 'b',
+            options: { imageUrl: 'https://example.com/image.jpg' },
+          },
+        ),
+      ).rejects.toMatchObject({
+        name: 'PublishError',
+        errorClass: 'NETWORK',
+      });
     });
 
     it('uses userId field as fallback when igUserId is missing (backwards-compat)', async () => {

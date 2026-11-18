@@ -86,7 +86,35 @@ export class PublishWorker implements OnModuleInit, OnModuleDestroy {
       this.logger.log(`Job ${job.id} completed for target ${job.data.postTargetId}`);
     });
     this.worker.on('failed', (job, err) => {
-      this.logger.error(`Job ${job?.id} failed for target ${job?.data.postTargetId}: ${err.message}`);
+      const targetId = job?.data.postTargetId;
+      const platform = job?.data.platform;
+      const postCardId = job?.data.postCardId;
+      const attemptsMade = job?.attemptsMade ?? 0;
+      const maxAttempts = job?.opts?.attempts ?? 1;
+      const isFinal = attemptsMade >= maxAttempts;
+      this.logger.error(
+        `Job ${job?.id} failed for target ${targetId} postCard ${postCardId} ` +
+          `platform ${platform} attempt ${attemptsMade}/${maxAttempts}` +
+          `${isFinal ? ' (FINAL)' : ' (will retry)'}: ${err.message}`,
+      );
+      // RC-5: when BullMQ exhausts all retries on a RATE/NETWORK error,
+      // processJob's catch rethrows (to trigger retry) but never marks the
+      // target FAILED — so PostTarget.status stays PUBLISHING forever (the
+      // dangling "stuck publishing" state the user saw for Instagram + Bluesky).
+      // Recover it here on the FINAL failed attempt. Fire-and-forget (void)
+      // because the failed-event handler must stay synchronous for BullMQ.
+      if (isFinal && targetId) {
+        void this._targets
+          .updateStatus(targetId, 'FAILED', {
+            error: `${platform ?? 'unknown'} publish failed after ${attemptsMade} attempts: ${err.message}`,
+            errorClass: 'NETWORK',
+          })
+          .catch((markErr) =>
+            this.logger.error(
+              `Failed to mark target ${targetId} as FAILED after final retry: ${markErr}`,
+            ),
+          );
+      }
     });
     this.logger.log('Publish worker started (concurrency=5)');
   }
@@ -155,7 +183,35 @@ export class PublishWorker implements OnModuleInit, OnModuleDestroy {
     // 6. Call adapter.publish()
     const adapter = this._adapters.get(platform);
     try {
-      const result = await adapter.publish(creds, {
+      // 5.5. Proactively refresh expiring credentials BEFORE publish.
+      //
+      // Adapters that implement refreshCredentials() (Bluesky, YouTube,
+      // Instagram) decode their token's expiry + return a refreshed blob when
+      // it's near expiry. The worker persists the new blob so the refresh
+      // sticks — CRITICAL for Bluesky, which rotates the refresh token on every
+      // refreshSession (without persisting, the next job would reuse the
+      // now-invalidated old refreshJwt + fail). When the token is still valid
+      // the adapter returns the SAME object reference + we skip the re-encrypt
+      // + persist round-trip (cheap to call on every job).
+      //
+      // A refresh AUTH error (refresh token invalid/revoked) is caught by this
+      // same try/catch + classified like a publish AUTH failure → REVOKED +
+      // FAILED + reconnect hint, no retry. RATE/NETWORK refresh errors rethrow
+      // to BullMQ for retry.
+      let publishCreds = creds;
+      if (adapter.refreshCredentials) {
+        const refreshed = await adapter.refreshCredentials(creds);
+        if (refreshed !== creds) {
+          const newCipher = this._vault.encrypt(refreshed);
+          await this._connections.updateCredentials(userId, platform, newCipher);
+          publishCreds = refreshed;
+          this.logger.log(
+            `Refreshed ${platform} credentials for target ${postTargetId} before publish`,
+          );
+        }
+      }
+
+      const result = await adapter.publish(publishCreds, {
         title: formatted.title,
         body: formatted.body,
         url: formatted.url,
@@ -176,7 +232,22 @@ export class PublishWorker implements OnModuleInit, OnModuleDestroy {
         metadata: { postTargetId, platformPostUrl: result.url },
       });
     } catch (e) {
-      // 8. Classify error per docs/03-ARCHITECTURE.md
+      // 8. Log EVERY publish failure with full context — postcardId, platform,
+      // targetId, attempt number, errorClass, message. The original worker only
+      // surfaced RATE/NETWORK failures (via the BullMQ `failed` event) and
+      // silently returned for AUTH/VALIDATION/QUOTA — which is why the backend
+      // logs showed "no error" for YouTube/Hashnode failures (they were
+      // AUTH/VALIDATION class, written only to the PostTarget.error DB column,
+      // never to stdout). This single log line is the highest-leverage fix for
+      // "I don't see so much error in backend".
+      const errorClass = e instanceof PublishError ? e.errorClass : 'UNKNOWN';
+      const errMsg = e instanceof Error ? e.message : String(e);
+      this.logger.error(
+        `PublishFailed target=${postTargetId} postCard=${postCardId} platform=${platform} ` +
+          `attempt=${(job.attemptsMade ?? 0) + 1}/${job.opts?.attempts ?? 1} ` +
+          `errorClass=${errorClass}: ${errMsg}`,
+      );
+      // Classify error per docs/03-ARCHITECTURE.md
       if (e instanceof PublishError) {
         switch (e.errorClass) {
           case 'AUTH':

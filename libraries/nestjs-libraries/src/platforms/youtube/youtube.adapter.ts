@@ -380,6 +380,59 @@ export class YouTubeAdapter implements PlatformAdapter {
   }
 
   /**
+   * Refresh the stored Google OAuth credentials if the access token is near
+   * expiry. Implements PlatformAdapter.refreshCredentials — called by the
+   * publish worker before publish().
+   *
+   * Google access tokens expire in 1 hour. Without this refresh, every publish
+   * more than 1h after the OAuth dance fails with 401 → AUTH → the connection
+   * is marked REVOKED + the user must reconnect. This was the #1 cause of
+   * YouTube "failed completely" with no visible error in the logs — the AUTH
+   * branch in the worker silently returned without logging.
+   *
+   * Google refresh tokens are long-lived (effectively permanent unless revoked)
+   * and are NOT rotated on refresh — so we keep using the stored refresh_token.
+   * Returns the SAME blob reference when the token is still valid (worker skips
+   * re-encrypt + persist). Preserves channelId / channelTitle / memberId.
+   *
+   * Throws AUTH if there is no refresh_token (prior OAuth didn't request
+   * offline access) or the refresh_token is revoked (user reconnects).
+   */
+  async refreshCredentials(credentials: AdapterCredentials): Promise<AdapterCredentials> {
+    const creds = credentials as YouTubeCredentials & {
+      expiresAt?: number;
+      scopes?: string[];
+      memberId?: string;
+      userId?: string;
+    };
+    if (!creds.accessToken) {
+      throw new PublishError('AUTH', 'Cannot refresh YouTube token: no access token');
+    }
+    const nowSec = Math.floor(Date.now() / 1000);
+    // >5min of life left — no refresh needed (return same ref → worker skips persist).
+    if (creds.expiresAt && creds.expiresAt - nowSec > 300) {
+      return credentials;
+    }
+    // expiring/expired OR no expiresAt stored (older connection — Google tokens
+    // are 1h so an unknown-age token is almost certainly stale) → refresh now.
+    const refreshed = await this.refresh({
+      accessToken: creds.accessToken,
+      refreshToken: creds.refreshToken,
+      expiresAt: creds.expiresAt,
+      scopes: creds.scopes,
+    });
+    // Preserve non-token fields (channelId, channelTitle, memberId, userId).
+    // Google does NOT return a new refresh_token — keep the stored one.
+    return {
+      ...creds,
+      accessToken: refreshed.accessToken,
+      refreshToken: refreshed.refreshToken ?? creds.refreshToken,
+      expiresAt: refreshed.expiresAt,
+      scopes: refreshed.scopes ?? creds.scopes,
+    };
+  }
+
+  /**
    * Publish a video to YouTube via the resumable upload protocol.
    *
    * REQUIRES formatted.options.videoUrl (YouTube Data API v3 has no text-only

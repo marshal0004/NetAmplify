@@ -125,11 +125,30 @@ export class UploadController {
     const filePath = join(uploadsDir, filename);
     writeFileSync(filePath, fileData.data);
 
-    // Build public URL
-    const protocol = req.protocol;
-    const host = req.get('host');
-    const baseUrl = process.env.PUBLIC_APP_URL || `${protocol}://${host}`;
-    const fileUrl = `${baseUrl}/uploads/${filename}`;
+    // Build the public URL as a RELATIVE path ("/uploads/<filename>").
+    //
+    // Storing a relative URL (instead of an absolute http://localhost:3000/...
+    // or PUBLIC_APP_URL/... URL) is what makes media render correctly across
+    // every surface + every origin:
+    //
+    //   - The browser resolves "/uploads/<filename>" against the CURRENT page
+    //     origin — so the same stored URL works on localhost:4200 (Vite dev,
+    //     proxied to :3000 via vite.config.ts), on an ngrok tunnel, and on a
+    //     production domain. An absolute URL pinned to the host that was live
+    //     at upload time breaks the moment that host changes (ngrok tunnel
+    //     restarted, PUBLIC_APP_URL changed, deploy moved domains) — which was
+    //     the root cause of images/videos showing in the composer right after
+    //     upload but going broken in the Dashboard list / PostCardView later.
+    //   - The Vite dev proxy (vite.config.ts `/uploads` → :3000) + the
+    //     backend's express.static on /uploads (main.ts) both serve the path
+    //     directly, so no host rewriting is needed.
+    //   - Platform adapters that need a publicly-fetchable ABSOLUTE url
+    //     (Instagram/Threads/Facebook — Meta's servers fetch the image)
+    //     rewrite the relative URL to PUBLIC_APP_URL inside the adapter via
+    //     rewriteLocalhostUrlForMeta(). YouTube reads the file from local disk
+    //     via resolveLocalUploadPath() (handles relative URLs) and never needs
+    //     a public host.
+    const fileUrl = `/uploads/${filename}`;
 
     res.json({
       url: fileUrl,

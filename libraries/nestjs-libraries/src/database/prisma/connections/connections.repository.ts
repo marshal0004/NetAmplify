@@ -139,4 +139,32 @@ export class ConnectionRepository {
       data: { lastUsedAt: new Date() },
     });
   }
+
+  /**
+   * Persist refreshed credentials back into Connection.credentialsCipher.
+   *
+   * Called by the publish worker after `adapter.refreshCredentials()` returns
+   * a changed blob (re-encrypted via TokenVault). This is what makes token
+   * refresh actually stick — without it, every publish would re-refresh
+   * because the new token was never saved, and on platforms that rotate the
+   * refresh token (e.g. Bluesky) the OLD refresh token would be invalidated
+   * after the first refresh, breaking every subsequent publish.
+   *
+   * Only updates credentialsCipher + lastValidatedAt — leaves status,
+   * platformAccountId, platformUsername, scopes untouched (the refresh
+   * produced a new token for the SAME account, not a reconnect).
+   */
+  async updateCredentials(
+    userId: string,
+    platform: Platform,
+    credentialsCipher: string,
+  ): Promise<void> {
+    await this._prisma.connection.update({
+      where: { userId_platform: { userId, platform } },
+      data: {
+        credentialsCipher,
+        lastValidatedAt: new Date(),
+      },
+    });
+  }
 }

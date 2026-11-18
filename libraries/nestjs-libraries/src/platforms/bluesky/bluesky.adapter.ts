@@ -51,6 +51,36 @@ interface CreateSessionResponse {
   email?: string;
 }
 
+/**
+ * Decode the `exp` (expiry, epoch seconds) claim from a Bluesky JWT.
+ *
+ * Bluesky access JWTs are standard JWS compact tokens: header.payload.signature,
+ * base64url-encoded. The payload carries `exp` (seconds), `iat`, `scope`, `sub`
+ * (the user's DID). We read `exp` to decide whether the token needs refreshing
+ * before publish — Bluesky access tokens expire in ~hours, so a connection
+ * stored yesterday is almost certainly expired today.
+ *
+ * Returns null if the JWT is malformed or has no `exp` (caller treats null as
+ * "refresh proactively" — safer than assuming validity).
+ */
+function decodeJwtExp(jwt: string): number | null {
+  try {
+    const parts = jwt.split('.');
+    if (parts.length < 2) return null;
+    const payloadB64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = payloadB64.padEnd(
+      payloadB64.length + ((4 - (payloadB64.length % 4)) % 4),
+      '=',
+    );
+    const payload = JSON.parse(
+      Buffer.from(padded, 'base64').toString('utf8'),
+    ) as { exp?: number };
+    return typeof payload.exp === 'number' ? payload.exp : null;
+  } catch {
+    return null;
+  }
+}
+
 @Injectable()
 export class BlueskyAdapter implements PlatformAdapter {
   readonly platform: Platform = 'BLUESKY';
@@ -121,6 +151,85 @@ export class BlueskyAdapter implements PlatformAdapter {
         did: data.did,
         handle: data.handle,
       },
+    };
+  }
+
+  /**
+   * Refresh the Bluesky session if the accessJwt is near expiry.
+   *
+   * Implements PlatformAdapter.refreshCredentials — called by the publish
+   * worker before publish(). Bluesky access tokens expire in ~hours; without
+   * this refresh, EVERY publish after the accessJwt lapses fails with
+   * ExpiredToken (HTTP 400, not 401) — which was the root cause of the Bluesky
+   * publish failures + the "stuck publishing" loop in the original logs.
+   *
+   * Flow:
+   *   1. Decode the accessJwt `exp`. If exp is >5min in the future, return the
+   *      SAME blob reference (worker skips re-encrypt + persist — cheap).
+   *   2. Otherwise POST com.atproto.server.refreshSession with the refreshJwt
+   *      → new accessJwt + new refreshJwt.
+   *   3. Return a new blob preserving did/handle (same account).
+   *
+   * Bluesky ROTATES the refresh token — the new refreshJwt MUST be persisted
+   * (the worker does this via ConnectionRepository.updateCredentials) or every
+   * subsequent refresh will use the now-invalidated old refreshJwt + fail.
+   *
+   * Throws AUTH if the refreshJwt itself is invalid/revoked (user reconnects).
+   */
+  async refreshCredentials(credentials: AdapterCredentials): Promise<AdapterCredentials> {
+    const creds = credentials as BlueskyCredentials;
+    if (!creds.accessJwt || !creds.refreshJwt) {
+      throw new PublishError(
+        'AUTH',
+        'Cannot refresh Bluesky session: missing accessJwt or refreshJwt',
+      );
+    }
+    const exp = decodeJwtExp(creds.accessJwt);
+    const nowSec = Math.floor(Date.now() / 1000);
+    // If we can decode exp AND the token still has >5min of life, skip refresh.
+    if (exp !== null && exp - nowSec > 300) {
+      return credentials;
+    }
+    // exp missing (malformed JWT) OR token expiring/expired → refresh now.
+    const resp = await fetch(`${BLUESKY_PDS_BASE}/com.atproto.server.refreshSession`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${creds.refreshJwt}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    if (resp.status === 401) {
+      throw new PublishError(
+        'AUTH',
+        'Bluesky refresh token invalid or revoked — user must reconnect',
+      );
+    }
+    if (resp.status === 429) {
+      throw new PublishError('RATE', 'Bluesky rate-limited during refresh — try again later');
+    }
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new PublishError(
+        'NETWORK',
+        `Bluesky refreshSession failed (${resp.status}): ${text}`,
+      );
+    }
+    const data = (await resp.json()) as CreateSessionResponse;
+    if (!data.accessJwt || !data.refreshJwt) {
+      throw new PublishError(
+        'NETWORK',
+        'Bluesky refreshSession returned no accessJwt/refreshJwt',
+      );
+    }
+    // Preserve did/handle (refresh is for the SAME account). The new refreshJwt
+    // is persisted by the worker — without that, the next refresh would reuse
+    // the now-rotated old refreshJwt + fail.
+    return {
+      ...creds,
+      accessJwt: data.accessJwt,
+      refreshJwt: data.refreshJwt,
+      did: data.did ?? creds.did,
+      handle: data.handle ?? creds.handle,
     };
   }
 
@@ -214,9 +323,21 @@ export class BlueskyAdapter implements PlatformAdapter {
     }
     if (!resp.ok) {
       const text = await resp.text();
+      // Bluesky returns ExpiredToken as HTTP 400 (NOT 401). With proactive
+      // refreshCredentials() in the worker this should never fire, but if it
+      // does (race between refresh + createRecord), classify as AUTH so the
+      // worker marks the connection REVOKED + the user reconnects — instead of
+      // misclassifying as NETWORK (retryable) which produced the "stuck
+      // publishing" loop in the original logs.
+      if (resp.status === 400 && text.includes('ExpiredToken')) {
+        throw new PublishError(
+          'AUTH',
+          'Bluesky access token expired (refresh did not cover this request) — user must reconnect',
+        );
+      }
       throw new PublishError(
         'NETWORK',
-        `Bluesky publish failed (${resp.status}): ${text}`
+        `Bluesky publish failed (${resp.status}): ${text}`,
       );
     }
 

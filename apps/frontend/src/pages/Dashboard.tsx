@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { postcardApi, connectionsApi } from '@/lib/api';
+import { postcardApi, connectionsApi, type PostCard } from '@/lib/api';
 import { MediaPreview } from '@/components/MediaPreview';
+import { EditPostCardDialog } from '@/components/EditPostCardDialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -16,6 +18,11 @@ export function Dashboard() {
     queryKey: ['connections'],
     queryFn: () => connectionsApi.list(),
   });
+
+  // Inline-edit state: which PostCard is currently open in the EditPostCardDialog.
+  // null = no dialog open. The dialog does the PATCH + invalidates the postcards
+  // query on save, so the grid re-renders with the updated card.
+  const [editingCard, setEditingCard] = useState<PostCard | null>(null);
 
   const connectedCount = connections?.filter((c) => c.platformUsername !== null).length ?? 0;
   const hasPostCards = (postcards?.total ?? 0) > 0;
@@ -80,16 +87,16 @@ export function Dashboard() {
         ))}
       </motion.div>
 
-      {/* PostCard grid */}
+      {/* PostCard grid — 2 cards per row on tablet/desktop, 1 per row on mobile. */}
       {hasPostCards ? (
         <motion.div
           variants={container}
           initial="hidden"
           animate="visible"
-          className="grid gap-4 md:grid-cols-2 lg:grid-cols-3"
+          className="grid grid-cols-1 gap-4 sm:grid-cols-2"
         >
           {postcards?.items.map((card) => (
-            <motion.div key={card.id} variants={item} whileHover={{ y: -5 }}>
+            <motion.div key={card.id} variants={item} whileHover={{ y: -5 }} className="relative">
               <Link to={`/dashboard/postcards/${card.id}`}>
                 <Card className="border-white/10 bg-white/[0.03] backdrop-blur-xl transition-all hover:border-white/20 hover:bg-white/[0.05]">
                   <CardContent className="pt-6">
@@ -113,6 +120,19 @@ export function Dashboard() {
                   </CardContent>
                 </Card>
               </Link>
+              {/* Inline Edit button — sibling of the Link (NOT nested inside the
+                  <a>, which would be invalid HTML + would trigger navigation).
+                  Opens EditPostCardDialog → PATCH /api/postcards/:id → the
+                  postcards query is invalidated inside the dialog, so the grid
+                  re-renders with the updated card. This is the "edit + save in
+                  live preview" affordance that was missing. */}
+              <button
+                onClick={() => setEditingCard(card)}
+                className="absolute right-3 top-3 z-10 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-white/60 backdrop-blur-sm transition-colors hover:bg-white/10 hover:text-white"
+                aria-label={`Edit ${card.title}`}
+              >
+                ✏️ Edit
+              </button>
             </motion.div>
           ))}
         </motion.div>
@@ -132,6 +152,19 @@ export function Dashboard() {
             </CardContent>
           </Card>
         </motion.div>
+      )}
+
+      {/* Inline edit dialog — rendered when a card's Edit button is clicked.
+          The dialog handles the PATCH + query invalidation; onClose just clears
+          the editingCard state. */}
+      {editingCard && (
+        <EditPostCardDialog
+          card={editingCard}
+          onClose={() => setEditingCard(null)}
+          onSaved={() => {
+            /* postcards query invalidated inside the dialog; grid re-renders. */
+          }}
+        />
       )}
     </div>
   );

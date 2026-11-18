@@ -403,6 +403,59 @@ export class InstagramAdapter implements PlatformAdapter {
   }
 
   /**
+   * Refresh the stored Instagram credentials if the long-lived access token
+   * is near expiry. Implements PlatformAdapter.refreshCredentials — called by
+   * the publish worker before publish() so the token is always fresh.
+   *
+   * Long-lived IG tokens last 60 days + can be refreshed as long as they have
+   * not expired. We refresh proactively when <24h remain (avoids mid-publish
+   * AUTH failures). Returns the SAME blob reference when no refresh is needed
+   * (the worker skips re-encrypt + persist on reference equality). Preserves
+   * igUserId / username / memberId / userId so the worker can persist directly.
+   *
+   * Throws AUTH if the token is past the refresh window (user must reconnect).
+   */
+  async refreshCredentials(credentials: AdapterCredentials): Promise<AdapterCredentials> {
+    // The stored blob is the OAuthTokens shape augmented with the identity
+    // fields saveOAuthConnection writes (memberId, userId) — type it richly
+    // here so we can read expiresAt / scopes without `as` at every use site.
+    const creds = credentials as InstagramCredentials & {
+      expiresAt?: number;
+      scopes?: string[];
+      refreshToken?: string;
+      memberId?: string;
+      userId?: string;
+    };
+    if (!creds.accessToken) {
+      throw new PublishError('AUTH', 'Cannot refresh Instagram token: no access token');
+    }
+    // No expiresAt stored (older connection) — assume still valid, don't refresh.
+    // publish() will throw AUTH if it's actually expired; the worker then marks
+    // the connection REVOKED so the user reconnects.
+    if (!creds.expiresAt) {
+      return credentials;
+    }
+    const nowSec = Math.floor(Date.now() / 1000);
+    // Refresh when <24h remain. 60-day tokens refreshed daily is cheap + safe.
+    if (creds.expiresAt - nowSec > 24 * 3600) {
+      return credentials; // still valid — no refresh, no persist round-trip
+    }
+    // Token expired or expiring soon — refresh via the existing refresh() logic.
+    const refreshed = await this.refresh({
+      accessToken: creds.accessToken,
+      expiresAt: creds.expiresAt,
+      scopes: creds.scopes,
+    });
+    // Preserve non-token fields (igUserId, username, memberId, userId).
+    return {
+      ...creds,
+      accessToken: refreshed.accessToken,
+      expiresAt: refreshed.expiresAt,
+      scopes: refreshed.scopes ?? creds.scopes,
+    };
+  }
+
+  /**
    * Publish a post to Instagram via the two-step Content Publishing API.
    *
    * Step 1: POST /{ig-user-id}/media — create media container
@@ -472,14 +525,20 @@ export class InstagramAdapter implements PlatformAdapter {
 
     // Step 1: Create the media container.
     //   image:  { image_url, caption, access_token }
-    //   video:  { media_type: 'VIDEO', video_url, caption, access_token }
-    //   (Video reels must be ≤60s + ≤100MB per IG Content Publishing limits;
-    //    H.264 mp4 is the recommended format.)
+    //   video:  { media_type: 'REELS', video_url, caption, access_token }
+    //
+    // IMPORTANT: Meta DEPRECATED media_type='VIDEO' for the Content Publishing
+    // API — the Graph API now rejects it with HTTP 400 + error_subcode 2207067
+    // ("media_type 'VIDEO' has been removed ... use 'REELS' media_type"). Videos
+    // MUST be published as REELS (≤90s, ≤100MB, H.264 mp4 recommended). Using
+    // 'VIDEO' was the root cause of the Instagram publish failures — the 400
+    // was then misclassified as NETWORK (retryable) so the worker retried 3×
+    // and left the target stuck in PUBLISHING.
     const createBody = new URLSearchParams({
       caption,
       access_token: creds.accessToken,
       ...(isVideo
-        ? { media_type: 'VIDEO', video_url: mediaUrl }
+        ? { media_type: 'REELS', video_url: mediaUrl }
         : { image_url: mediaUrl }),
     });
 
@@ -499,6 +558,21 @@ export class InstagramAdapter implements PlatformAdapter {
         `Instagram permission denied: ${text}. ` +
           `App may need instagram_business_content_publish review ` +
           `or the IG account is not Business/Creator.`,
+      );
+    }
+    if (createResp.status === 429) {
+      throw new PublishError('RATE', 'Instagram rate-limited — try again later');
+    }
+    // 4xx (other than 401/403/429) = a permanent content/parameter rejection
+    // (deprecated media_type, bad image_url, unsupported format, etc.) — do NOT
+    // retry. Classifying these as NETWORK (retryable) was why the deprecated-VIDEO
+    // 400 retried 3× then left the target stuck in PUBLISHING. Only 5xx is
+    // transient + retryable.
+    if (createResp.status >= 400 && createResp.status < 500) {
+      const text = await createResp.text();
+      throw new PublishError(
+        'VALIDATION',
+        `Instagram /media create rejected (${createResp.status}): ${text}`,
       );
     }
     if (!createResp.ok) {
@@ -547,6 +621,17 @@ export class InstagramAdapter implements PlatformAdapter {
 
     if (publishResp.status === 401) {
       throw new PublishError('AUTH', 'Instagram access token expired during publish');
+    }
+    if (publishResp.status === 429) {
+      throw new PublishError('RATE', 'Instagram rate-limited during publish — try again later');
+    }
+    // 4xx (other than 401/429) = permanent content/parameter rejection — do NOT retry.
+    if (publishResp.status >= 400 && publishResp.status < 500) {
+      const text = await publishResp.text();
+      throw new PublishError(
+        'VALIDATION',
+        `Instagram /media_publish rejected (${publishResp.status}): ${text}`,
+      );
     }
     if (!publishResp.ok) {
       const text = await publishResp.text();
@@ -648,6 +733,32 @@ async function waitForIgVideoContainer(
  * Exported for unit testing.
  */
 export function rewriteLocalhostUrlForMeta(url: string): string {
+  // Relative URL ("/uploads/<filename>") — the upload controller stores these
+  // so media renders on any origin in the browser. Meta's servers cannot fetch
+  // a relative URL, so resolve it against PUBLIC_APP_URL (the publicly-reachable
+  // origin of the backend). Without PUBLIC_APP_URL, IG/Threads publishing cannot
+  // work — fail loud with a clear message instead of a silent Meta timeout.
+  if (url.startsWith('/')) {
+    const publicAppUrl = process.env.PUBLIC_APP_URL;
+    if (!publicAppUrl) {
+      throw new PublishError(
+        'VALIDATION',
+        `Instagram cannot fetch media from a relative URL ("${url}") without a ` +
+          `public backend origin. Set PUBLIC_APP_URL in .env to an HTTPS URL ` +
+          `(e.g. an ngrok tunnel) so Meta's servers can download the media.`,
+      );
+    }
+    try {
+      const publicParsed = new URL(publicAppUrl);
+      return `${publicParsed.protocol}//${publicParsed.host}${url}`;
+    } catch {
+      throw new PublishError(
+        'VALIDATION',
+        `Cannot parse PUBLIC_APP_URL ("${publicAppUrl}") — ensure it is a valid URL.`,
+      );
+    }
+  }
+
   if (!url.includes('localhost') && !url.includes('127.0.0.1')) {
     return url;
   }
