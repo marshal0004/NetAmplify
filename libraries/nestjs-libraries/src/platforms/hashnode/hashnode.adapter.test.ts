@@ -184,13 +184,75 @@ describe('HashnodeAdapter', () => {
       expect(result.url).toBe('https://janedev.hashnode.dev/test-post');
     });
 
-    it('throws PublishError(VALIDATION) with clear message when publicationId missing', async () => {
+    it('throws PublishError(VALIDATION) when publicationId missing AND re-fetch finds no publications', async () => {
+      // publish() now re-fetches the publications list when publicationId is
+      // missing (self-heal). Mock fetch to return an empty publications list
+      // → fetchFirstPublicationId returns null → the "Create a blog" error fires.
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+        mockResponse(200, {
+          data: {
+            me: {
+              id: 'user-1',
+              username: 'janedev',
+              publications: { edges: [] },
+            },
+          },
+        }),
+      ));
       await expect(
         adapter.publish(
           { pat: 'pat' },
           { title: 'T', body: 'B' },
         ),
       ).rejects.toThrow(/Create a blog on hashnode\.com/);
+    });
+
+    it('self-heals: re-fetches publicationId at publish time when missing from credentials', async () => {
+      // Simulates a stale connection: publicationId was not stored at connect
+      // time, but the user has since created a blog. The publish should
+      // re-fetch the publication ID and succeed — without forcing a
+      // disconnect/reconnect.
+      const fetchMock = vi.fn()
+        .mockResolvedValueOnce(
+          // First call: fetchFirstPublicationId → returns a publication
+          mockResponse(200, {
+            data: {
+              me: {
+                id: 'user-1',
+                username: 'janedev',
+                publications: {
+                  edges: [{ node: { id: 'pub-re-fetched', title: 'My Blog' } }],
+                },
+              },
+            },
+          }),
+        )
+        .mockResolvedValueOnce(
+          // Second call: the actual publishPost mutation
+          mockResponse(200, {
+            data: {
+              publishPost: {
+                post: { id: 'post-xyz', slug: 'self-heal-test', url: 'https://janedev.hashnode.dev/self-heal-test' },
+              },
+            },
+          }),
+        );
+      vi.stubGlobal('fetch', fetchMock);
+
+      const result = await adapter.publish(
+        { pat: 'pat-no-pub-id' }, // no publicationId — triggers the re-fetch
+        { title: 'Self-heal test', body: '# content' },
+      );
+
+      expect(result.id).toBe('post-xyz');
+      expect(result.url).toBe('https://janedev.hashnode.dev/self-heal-test');
+      // Verify the re-fetch happened (first call) with the publications query
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      const firstCallBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+      expect(firstCallBody.query).toContain('publications(first: 50)');
+      // Verify the publish used the re-fetched publicationId
+      const secondCallBody = JSON.parse(fetchMock.mock.calls[1][1].body);
+      expect(secondCallBody.variables.input.publicationId).toBe('pub-re-fetched');
     });
 
     it('throws PublishError(AUTH) when pat missing', async () => {

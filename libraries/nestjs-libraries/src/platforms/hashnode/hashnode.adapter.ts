@@ -220,14 +220,27 @@ export class HashnodeAdapter implements PlatformAdapter {
     if (!creds.pat) {
       throw new PublishError('AUTH', 'Hashnode PAT missing from credentials');
     }
-    if (!creds.publicationId) {
-      throw new PublishError(
-        'VALIDATION',
-        'No Hashnode publication found. Create a blog on hashnode.com first ' +
-          '(click "Create a blog" → choose a blog name → create). Then ' +
-          'disconnect Hashnode in NetAmplify and reconnect to pick up the ' +
-          'new publication ID.'
-      );
+
+    // The publicationId is fetched during validateCredentials (connect time).
+    // But if the user connected before the publication existed, or if the
+    // connect-time fetch failed silently, creds.publicationId would be
+    // undefined — and the old code threw immediately, forcing the user to
+    // disconnect + reconnect. Instead, re-fetch the publications list now.
+    // This is resilient: a stale connection self-heals on the next publish
+    // without any user action (as long as they've since created a blog on
+    // Hashnode).
+    let publicationId = creds.publicationId;
+    if (!publicationId) {
+      publicationId = await this.fetchFirstPublicationId(creds.pat);
+      if (!publicationId) {
+        throw new PublishError(
+          'VALIDATION',
+          'No Hashnode publication found for this PAT. Create a blog on ' +
+            'hashnode.com first (click "Create a blog" → choose a blog name ' +
+            '→ create). Then disconnect Hashnode in NetAmplify and reconnect ' +
+            'to pick up the new publication ID.'
+        );
+      }
     }
 
     // Hashnode tags must come from its whitelist (hashnode.tags.ts)
@@ -272,7 +285,7 @@ export class HashnodeAdapter implements PlatformAdapter {
       (typeof opt.canonicalUrl === 'string' && opt.canonicalUrl.trim()) ? opt.canonicalUrl.trim() : formatted.url;
     const variables = {
       input: {
-        publicationId: creds.publicationId,
+        publicationId,
         title: formatted.title,
         contentMarkdown: formatted.body,
         tags: tags.map((slug) => ({ slug, name: slug })),
@@ -331,5 +344,85 @@ export class HashnodeAdapter implements PlatformAdapter {
       id: post.id,
       url: post.url || `https://hashnode.com/post/${post.slug}`,
     };
+  }
+
+  /**
+   * Fetch the user's first publication ID from Hashnode's GraphQL API.
+   *
+   * Called by publish() when creds.publicationId is missing (stale connection
+   * — the user connected before creating a blog, or the connect-time fetch
+   * failed silently). This re-fetch self-heals the connection without forcing
+   * a disconnect/reconnect.
+   *
+   * Uses `publications(first: 50)` (same as postiz) instead of `first: 1` —
+   * a user with multiple publications gets the most-recently-created one
+   * (Hashnode returns publications newest-first), which is the one they most
+   * likely intend to publish to.
+   *
+   * Returns null if the user has zero publications (they need to create a
+   * blog on hashnode.com first). Throws AUTH/NETWORK on token/network errors.
+   */
+  private async fetchFirstPublicationId(pat: string): Promise<string | null> {
+    const query = `
+      query {
+        me {
+          id
+          publications(first: 50) {
+            edges {
+              node {
+                id
+                title
+              }
+            }
+          }
+        }
+      }
+    `;
+    const resp = await fetch(HASHNODE_GRAPHQL_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: pat,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query }),
+    });
+
+    if (resp.status === 401 || resp.status === 403) {
+      throw new PublishError(
+        'AUTH',
+        'Hashnode PAT is invalid or revoked — user must reconnect',
+      );
+    }
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new PublishError(
+        'NETWORK',
+        `Hashnode publication fetch failed (${resp.status}): ${text.slice(0, 300)}`,
+      );
+    }
+
+    const data = (await this.safeJsonResp(resp, 'fetchFirstPublicationId')) as {
+      data?: {
+        me?: {
+          publications?: {
+            edges: Array<{ node: { id: string; title: string } }>;
+          };
+        };
+      };
+      errors?: Array<{ message: string }>;
+    };
+
+    if (data.errors && data.errors.length > 0) {
+      throw new PublishError(
+        'VALIDATION',
+        `Hashnode rejected publication fetch: ${data.errors.map((e) => e.message).join('; ')}`,
+      );
+    }
+
+    const edges = data.data?.me?.publications?.edges;
+    if (!edges || edges.length === 0) {
+      return null; // user has no publications — caller throws a clear message
+    }
+    return edges[0].node.id;
   }
 }

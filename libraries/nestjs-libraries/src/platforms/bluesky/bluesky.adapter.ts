@@ -24,9 +24,53 @@ import type {
 } from '../adapter.interface';
 import { PublishError } from '../adapter.interface';
 import type { Platform } from '@prisma/client';
+import { isVideoMedia, readLocalUploadFile } from '../../services/uploads-dir';
 
 const BLUESKY_PDS_BASE = 'https://bsky.social/xrpc';
 const BLUESKY_PUBLIC_BASE = 'https://public.api.bsky.app/xrpc';
+
+/**
+ * Bluesky's video processing service (separate from the PDS). Video blobs
+ * are uploaded here for async transcoding, then polled until the job
+ * completes — the resulting blob ref goes into the post's video embed.
+ *
+ * Docs: https://atproto.com/lexicons/app-bsky-video
+ */
+const BLUESKY_VIDEO_BASE = 'https://video.bsky.app/xrpc';
+
+/**
+ * Bluesky rejects image blobs larger than 1,000,000 bytes (1 MB). Per
+ * postflare's provider + the AT Protocol spec. Images larger than this must
+ * be resized before upload — the adapter uses sharp for that (see
+ * uploadImageBlob).
+ */
+const MAX_IMAGE_BYTES = 1_000_000;
+
+/**
+ * MIME types Bluesky accepts for image embeds. Per the app.bsky.embed.images
+ * lexicon + postflare's IMAGE_MIMES list.
+ */
+const BLUESKY_IMAGE_MIMES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+]);
+
+/**
+ * Maps file extensions to MIME types. Used when uploading local /uploads/
+ * files to Bluesky — the upload endpoint requires the correct Content-Type
+ * header (Bluesky validates the blob mimeType against the embed's expected
+ * type).
+ */
+const EXT_TO_MIME: Record<string, string> = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.mp4': 'video/mp4',
+};
 
 /**
  * The shape of the credentials JSON blob stored encrypted in
@@ -291,6 +335,27 @@ export class BlueskyAdapter implements PlatformAdapter {
       }
     }
 
+    // Media embed — Bluesky posts can carry images (app.bsky.embed.images)
+    // or a video (app.bsky.embed.video). The format-engine merges the
+    // PostCard's imageUrl into formatted.options.imageUrl; the per-platform
+    // options panel can set formatted.options.altText for image accessibility.
+    //
+    // Without this block, Bluesky posts went out text-only even when the
+    // PostCard had an image/video attached — the adapter simply ignored
+    // the media URL. Now: read the bytes (local disk for /uploads/ files,
+    // HTTP fetch for external URLs), upload as a blob, and embed it.
+    const mediaUrl = formatted.options?.imageUrl as string | undefined;
+    let embed: unknown | undefined;
+    if (mediaUrl) {
+      if (isVideoMedia(mediaUrl)) {
+        embed = await this.uploadVideoEmbed(mediaUrl, creds.accessJwt);
+      } else {
+        const altText =
+          (formatted.options?.altText as string | undefined) ?? '';
+        embed = await this.uploadImageEmbed(mediaUrl, creds.accessJwt, altText);
+      }
+    }
+
     // Create the record
     const createRecordBody = {
       repo: creds.did,
@@ -300,6 +365,7 @@ export class BlueskyAdapter implements PlatformAdapter {
         text,
         createdAt: new Date().toISOString(),
         ...(facets.length > 0 ? { facets } : {}),
+        ...(embed ? { embed } : {}),
       },
     };
 
@@ -356,6 +422,296 @@ export class BlueskyAdapter implements PlatformAdapter {
     return {
       id: rkey ?? data.uri,
       url,
+    };
+  }
+
+  /**
+   * Read media bytes from a URL. For local /uploads/ files (the common case —
+   * the upload controller stores relative URLs), reads directly from disk via
+   * readLocalUploadFile (bypassing the ngrok/404 roundtrip). For external URLs
+   * (e.g. an Unsplash image), HTTP-fetches the bytes.
+   *
+   * Returns the raw bytes + the MIME type (detected from the extension).
+   */
+  private async readMediaBytes(
+    mediaUrl: string,
+  ): Promise<{ bytes: Buffer; mimeType: string }> {
+    // Try local disk first — readLocalUploadFile handles both relative
+    // (/uploads/x.jpg) and absolute (https://tunnel/uploads/x.jpg) URLs,
+    // returning null for non-local URLs.
+    const localBytes = readLocalUploadFile(mediaUrl);
+    if (localBytes) {
+      const ext = mediaUrl.split(/[?#]/)[0].match(/\.[a-z0-9]+$/i)?.[0]?.toLowerCase() ?? '';
+      const mimeType = EXT_TO_MIME[ext];
+      if (!mimeType) {
+        throw new PublishError(
+          'VALIDATION',
+          `Bluesky media has an unsupported extension ("${ext}"). Supported: jpg, png, gif, webp, mp4.`,
+        );
+      }
+      return { bytes: localBytes, mimeType };
+    }
+
+    // External URL — HTTP-fetch it. This is the fallback for non-/uploads/
+    // URLs (e.g. cross-posted media from a CDN). The ngrok-skip header helps
+    // with ngrok-free tunnels' "Visit Site" interstitial.
+    const resp = await fetch(mediaUrl, {
+      headers: { 'ngrok-skip-browser-warning': 'true' },
+    });
+    if (!resp.ok) {
+      throw new PublishError(
+        'NETWORK',
+        `Could not fetch media for Bluesky upload (${resp.status}): ${mediaUrl}`,
+      );
+    }
+    const bytes = Buffer.from(await resp.arrayBuffer());
+    const contentType = resp.headers.get('content-type') ?? '';
+    const mimeType = contentType.split(';')[0].trim() || EXT_TO_MIME[mediaUrl.split(/[?#]/)[0].match(/\.[a-z0-9]+$/i)?.[0]?.toLowerCase() ?? ''] || '';
+    if (!mimeType) {
+      throw new PublishError(
+        'VALIDATION',
+        `Could not determine the media type for Bluesky upload: ${mediaUrl}`,
+      );
+    }
+    return { bytes, mimeType };
+  }
+
+  /**
+   * Upload an image as a Bluesky blob and return an `app.bsky.embed.images`
+   * embed object ready for the post record.
+   *
+   * Flow (per AT Protocol spec + postflare's provider):
+   *   1. Read the image bytes (local disk or HTTP).
+   *   2. If the image exceeds 1 MB, resize it with sharp (Bluesky's hard
+   *      limit is 1,000,000 bytes — larger blobs are rejected).
+   *   3. POST the bytes to com.atproto.repo.uploadBlob with the correct
+   *      Content-Type → get back a blob reference { $type, ref, mimeType, size }.
+   *   4. Wrap the blob in an app.bsky.embed.images embed with the alt text.
+   *
+   * Bluesky accepts up to 4 images per post; this adapter attaches 1 (the
+   * PostCard's single imageUrl). Multi-image carousel support is a follow-up.
+   */
+  private async uploadImageEmbed(
+    mediaUrl: string,
+    accessToken: string,
+    altText: string,
+  ): Promise<{ $type: string; images: unknown[] }> {
+    let { bytes, mimeType } = await this.readMediaBytes(mediaUrl);
+
+    if (!BLUESKY_IMAGE_MIMES.has(mimeType)) {
+      throw new PublishError(
+        'VALIDATION',
+        `Bluesky does not accept "${mimeType}" images. Accepted: jpeg, png, webp, gif. ` +
+          `If this is a video, it should be published as a video embed.`,
+      );
+    }
+
+    // Resize if over the 1 MB limit. sharp is an optional native dep — if
+    // it's not built (pnpm blocks build scripts by default), the dynamic
+    // import fails and we surface a clear error instead of a silent crash.
+    if (bytes.length > MAX_IMAGE_BYTES) {
+      try {
+        const sharp = (await import('sharp')).default;
+        // Scale down proportionally until under the byte limit. A max width
+        // of 2000px + JPEG quality 80 is what postflare uses — well under 1MB
+        // for any reasonable image.
+        bytes = await sharp(bytes)
+          .resize({ width: 2000, withoutEnlargement: true })
+          .jpeg({ quality: 80 })
+          .toBuffer();
+        mimeType = 'image/jpeg'; // re-encoded to JPEG
+      } catch {
+        throw new PublishError(
+          'VALIDATION',
+          `Image is ${(bytes.length / 1024 / 1024).toFixed(1)}MB; Bluesky requires ≤1MB. ` +
+            `Resize the image (or install sharp: pnpm rebuild sharp) and try again.`,
+        );
+      }
+    }
+
+    // Upload the blob
+    const uploadResp = await fetch(
+      `${BLUESKY_PDS_BASE}/com.atproto.repo.uploadBlob`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': mimeType,
+        },
+        body: bytes,
+      },
+    );
+
+    if (uploadResp.status === 401) {
+      throw new PublishError('AUTH', 'Bluesky access token invalid during image upload');
+    }
+    if (!uploadResp.ok) {
+      const errText = await uploadResp.text();
+      throw new PublishError(
+        'NETWORK',
+        `Bluesky image upload failed (${uploadResp.status}): ${errText.slice(0, 300)}`,
+      );
+    }
+
+    const uploadData = (await uploadResp.json()) as {
+      blob?: { $type: string; ref: { $link: string }; mimeType: string; size: number };
+    };
+    if (!uploadData.blob) {
+      throw new PublishError('NETWORK', 'Bluesky uploadBlob returned no blob reference');
+    }
+
+    return {
+      $type: 'app.bsky.embed.images',
+      images: [
+        {
+          alt: altText,
+          image: uploadData.blob,
+        },
+      ],
+    };
+  }
+
+  /**
+   * Upload a video to Bluesky's video service and return an
+   * `app.bsky.embed.video` embed object.
+   *
+   * Bluesky videos go through a SEPARATE service (video.bsky.app) that
+   * transcodes the upload asynchronously. Flow (per postflare + postiz):
+   *   1. Read the video bytes (local disk or HTTP).
+   *   2. POST to app.bsky.video.uploadVideo → get a jobId (the blob ref may
+   *      be present immediately for small videos, or require polling).
+   *   3. Poll app.bsky.video.getJobStatus until state=JOB_STATE_COMPLETED
+   *      → extract the blob ref. Fail on JOB_STATE_FAILED.
+   *   4. Wrap the blob in an app.bsky.embed.video embed.
+   *
+   * Constraints: video/mp4 only, ≤50MB (Bluesky's limit). The adapter polls
+   * for up to 120s (videos typically transcode in 10-30s).
+   */
+  private async uploadVideoEmbed(
+    mediaUrl: string,
+    accessToken: string,
+  ): Promise<{ $type: string; video: unknown }> {
+    const { bytes, mimeType } = await this.readMediaBytes(mediaUrl);
+
+    if (mimeType !== 'video/mp4') {
+      throw new PublishError(
+        'VALIDATION',
+        `Bluesky only accepts video/mp4 for video embeds (got "${mimeType}"). ` +
+          `Re-encode with: ffmpeg -i input -c:v libx264 -c:a aac output.mp4`,
+      );
+    }
+
+    // Bluesky video limit is 50MB (per the app.bsky.video spec).
+    if (bytes.length > 50 * 1024 * 1024) {
+      throw new PublishError(
+        'VALIDATION',
+        `Video is ${(bytes.length / 1024 / 1024).toFixed(1)}MB; Bluesky's limit is 50MB. ` +
+          `Compress with: ffmpeg -i input -c:v libx264 -crf 28 -c:a aac output.mp4`,
+      );
+    }
+
+    // Extract a safe filename for the upload's `name` query param.
+    const filename = mediaUrl.split(/[?#]/)[0].split('/').pop() || 'video.mp4';
+
+    // Step 1: upload to the video service
+    const uploadUrl = new URL(`${BLUESKY_VIDEO_BASE}/app.bsky.video.uploadVideo`);
+    uploadUrl.searchParams.set('name', filename);
+
+    const uploadResp = await fetch(uploadUrl.toString(), {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'video/mp4',
+      },
+      body: bytes,
+    });
+
+    if (uploadResp.status === 401) {
+      throw new PublishError('AUTH', 'Bluesky access token invalid during video upload');
+    }
+    if (!uploadResp.ok) {
+      const errText = await uploadResp.text();
+      throw new PublishError(
+        'NETWORK',
+        `Bluesky video upload failed (${uploadResp.status}): ${errText.slice(0, 300)}`,
+      );
+    }
+
+    const uploadData = (await uploadResp.json()) as {
+      jobId?: string;
+      blob?: { $type: string; ref: { $link: string }; mimeType: string; size: number };
+    };
+
+    // Small videos may return the blob immediately (no polling needed).
+    if (uploadData.blob) {
+      return {
+        $type: 'app.bsky.embed.video',
+        video: uploadData.blob,
+      };
+    }
+
+    if (!uploadData.jobId) {
+      throw new PublishError(
+        'NETWORK',
+        'Bluesky video service returned no jobId and no blob — upload may have failed',
+      );
+    }
+
+    // Step 2: poll for processing completion (up to 120s, every 3s)
+    const POLL_TIMEOUT_MS = 120_000;
+    const POLL_INTERVAL_MS = 3_000;
+    const deadline = Date.now() + POLL_TIMEOUT_MS;
+    let videoBlob: unknown;
+
+    while (Date.now() < deadline) {
+      const statusUrl = new URL(`${BLUESKY_VIDEO_BASE}/app.bsky.video.getJobStatus`);
+      statusUrl.searchParams.set('jobId', uploadData.jobId);
+
+      const statusResp = await fetch(statusUrl.toString(), {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!statusResp.ok) {
+        // Transient status-fetch failure — wait + retry
+        await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+        continue;
+      }
+
+      const statusData = (await statusResp.json()) as {
+        jobStatus?: {
+          state: string;
+          blob?: { $type: string; ref: { $link: string }; mimeType: string; size: number };
+          error?: string;
+          message?: string;
+        };
+      };
+
+      const state = statusData.jobStatus?.state;
+      if (state === 'JOB_STATE_COMPLETED' && statusData.jobStatus?.blob) {
+        videoBlob = statusData.jobStatus.blob;
+        break;
+      }
+      if (state === 'JOB_STATE_FAILED') {
+        throw new PublishError(
+          'VALIDATION',
+          `Bluesky could not process the video: ${statusData.jobStatus?.error ?? statusData.jobStatus?.message ?? 'unknown error'}. ` +
+            `Ensure it's H.264 mp4, ≤50MB, ≤60s.`,
+        );
+      }
+      // JOB_STATE_IN_PROGRESS / JOB_STATE_CREATED — keep polling
+      await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+    }
+
+    if (!videoBlob) {
+      throw new PublishError(
+        'NETWORK',
+        `Bluesky video processing timed out after ${POLL_TIMEOUT_MS / 1000}s (jobId: ${uploadData.jobId}). ` +
+          `The video may still publish asynchronously — check bsky.app for the post.`,
+      );
+    }
+
+    return {
+      $type: 'app.bsky.embed.video',
+      video: videoBlob,
     };
   }
 }
