@@ -314,8 +314,8 @@ describe('BlueskyAdapter — media embeds', () => {
         mockResponse(200, { token: 'service-jwt-abc' }),
       )
       .mockResolvedValueOnce(
-        // Video upload returns 401 → must be NETWORK, not AUTH
-        mockResponse(401, 'Unauthorized'),
+        // Video upload returns 401 with a generic error → NETWORK, not AUTH
+        mockResponse(401, '{"error":"invalid_token"}'),
       );
     vi.stubGlobal('fetch', mockFetch);
 
@@ -330,6 +330,43 @@ describe('BlueskyAdapter — media embeds', () => {
       expect(e).toBeInstanceOf(PublishError);
       expect((e as PublishError).errorClass).toBe('NETWORK');
       expect((e as Error).message).toContain('connection is NOT revoked');
+    }
+  });
+
+  it('detects unconfirmed_email → VALIDATION (not retried) with clear instructions', async () => {
+    // The Bluesky video service requires a confirmed email. If the user's
+    // account has an unconfirmed email, the service returns 401 with
+    // {"jobStatus":{"error":"unconfirmed_email"}}. This is a PERMANENT
+    // account-level restriction (retrying won't help) — classify as
+    // VALIDATION so the worker doesn't retry 3× and the user gets a clear
+    // message telling them to confirm their email on bsky.app.
+    vi.mocked(readLocalUploadFile).mockReturnValue(FAKE_MP4);
+
+    const mockFetch = vi.fn()
+      .mockResolvedValueOnce(
+        // getServiceAuth succeeds → returns a service JWT
+        mockResponse(200, { token: 'service-jwt-abc' }),
+      )
+      .mockResolvedValueOnce(
+        // Video upload returns 401 with unconfirmed_email
+        mockResponse(401, JSON.stringify({
+          jobStatus: { did: '', error: 'unconfirmed_email', jobId: '', state: '' },
+        })),
+      );
+    vi.stubGlobal('fetch', mockFetch);
+
+    try {
+      await adapter.publish(creds, {
+        title: 'Video',
+        body: 'B',
+        options: { imageUrl: '/uploads/clip.mp4' },
+      });
+      expect.fail('publish should have thrown');
+    } catch (e) {
+      expect(e).toBeInstanceOf(PublishError);
+      expect((e as PublishError).errorClass).toBe('VALIDATION');
+      expect((e as Error).message).toContain('CONFIRMED email');
+      expect((e as Error).message).toContain('bsky.app');
     }
   });
 });

@@ -705,14 +705,40 @@ export class BlueskyAdapter implements PlatformAdapter {
     });
 
     if (uploadResp.status === 401) {
-      // The video service rejected the service JWT. The accessJwt itself is
-      // VALID (getServiceAuth succeeded with it) — so this is NOT a connection
-      // problem. Classify as NETWORK (retryable), NOT AUTH — classifying as
-      // AUTH would mark the Bluesky connection REVOKED, preventing the user
-      // from posting text/images too (which would work fine). The video
-      // service may be transiently rejecting tokens, or the video format
-      // triggered a false 401.
+      // The video service rejected the upload. The accessJwt itself is VALID
+      // (getServiceAuth succeeded with it) — so this is NOT a connection
+      // problem. Classify as NETWORK (retryable) by default, NOT AUTH —
+      // classifying as AUTH would mark the Bluesky connection REVOKED,
+      // preventing text/image posts too (which would work fine).
+      //
+      // BUT: some 401 errors are PERMANENT account-level restrictions (not
+      // retryable). Parse the response body to detect known errors:
+      //   - "unconfirmed_email": the user's Bluesky account has an email that
+      //     hasn't been confirmed. The video service requires a confirmed email
+      //     (anti-abuse). Retrying won't help — classify as VALIDATION so the
+      //     worker doesn't retry 3× and the user gets a clear, actionable
+      //     message telling them to confirm their email on bsky.app.
       const errBody = await uploadResp.text().catch(() => '<no body>');
+      let errError = '';
+      try {
+        const parsed = JSON.parse(errBody) as { jobStatus?: { error?: string }; error?: string };
+        errError = parsed.jobStatus?.error ?? parsed.error ?? '';
+      } catch {
+        // not JSON — errError stays empty, falls through to the generic message
+      }
+
+      if (errError === 'unconfirmed_email') {
+        throw new PublishError(
+          'VALIDATION',
+          'Bluesky requires a CONFIRMED email address to upload videos. ' +
+            'Go to bsky.app → Settings → Email → click the confirmation link ' +
+            'in the verification email Bluesky sent you. Then retry the ' +
+            'publish. (Your Bluesky connection is fine — text and image posts ' +
+            'work without a confirmed email; only video uploads require it.)',
+        );
+      }
+
+      // Generic 401 — retryable (may be a transient token issue)
       throw new PublishError(
         'NETWORK',
         `Bluesky video service rejected the upload (401). The accessJwt is valid ` +
