@@ -176,9 +176,11 @@ describe('BlueskyAdapter — media embeds', () => {
 
     expect(result.id).toBe('video-rkey');
 
-    // Call 1: getServiceAuth — mints the service JWT the video service needs
+    // Call 1: getServiceAuth — mints the service JWT the video service needs.
+    // The `aud` is the VIDEO SERVICE's DID (did:web:video.bsky.app), not the
+    // PDS's DID — per the AT Protocol spec, `aud` is the TARGET service.
     expect(mockFetch.mock.calls[0][0]).toContain('com.atproto.server.getServiceAuth');
-    expect(mockFetch.mock.calls[0][0]).toContain('aud=did%3Aweb%3Absky.social');
+    expect(mockFetch.mock.calls[0][0]).toContain('aud=did%3Aweb%3Avideo.bsky.app');
 
     // Call 2: video upload — uses the SERVICE JWT (not the accessJwt)
     expect(mockFetch.mock.calls[1][0]).toContain('app.bsky.video.uploadVideo');
@@ -228,5 +230,37 @@ describe('BlueskyAdapter — media embeds', () => {
         options: { imageUrl: '/uploads/test.png' },
       }),
     ).rejects.toThrow(/Bluesky image upload failed/);
+  });
+
+  it('classifies video-upload 401 as NETWORK (NOT AUTH) — does NOT revoke the connection', async () => {
+    // The video service may reject the service JWT transiently. The accessJwt
+    // is VALID (getServiceAuth succeeded). Classifying as AUTH would mark the
+    // Bluesky connection REVOKED — preventing text/image posts too. NETWORK
+    // means retryable + the connection stays ACTIVE.
+    vi.mocked(readLocalUploadFile).mockReturnValue(FAKE_MP4);
+
+    const mockFetch = vi.fn()
+      .mockResolvedValueOnce(
+        // getServiceAuth succeeds → returns a service JWT
+        mockResponse(200, { token: 'service-jwt-abc' }),
+      )
+      .mockResolvedValueOnce(
+        // Video upload returns 401 → must be NETWORK, not AUTH
+        mockResponse(401, 'Unauthorized'),
+      );
+    vi.stubGlobal('fetch', mockFetch);
+
+    try {
+      await adapter.publish(creds, {
+        title: 'Video',
+        body: 'B',
+        options: { imageUrl: '/uploads/clip.mp4' },
+      });
+      expect.fail('publish should have thrown');
+    } catch (e) {
+      expect(e).toBeInstanceOf(PublishError);
+      expect((e as PublishError).errorClass).toBe('NETWORK');
+      expect((e as Error).message).toContain('connection is NOT revoked');
+    }
   });
 });

@@ -205,7 +205,7 @@ describe('HashnodeAdapter', () => {
           { pat: 'pat' },
           { title: 'T', body: 'B' },
         ),
-      ).rejects.toThrow(/Create a blog on hashnode\.com/);
+      ).rejects.toThrow(/Create a blog/);
     });
 
     it('self-heals: re-fetches publicationId at publish time when missing from credentials', async () => {

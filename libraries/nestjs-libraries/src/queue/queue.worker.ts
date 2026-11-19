@@ -83,7 +83,20 @@ export class PublishWorker implements OnModuleInit, OnModuleDestroy {
       },
     );
     this.worker.on('completed', (job) => {
-      this.logger.log(`Job ${job.id} completed for target ${job.data.postTargetId}`);
+      // processJob returns { success: true } only when the publish actually
+      // succeeded. For AUTH/VALIDATION/QUOTA failures, it catches the error,
+      // marks the target FAILED, and returns { success: false } — the job
+      // "completes" (BullMQ doesn't see a throw) but the publish failed.
+      // Log accordingly so the backend log isn't misleading ("completed" on a
+      // failed publish confused users into thinking the post went through).
+      const rv = job.returnvalue as { success?: boolean; skipped?: boolean } | undefined;
+      if (rv?.success) {
+        this.logger.log(`Job ${job.id} completed — publish SUCCEEDED for target ${job.data.postTargetId}`);
+      } else if (rv?.skipped) {
+        this.logger.log(`Job ${job.id} finished — target ${job.data.postTargetId} skipped (${rv.success ? 'already terminal' : 'see PublishFailed log above'})`);
+      } else {
+        this.logger.warn(`Job ${job.id} finished — publish FAILED for target ${job.data.postTargetId} (see PublishFailed log above for the error)`);
+      }
     });
     this.worker.on('failed', (job, err) => {
       const targetId = job?.data.postTargetId;
@@ -123,18 +136,18 @@ export class PublishWorker implements OnModuleInit, OnModuleDestroy {
    * Process one publish job. Throws on retryable errors (BullMQ auto-retries);
    * marks FAILED on permanent errors.
    */
-  async processJob(job: Job<PublishJobData>): Promise<void> {
+  async processJob(job: Job<PublishJobData>): Promise<{ success: boolean; skipped?: boolean }> {
     const { postTargetId, postId, userId, postCardId, platform, connectionId } = job.data;
 
     // 1. Load target (skip if already terminal)
     const target = await this._targets.findById(postId, postTargetId);
     if (!target) {
       this.logger.warn(`Target ${postTargetId} not found — skipping job`);
-      return;
+      return { success: false, skipped: true };
     }
     if (target.status === 'SUCCESS' || target.status === 'SKIPPED') {
       this.logger.log(`Target ${postTargetId} already ${target.status} — skipping`);
-      return;
+      return { success: true, skipped: true };
     }
 
     // 2. Mark PUBLISHING
@@ -147,7 +160,7 @@ export class PublishWorker implements OnModuleInit, OnModuleDestroy {
         error: 'PostCard no longer exists',
         errorClass: 'VALIDATION',
       });
-      return;
+      return { success: false };
     }
 
     // 4. Load + decrypt Connection
@@ -156,7 +169,7 @@ export class PublishWorker implements OnModuleInit, OnModuleDestroy {
         error: 'Connection removed before execution',
         errorClass: 'AUTH',
       });
-      return;
+      return { success: false, skipped: true };
     }
     const conn = await this._connections.findByPlatform(userId, platform);
     if (!conn || conn.status !== 'ACTIVE') {
@@ -164,7 +177,7 @@ export class PublishWorker implements OnModuleInit, OnModuleDestroy {
         error: `Connection is ${conn?.status ?? 'missing'} — reconnect ${platform}`,
         errorClass: 'AUTH',
       });
-      return;
+      return { success: false };
     }
     const creds = this._vault.decrypt(conn.credentialsCipher) as Record<string, unknown>;
 
@@ -231,6 +244,7 @@ export class PublishWorker implements OnModuleInit, OnModuleDestroy {
         platform,
         metadata: { postTargetId, platformPostUrl: result.url },
       });
+      return { success: true };
     } catch (e) {
       // 8. Log EVERY publish failure with full context — postcardId, platform,
       // targetId, attempt number, errorClass, message. The original worker only
@@ -262,19 +276,19 @@ export class PublishWorker implements OnModuleInit, OnModuleDestroy {
               platform,
               metadata: { postTargetId, message: e.message },
             });
-            return; // permanent — don't retry
+            return { success: false }; // permanent — don't retry
           case 'VALIDATION':
             await this._targets.updateStatus(postTargetId, 'FAILED', {
               error: `${platform} rejected: ${e.message}`,
               errorClass: 'VALIDATION',
             });
-            return; // permanent
+            return { success: false }; // permanent
           case 'QUOTA':
             await this._targets.updateStatus(postTargetId, 'SKIPPED', {
               error: `${platform} quota exhausted: ${e.message}`,
               errorClass: 'QUOTA',
             });
-            return; // skipped (not retried)
+            return { success: false, skipped: true }; // skipped (not retried)
           case 'RATE':
           case 'NETWORK':
             // BullMQ auto-retries via `attempts: 3` config; throw to trigger retry
@@ -284,7 +298,7 @@ export class PublishWorker implements OnModuleInit, OnModuleDestroy {
               error: `${platform} publish failed: ${e.message}`,
               errorClass: e.errorClass,
             });
-            return;
+            return { success: false };
         }
       }
       // Unknown error — log + rethrow for BullMQ retry

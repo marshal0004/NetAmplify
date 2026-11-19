@@ -233,14 +233,21 @@ export class HashnodeAdapter implements PlatformAdapter {
     // Hashnode).
     let publicationId = creds.publicationId;
     if (!publicationId) {
-      publicationId = await this.fetchFirstPublicationId(creds.pat);
-      if (!publicationId) {
+      const fetched = await this.fetchFirstPublicationId(creds.pat);
+      if (fetched) {
+        publicationId = fetched;
+      } else {
         throw new PublishError(
           'VALIDATION',
-          'No Hashnode publication found for this PAT. Create a blog on ' +
-            'hashnode.com first (click "Create a blog" → choose a blog name ' +
-            '→ create). Then disconnect Hashnode in NetAmplify and reconnect ' +
-            'to pick up the new publication ID.'
+          'No Hashnode publication found for this PAT. A Hashnode ACCOUNT ' +
+            '(username) is NOT the same as a PUBLICATION (blog) — you need ' +
+            'to explicitly create a blog:\n' +
+            '  1. Go to hashnode.com → sign in with your account\n' +
+            '  2. Click "Create a blog" → choose a blog name → create\n' +
+            '  3. Wait a moment, then retry the publish (the adapter re-fetches ' +
+            'the publication automatically — no need to disconnect/reconnect)\n' +
+            'If you already created a blog, verify your PAT was generated from ' +
+            'the SAME account that owns the blog (hashnode.com/settings/developer).'
         );
       }
     }

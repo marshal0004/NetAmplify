@@ -620,7 +620,9 @@ export class BlueskyAdapter implements PlatformAdapter {
     // The PDS accessJwt is scoped to did:web:bsky.social; the video service
     // (did:web:video.bsky.app) rejects it with 401. getServiceAuth mints a
     // short-lived (30 min) delegated token that the video service accepts.
-    const serviceJwt = await this.getServiceJwt(accessToken);
+    // The `aud` MUST be the video service's DID (did:web:video.bsky.app) —
+    // the AT Protocol spec says `aud` is the TARGET service, not the PDS.
+    const serviceJwt = await this.getServiceJwt(accessToken, 'did:web:video.bsky.app');
 
     // Extract a safe filename for the upload's `name` query param.
     const filename = mediaUrl.split(/[?#]/)[0].split('/').pop() || 'video.mp4';
@@ -641,13 +643,20 @@ export class BlueskyAdapter implements PlatformAdapter {
     });
 
     if (uploadResp.status === 401) {
-      // If the service JWT was rejected, the accessJwt itself may be expired
-      // (refreshCredentials should have handled this, but a race is possible).
-      // Classify as AUTH so the worker refreshes + retries — NOT as a
-      // permanent REVOKED (the accessJwt is likely still valid for the PDS).
+      // The video service rejected the service JWT. The accessJwt itself is
+      // VALID (getServiceAuth succeeded with it) — so this is NOT a connection
+      // problem. Classify as NETWORK (retryable), NOT AUTH — classifying as
+      // AUTH would mark the Bluesky connection REVOKED, preventing the user
+      // from posting text/images too (which would work fine). The video
+      // service may be transiently rejecting tokens, or the video format
+      // triggered a false 401.
+      const errBody = await uploadResp.text().catch(() => '<no body>');
       throw new PublishError(
-        'AUTH',
-        'Bluesky service JWT rejected by video service — accessJwt may have expired during the upload. Will refresh + retry.',
+        'NETWORK',
+        `Bluesky video service rejected the upload (401). The accessJwt is valid ` +
+          `(getServiceAuth succeeded) — the connection is NOT revoked. ` +
+          `The video service may be transiently unavailable or the video may ` +
+          `need re-encoding (H.264 mp4, ≤50MB). Response: ${errBody.slice(0, 200)}`,
       );
     }
     if (!uploadResp.ok) {
@@ -738,22 +747,28 @@ export class BlueskyAdapter implements PlatformAdapter {
 
   /**
    * Get a Bluesky service JWT — a short-lived delegated token scoped to a
-   * specific service (e.g. the video service). The PDS accessJwt is scoped
-   * to the PDS itself; other services (video.bsky.app) reject it with 401.
+   * specific service (e.g. the video service at did:web:video.bsky.app).
+   * The PDS accessJwt is scoped to the PDS itself; other services reject it
+   * with 401.
    *
    * Calls com.atproto.server.getServiceAuth on the PDS with the accessJwt +
-   * query params specifying the target audience (did:web:{pds_host}), the
-   * allowed method (com.atproto.repo.uploadBlob), and an expiry (30 min).
-   * Returns the service JWT string.
+   * query params specifying the target audience (`aud` — the DID of the
+   * service that will consume the token), the allowed method
+   * (`lxm` = com.atproto.repo.uploadBlob), and an expiry (30 min).
    *
-   * Per postflare's implementation + the AT Protocol service-auth spec.
+   * Per the AT Protocol spec: `aud` is the TARGET SERVICE's DID, not the
+   * PDS's DID. For the video service, `aud` = `did:web:video.bsky.app`.
+   *
+   * Returns the service JWT string.
    */
-  private async getServiceJwt(accessToken: string): Promise<string> {
+  private async getServiceJwt(
+    accessToken: string,
+    audienceDid: string,
+  ): Promise<string> {
     const authUrl = new URL(`${BLUESKY_PDS_BASE}/com.atproto.server.getServiceAuth`);
-    // aud = the target service's DID. The PDS host (bsky.social) is the
-    // audience for uploadBlob — the video service trusts tokens minted by
-    // the PDS for this method.
-    authUrl.searchParams.set('aud', 'did:web:bsky.social');
+    // aud = the TARGET service's DID (e.g. did:web:video.bsky.app for the
+    // video service). The PDS mints a token that ONLY that service accepts.
+    authUrl.searchParams.set('aud', audienceDid);
     authUrl.searchParams.set('lxm', 'com.atproto.repo.uploadBlob');
     authUrl.searchParams.set('exp', String(Math.floor(Date.now() / 1000) + 1800));
 
