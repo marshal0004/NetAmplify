@@ -16,7 +16,7 @@ const LINKEDIN_LIMIT = PLATFORM_CONFIG.LINKEDIN.charLimit; // 3000
 export const linkedinFormatter: Formatter = (
   postCard: FormatEnginePostCard,
   profile: FormatEngineProfile | null,
-  _options: FormatEngineOptions
+  options: FormatEngineOptions
 ): FormattedPost => {
   const hashtags = toHashtags(postCard.techStack).slice(0, 3); // ≤3 hashtags
   const hashtagsLine = hashtags.length > 0 ? hashtags.map((t) => `#${t}`).join(' ') : '';
@@ -44,8 +44,18 @@ export const linkedinFormatter: Formatter = (
     body: truncatedBody,
     url,
     hashtags,
-    // Pass imageUrl through for platforms that need it (Instagram, Facebook)
-    options: postCard.imageUrl ? { imageUrl: postCard.imageUrl } : undefined,
+    // Merge the PostCard-derived media URL (default) with the per-platform
+    // options from the publish request (overrides). The linkedinFormatter is
+    // reused by YouTube, Instagram, Threads, + Facebook — their adapters read
+    // formatted.options.imageUrl / .videoUrl / .caption / .title / .tags / .
+    // privacyStatus / .categoryId etc. Previously this REPLACED options with
+    // only { imageUrl }, silently dropping every per-platform override the UI
+    // sent — which is why a per-platform options panel had no effect. Now the
+    // PostCard's imageUrl is the default + incoming options win.
+    options: {
+      ...(postCard.imageUrl ? { imageUrl: postCard.imageUrl } : {}),
+      ...options,
+    },
     charCount: truncatedBody.length,
     limit: LINKEDIN_LIMIT,
   };

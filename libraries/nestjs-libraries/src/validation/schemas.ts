@@ -71,6 +71,38 @@ const URL_SCHEMA = z
   .or(z.literal(''))
   .optional();
 
+/**
+ * Media URL schema — accepts BOTH relative paths ("/uploads/<filename>") AND
+ * full URLs (https://...).
+ *
+ * The upload controller (upload.controller.ts) stores RELATIVE URLs
+ * ("/uploads/<filename>") so media renders correctly on every origin the app
+ * is served from — localhost:4200 (Vite dev proxy → :3000), an ngrok tunnel,
+ * or a production domain. An absolute URL pinned to the host that was live at
+ * upload time breaks the moment that host changes.
+ *
+ * A strict `z.string().url()` schema REJECTS "/uploads/abc.jpg" (no protocol/
+ * host) → HTTP 400 on POST/PATCH /api/postcards every time the user uploads
+ * media from their device. This was the root cause of the create-PostCard 400:
+ * the upload succeeded (returned a relative URL) but the PostCard create
+ * schema rejected that relative URL as "Invalid URL format".
+ *
+ * This schema accepts:
+ *   - "" (empty — no media)
+ *   - "/uploads/abc-123.jpg" (relative — the upload controller's format)
+ *   - "https://cdn.example.com/img.jpg" (absolute — external CDN)
+ * Only `imageUrl` uses this; `repoUrl`/`liveUrl` stay on strict URL_SCHEMA
+ * (those are user-typed external links that must be real URLs).
+ */
+const MEDIA_URL_SCHEMA = z
+  .string()
+  .max(500, 'URL is too long')
+  .refine(
+    (s) => s === '' || s.startsWith('/') || /^https?:\/\//i.test(s),
+    'Must be a URL (https://...) or a relative path (/uploads/...)',
+  )
+  .optional();
+
 export const PROFILE_UPDATE_SCHEMA = z.object({
   name: NAME_SCHEMA.optional(),
   headline: z
@@ -112,7 +144,10 @@ export const POSTCARD_CREATE_SCHEMA = z.object({
     .max(10, 'Maximum 10 tech tags allowed'),
   repoUrl: URL_SCHEMA,
   liveUrl: URL_SCHEMA,
-  imageUrl: URL_SCHEMA,
+  // imageUrl accepts relative paths (/uploads/...) — see MEDIA_URL_SCHEMA.
+  // The upload controller stores relative URLs; a strict URL schema here was
+  // what 400'd every create-with-device-upload.
+  imageUrl: MEDIA_URL_SCHEMA,
 });
 
 export const POSTCARD_UPDATE_SCHEMA = POSTCARD_CREATE_SCHEMA.partial();

@@ -17,7 +17,7 @@ const BLUESKY_LIMIT = PLATFORM_CONFIG.BLUESKY.charLimit; // 300
 export const blueskyFormatter: Formatter = (
   postCard: FormatEnginePostCard,
   _profile: FormatEngineProfile | null,
-  _options: FormatEngineOptions
+  options: FormatEngineOptions
 ): FormattedPost => {
   const url = postCard.repoUrl || postCard.liveUrl;
   const hashtags = toHashtags(postCard.techStack);
@@ -40,6 +40,15 @@ export const blueskyFormatter: Formatter = (
     body: text,
     url,
     hashtags,
+    // Merge the PostCard-derived imageUrl (default) with per-platform
+    // overrides. The Bluesky adapter reads formatted.options.imageUrl (for
+    // the image embed) + formatted.options.altText (accessibility alt text
+    // for the image). Previously this returned NO options at all, so neither
+    // the image nor any UI-sent altText reached the adapter.
+    options: {
+      ...(postCard.imageUrl ? { imageUrl: postCard.imageUrl } : {}),
+      ...options,
+    },
     charCount: Array.from(text).length, // grapheme-ish count
     limit: BLUESKY_LIMIT,
   };

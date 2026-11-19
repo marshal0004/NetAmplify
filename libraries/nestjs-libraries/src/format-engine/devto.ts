@@ -17,7 +17,7 @@ const DEVTO_BODY_LIMIT = 70_000;
 export const devtoFormatter: Formatter = (
   postCard: FormatEnginePostCard,
   _profile: FormatEngineProfile | null,
-  _options: FormatEngineOptions
+  options: FormatEngineOptions
 ): FormattedPost => {
   const title = truncateWithEllipsis(postCard.title, DEVTO_TITLE_LIMIT);
 
@@ -50,12 +50,25 @@ export const devtoFormatter: Formatter = (
     body = truncateWithEllipsis(body, DEVTO_BODY_LIMIT);
   }
 
+  // Build default options from the PostCard (cover image + canonical URL),
+  // then MERGE the per-platform options from the publish request (overrides).
+  // The DevTo adapter reads formatted.options.imageUrl (for main_image) +
+  // formatted.options.canonicalUrl (for canonical_url) + formatted.options.
+  // tags / .published (per-platform overrides). Previously this set
+  // { main_image, canonical_url } — but the adapter reads `imageUrl`, not
+  // `main_image`, so the cover image NEVER reached Dev.to, AND every
+  // UI-sent override was dropped. Aligned the key names + merge incoming.
+  const devtoDefaults: Record<string, unknown> = {};
+  if (postCard.imageUrl) devtoDefaults.imageUrl = postCard.imageUrl;
+  const canonical = postCard.repoUrl || postCard.liveUrl;
+  if (canonical) devtoDefaults.canonicalUrl = canonical;
+
   return {
     title,
     body,
     url: postCard.repoUrl || postCard.liveUrl,
     hashtags: toHashtags(postCard.techStack).slice(0, DEVTO_TAG_LIMIT),
-    options: { main_image: postCard.imageUrl, canonical_url: postCard.repoUrl || postCard.liveUrl },
+    options: { ...devtoDefaults, ...options },
     charCount: body.length,
     limit: DEVTO_BODY_LIMIT,
   };

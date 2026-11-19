@@ -20,7 +20,7 @@ const WORDPRESS_BODY_LIMIT = 100000;
 export const wordpressFormatter: Formatter = (
   postCard: FormatEnginePostCard,
   profile: FormatEngineProfile | null,
-  _options: FormatEngineOptions
+  options: FormatEngineOptions
 ): FormattedPost => {
   const hashtags = toHashtags(postCard.techStack);
 
@@ -84,6 +84,7 @@ export const wordpressFormatter: Formatter = (
     body,
     url: postCard.repoUrl || postCard.liveUrl,
     hashtags,
+    options: { ...options },
     charCount: body.length,
     limit: WORDPRESS_BODY_LIMIT,
   };

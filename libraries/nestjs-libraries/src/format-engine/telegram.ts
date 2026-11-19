@@ -22,7 +22,7 @@ function escapeHtml(s: string): string {
 export const telegramFormatter: Formatter = (
   postCard: FormatEnginePostCard,
   _profile: FormatEngineProfile | null,
-  _options: FormatEngineOptions
+  options: FormatEngineOptions
 ): FormattedPost => {
   const url = postCard.repoUrl || postCard.liveUrl;
   const hashtags = toHashtags(postCard.techStack);
@@ -47,6 +47,8 @@ export const telegramFormatter: Formatter = (
     body,
     url,
     hashtags,
+    // Pass through per-platform options (e.g. disablePreview) to the adapter.
+    options: { ...options },
     charCount: body.length,
     limit: TELEGRAM_LIMIT,
   };

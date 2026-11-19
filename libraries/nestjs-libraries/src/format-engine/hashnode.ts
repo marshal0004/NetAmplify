@@ -18,7 +18,7 @@ const HASHNODE_BODY_LIMIT = 100_000;
 export const hashnodeFormatter: Formatter = (
   postCard: FormatEnginePostCard,
   _profile: FormatEngineProfile | null,
-  _options: FormatEngineOptions
+  options: FormatEngineOptions
 ): FormattedPost => {
   const title = truncateWithEllipsis(postCard.title, HASHNODE_TITLE_LIMIT);
 
@@ -42,12 +42,23 @@ export const hashnodeFormatter: Formatter = (
     body = truncateWithEllipsis(body, HASHNODE_BODY_LIMIT);
   }
 
+  // Build default options from the PostCard (canonical URL + cover image),
+  // then MERGE the per-platform options from the publish request (overrides).
+  // The Hashnode adapter reads formatted.options.coverImage / .canonicalUrl /
+  // .tags / .subtitle. Previously this REPLACED options with only
+  // { canonicalUrl, coverImage }, dropping every UI-sent override (tags,
+  // subtitle, cover override, etc.).
+  const hashnodeDefaults: Record<string, unknown> = {};
+  const canonical = postCard.repoUrl || postCard.liveUrl;
+  if (canonical) hashnodeDefaults.canonicalUrl = canonical;
+  if (postCard.imageUrl) hashnodeDefaults.coverImage = postCard.imageUrl;
+
   return {
     title,
     body,
     url: postCard.repoUrl || postCard.liveUrl,
     hashtags: toHashtags(postCard.techStack).slice(0, HASHNODE_TAG_LIMIT),
-    options: { canonicalUrl: postCard.repoUrl || postCard.liveUrl, coverImage: postCard.imageUrl },
+    options: { ...hashnodeDefaults, ...options },
     charCount: body.length,
     limit: HASHNODE_BODY_LIMIT,
   };

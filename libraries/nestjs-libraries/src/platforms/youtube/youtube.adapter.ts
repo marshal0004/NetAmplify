@@ -479,10 +479,49 @@ export class YouTubeAdapter implements PlatformAdapter {
       );
     }
 
-    // Build video metadata (title + description + tags).
-    const title = truncate(formatted.title, YOUTUBE_TITLE_LIMIT) || 'Untitled';
-    const description = buildDescription(formatted, YOUTUBE_DESC_LIMIT);
-    const tags = buildTags(formatted.hashtags, YOUTUBE_TAGS_LIMIT, YOUTUBE_MAX_TAGS);
+    // Build video metadata (title + description + tags + category + privacy).
+    //
+    // Per-platform overrides come from formatted.options — set by the
+    // PublishPage's per-platform options panel (YouTube: title, description,
+    // tags, category, privacy, madeForKids). Each override falls back to the
+    // Format Engine's default (formatted.title / formatted.body /
+    // formatted.hashtags) when the user didn't set one, so publishing without
+    // touching the panel behaves exactly as before.
+    const opt = (formatted.options ?? {}) as {
+      title?: unknown;
+      description?: unknown;
+      tags?: unknown;
+      categoryId?: unknown;
+      privacyStatus?: unknown;
+      madeForKids?: unknown;
+    };
+    const overrideTitle =
+      typeof opt.title === 'string' && opt.title.trim().length > 0 ? opt.title.trim() : formatted.title;
+    const overrideDescription =
+      typeof opt.description === 'string' && opt.description.trim().length > 0
+        ? opt.description.trim()
+        : null;
+    const overrideTags = Array.isArray(opt.tags) ? opt.tags.map(String) : null;
+    const overrideCategory =
+      typeof opt.categoryId === 'string' && opt.categoryId.trim().length > 0
+        ? opt.categoryId.trim()
+        : null;
+    const overridePrivacy =
+      typeof opt.privacyStatus === 'string' &&
+      ['public', 'unlisted', 'private'].includes(opt.privacyStatus)
+        ? opt.privacyStatus
+        : null;
+    const overrideMadeForKids = typeof opt.madeForKids === 'boolean' ? opt.madeForKids : null;
+
+    const title = truncate(overrideTitle, YOUTUBE_TITLE_LIMIT) || 'Untitled';
+    const description = overrideDescription
+      ? truncate(overrideDescription, YOUTUBE_DESC_LIMIT)
+      : buildDescription(formatted, YOUTUBE_DESC_LIMIT);
+    const tags = buildTags(
+      overrideTags ?? formatted.hashtags,
+      YOUTUBE_TAGS_LIMIT,
+      YOUTUBE_MAX_TAGS,
+    );
 
     // Step 1: Initiate the resumable upload session.
     const initiateUrl = new URL(`${YOUTUBE_UPLOAD_BASE}/videos`);
@@ -490,8 +529,19 @@ export class YouTubeAdapter implements PlatformAdapter {
     initiateUrl.searchParams.set('part', 'snippet,status');
 
     const metadataPayload = {
-      snippet: { title, description, tags, categoryId: '22' }, // 22 = People & Blogs
-      status: { privacyStatus: 'public', selfDeclaredMadeForKids: false },
+      snippet: {
+        title,
+        description,
+        tags,
+        // 22 = People & Blogs (the Format Engine default). Override via the
+        // per-platform options panel (e.g. 28 = Science & Technology, 20 = Gaming).
+        categoryId: overrideCategory ?? '22',
+      },
+      status: {
+        // Default public. Override to 'unlisted' or 'private' via the panel.
+        privacyStatus: overridePrivacy ?? 'public',
+        selfDeclaredMadeForKids: overrideMadeForKids ?? false,
+      },
     };
 
     const initiateResp = await fetch(initiateUrl.toString(), {

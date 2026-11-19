@@ -515,13 +515,31 @@ export class InstagramAdapter implements PlatformAdapter {
     // work without a publicly-fetchable URL.
     const mediaUrl = rewriteLocalhostUrlForMeta(rawMediaUrl);
 
-    // Build caption
-    const tagsLine =
-      formatted.hashtags && formatted.hashtags.length > 0
-        ? `\n${formatted.hashtags.map((t) => `#${t}`).join(' ')}`
-        : '';
-    const urlLine = formatted.url ? `\n${formatted.url}` : '';
-    const caption = `${formatted.title}\n\n${formatted.body}${urlLine}${tagsLine}`;
+    // Build caption.
+    //
+    // Per-platform override: formatted.options.caption (set by the
+    // PublishPage per-platform options panel) replaces the Format Engine's
+    // auto-built caption (title + body + url + hashtags). Falls back to the
+    // auto caption when the user didn't set one. Capped at IG's 2200-char
+    // caption limit (PLATFORM_CONFIG.INSTAGRAM.charLimit).
+    const IG_CAPTION_LIMIT = 2200;
+    const optCaption = formatted.options?.caption;
+    let caption: string;
+    if (typeof optCaption === 'string' && optCaption.trim().length > 0) {
+      caption =
+        optCaption.length > IG_CAPTION_LIMIT
+          ? optCaption.slice(0, IG_CAPTION_LIMIT - 1) + '…'
+          : optCaption;
+    } else {
+      const tagsLine =
+        formatted.hashtags && formatted.hashtags.length > 0
+          ? `\n${formatted.hashtags.map((t) => `#${t}`).join(' ')}`
+          : '';
+      const urlLine = formatted.url ? `\n${formatted.url}` : '';
+      const built = `${formatted.title}\n\n${formatted.body}${urlLine}${tagsLine}`;
+      caption =
+        built.length > IG_CAPTION_LIMIT ? built.slice(0, IG_CAPTION_LIMIT - 1) + '…' : built;
+    }
 
     // Step 1: Create the media container.
     //   image:  { image_url, caption, access_token }
@@ -693,8 +711,15 @@ async function waitForIgVideoContainer(
     if (status === 'ERROR') {
       throw new PublishError(
         'VALIDATION',
-        'Instagram video processing failed — the video may be in an unsupported format ' +
-          'or exceed IG reel limits (≤60s duration, ≤100MB, H.264 mp4 recommended).',
+        'Instagram video processing failed (Meta returned status_code=ERROR). ' +
+          'Two common causes — check both:\n' +
+          '  1. The video exceeds IG reel limits: ≤60s duration, ≤100MB, H.264 mp4 ' +
+          '(re-encode with `ffmpeg -i in.mp4 -t 60 -c:v libx264 -crf 23 out.mp4`).\n' +
+          '  2. Meta servers could NOT fetch the video from your PUBLIC_APP_URL tunnel. ' +
+          'Open the rewritten media URL in an incognito window — if it 404s or shows an ' +
+          'ngrok "Visit Site" interstitial, Meta hits the same. Fix: ensure the ngrok ' +
+          'tunnel points at the backend (:3000) and /uploads/<filename> is served ' +
+          '(express.static in main.ts), and PUBLIC_APP_URL in .env matches the tunnel.',
       );
     }
     // IN_PROGRESS / IN_QUEUED / undefined → keep polling.

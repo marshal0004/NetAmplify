@@ -20,7 +20,7 @@ const X_HASHTAG_PREFIX = '#';
 export const xFormatter: Formatter = (
   postCard: FormatEnginePostCard,
   _profile: FormatEngineProfile | null,
-  _options: FormatEngineOptions
+  options: FormatEngineOptions
 ): FormattedPost => {
   const hashtags = toHashtags(postCard.techStack);
   const hashtagsLine = hashtags.length > 0
@@ -41,6 +41,11 @@ export const xFormatter: Formatter = (
       body: truncateWithEllipsis('', X_LIMIT),
       url,
       hashtags: [],
+      // Merge PostCard imageUrl (default) with per-platform overrides.
+      options: {
+        ...(postCard.imageUrl ? { imageUrl: postCard.imageUrl } : {}),
+        ...options,
+      },
       charCount: X_LIMIT,
       limit: X_LIMIT,
     };
@@ -56,9 +61,13 @@ export const xFormatter: Formatter = (
     body: truncatedBody,
     url,
     hashtags,
-    // Pass imageUrl through for adapters that need it (X cookie adapter
-    // downloads the image and attaches it via Playwright's setInputFiles)
-    options: postCard.imageUrl ? { imageUrl: postCard.imageUrl } : undefined,
+    // Merge the PostCard-derived imageUrl (default) with per-platform options
+    // from the publish request (overrides). Previously this REPLACED options
+    // with only { imageUrl }, dropping every UI-sent override.
+    options: {
+      ...(postCard.imageUrl ? { imageUrl: postCard.imageUrl } : {}),
+      ...options,
+    },
     charCount: truncatedBody.length + reserved,
     limit: X_LIMIT,
   };

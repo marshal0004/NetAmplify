@@ -233,10 +233,22 @@ export class HashnodeAdapter implements PlatformAdapter {
     // Hashnode tags must come from its whitelist (hashnode.tags.ts)
     // For MVP, we send tags as-is; Hashnode will reject unknown tags, which
     // surfaces as a VALIDATION error.
-    const tags = (formatted.hashtags ?? [])
+    //
+    // Per-platform overrides (formatted.options) come from the PublishPage
+    // per-platform options panel: tags (override the PostCard tech-stack
+    // hashtags), subtitle, canonicalUrl, coverImage. Each falls back to the
+    // Format Engine default when the user didn't set one.
+    const opt = formatted.options ?? {};
+    const tagSource: string[] = Array.isArray(opt.tags)
+      ? opt.tags.map(String)
+      : (formatted.hashtags ?? []);
+    const tags = tagSource
       .map((t) => t.toLowerCase().replace(/[^a-z0-9]/g, ''))
       .filter((t) => t.length > 0)
       .slice(0, 5);
+
+    const subtitle =
+      typeof opt.subtitle === 'string' && opt.subtitle.trim().length > 0 ? opt.subtitle.trim() : undefined;
 
     const mutation = `
       mutation PublishPost($input: PublishPostInput!) {
@@ -251,16 +263,22 @@ export class HashnodeAdapter implements PlatformAdapter {
     `;
     // coverImageURL — Hashnode fetches the image from this URL for the post's
     // cover. The hashnodeFormatter provides it as formatted.options.coverImage
-    // (from postCard.imageUrl). Only include it when present + truthy.
-    const coverImage = formatted.options?.coverImage as string | undefined;
+    // (from postCard.imageUrl); the per-platform panel can override it.
+    // canonicalUrl — defaults to the PostCard repo/live URL (formatted.url);
+    // the panel can override (e.g. for cross-posting a canonical source).
+    const coverImage =
+      (typeof opt.coverImage === 'string' && opt.coverImage.trim()) ? opt.coverImage.trim() : undefined;
+    const canonicalUrl =
+      (typeof opt.canonicalUrl === 'string' && opt.canonicalUrl.trim()) ? opt.canonicalUrl.trim() : formatted.url;
     const variables = {
       input: {
         publicationId: creds.publicationId,
         title: formatted.title,
         contentMarkdown: formatted.body,
         tags: tags.map((slug) => ({ slug, name: slug })),
-        ...(formatted.url ? { canonicalUrl: formatted.url } : {}),
+        ...(canonicalUrl ? { canonicalUrl } : {}),
         ...(coverImage ? { coverImageURL: coverImage } : {}),
+        ...(subtitle ? { subtitle } : {}),
       },
     };
 

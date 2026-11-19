@@ -17,7 +17,7 @@ const DISCORD_DESC_LIMIT = 4096;
 export const discordFormatter: Formatter = (
   postCard: FormatEnginePostCard,
   _profile: FormatEngineProfile | null,
-  _options: FormatEngineOptions
+  options: FormatEngineOptions
 ): FormattedPost => {
   const title = truncateWithEllipsis(postCard.title, DISCORD_TITLE_LIMIT);
   // Description: summary + description (markdown)
@@ -50,7 +50,8 @@ export const discordFormatter: Formatter = (
     body, // Discord adapter will use this as embed description
     url: postCard.repoUrl || postCard.liveUrl,
     hashtags,
-    options: { fields }, // Discord adapter reads options.fields for embed fields
+    // Merge the embed fields (default) with per-platform overrides.
+    options: { fields, ...options },
     charCount: body.length,
     limit: DISCORD_DESC_LIMIT,
   };

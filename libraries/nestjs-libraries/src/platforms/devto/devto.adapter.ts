@@ -123,20 +123,35 @@ export class DevtoAdapter implements PlatformAdapter {
 
     // Strip Dev.to's reserved tag prefixes (per Dev.to API docs: tags must
     // be 1-3 lowercase alphanumeric words, no '#')
-    const tags = (formatted.hashtags ?? [])
+    //
+    // Per-platform overrides (formatted.options) come from the PublishPage
+    // per-platform options panel: tags (override the PostCard tech-stack
+    // hashtags), published (draft vs. publish), canonicalUrl. Each falls back
+    // to the Format Engine default when the user didn't set one.
+    const opt = formatted.options ?? {};
+    const tagSource: string[] = Array.isArray(opt.tags)
+      ? opt.tags.map(String)
+      : (formatted.hashtags ?? []);
+    const tags = tagSource
       .map((t) => t.toLowerCase().replace(/[^a-z0-9]/g, ''))
       .filter((t) => t.length > 0)
       .slice(0, 4); // Dev.to limit: 4 tags
+    const published = typeof opt.published === 'boolean' ? opt.published : true;
+    const canonicalUrl =
+      typeof opt.canonicalUrl === 'string' && opt.canonicalUrl.trim().length > 0
+        ? opt.canonicalUrl.trim()
+        : undefined;
 
     const payload: DevtoArticlePayload = {
       article: {
         title: formatted.title,
         body_markdown: formatted.body,
         tags,
-        published: true, // MVP: publish immediately (no draft state)
+        published, // MVP default: publish immediately (panel can set draft=false)
         ...(formatted.options?.imageUrl
           ? { main_image: formatted.options.imageUrl as string }
           : {}),
+        ...(canonicalUrl ? { canonical_url: canonicalUrl } : {}),
       },
     };
 

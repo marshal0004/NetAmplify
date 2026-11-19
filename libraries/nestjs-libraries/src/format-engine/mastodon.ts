@@ -25,7 +25,7 @@ const MASTODON_LIMIT = PLATFORM_CONFIG.MASTODON.charLimit; // 500
 export const mastodonFormatter: Formatter = (
   postCard: FormatEnginePostCard,
   profile: FormatEngineProfile | null,
-  _options: FormatEngineOptions
+  options: FormatEngineOptions
 ): FormattedPost => {
   const hashtags = toHashtags(postCard.techStack);
   const hashtagsLine = hashtags.length > 0
@@ -44,6 +44,7 @@ export const mastodonFormatter: Formatter = (
       body: truncateWithEllipsis('', MASTODON_LIMIT),
       url,
       hashtags,
+      options: { ...options },
       charCount: MASTODON_LIMIT,
       limit: MASTODON_LIMIT,
     };
@@ -68,6 +69,7 @@ export const mastodonFormatter: Formatter = (
     body: truncatedBody,
     url,
     hashtags,
+    options: { ...options },
     charCount: truncatedBody.length + reserved,
     limit: MASTODON_LIMIT,
   };
