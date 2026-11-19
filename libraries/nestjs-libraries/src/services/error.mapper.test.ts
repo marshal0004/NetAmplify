@@ -133,4 +133,38 @@ describe('errorMapper', () => {
     const body = (http.getResponse() as { error: { fieldErrors: Record<string, string> } });
     expect(body.error.fieldErrors).toEqual({ email: 'invalid format' });
   });
+
+  // MulterError mapping — added when the upload controller switched from a
+  // hand-written multipart parser to multer. FileInterceptor throws
+  // MulterError(LIMIT_FILE_SIZE) when the stream exceeds MAX_FILE_SIZE; the
+  // mapper must surface it as 413 (not 500) so the client gets a clear error.
+  it('maps MulterError(LIMIT_FILE_SIZE) → 413 Payload Too Large', () => {
+    const multerError = new Error('File too large');
+    multerError.name = 'MulterError';
+    (multerError as unknown as { code: string }).code = 'LIMIT_FILE_SIZE';
+    const http = errorMapper(multerError);
+    expect(http.getStatus()).toBe(413);
+    const body = http.getResponse() as { error: { code: string; message: string } };
+    expect(body.error.code).toBe('VALIDATION_ERROR');
+    expect(body.error.message).toContain('File too large');
+    expect(body.error.message).toContain('Max size');
+  });
+
+  it('maps MulterError(LIMIT_UNEXPECTED_FILE) → 400 Bad Request', () => {
+    const multerError = new Error('Unexpected field');
+    multerError.name = 'MulterError';
+    (multerError as unknown as { code: string }).code = 'LIMIT_UNEXPECTED_FILE';
+    const http = errorMapper(multerError);
+    expect(http.getStatus()).toBe(400);
+  });
+
+  it('does NOT treat a generic Error named "MulterError" without a LIMIT_ code as a multer error', () => {
+    // Defensive: an error with name 'MulterError' but no LIMIT_ code is NOT
+    // from multer's limits — fall through to the 500 handler, don't mis-map.
+    const weird = new Error('something else');
+    weird.name = 'MulterError';
+    // no .code property → the duck-type guard rejects it
+    const http = errorMapper(weird);
+    expect(http.getStatus()).toBe(500);
+  });
 });

@@ -12,6 +12,7 @@ import {
   ForbiddenException,
   HttpException,
   NotFoundException,
+  PayloadTooLargeException,
   UnauthorizedException,
   UnprocessableEntityException,
 } from '@nestjs/common';
@@ -153,6 +154,41 @@ export function errorMapper(error: unknown): HttpException {
           500
         );
     }
+  }
+
+  // MulterError — thrown by @nestjs/platform-express FileInterceptor when an
+  // upload violates a multer limit (file too large, too many files, unexpected
+  // field name, etc.). Detected by duck-type (name + LIMIT_ code prefix) so
+  // this library doesn't take a hard `multer` dependency — the errorMapper is
+  // used across the whole app, and not every consumer imports multer.
+  if (
+    error instanceof Error &&
+    error.name === 'MulterError' &&
+    typeof (error as unknown as { code?: unknown }).code === 'string' &&
+    ((error as unknown as { code: string }).code).startsWith('LIMIT_')
+  ) {
+    const multerError = error as unknown as { code: string; message: string };
+    // LIMIT_FILE_SIZE → 413 Payload Too Large (the file exceeded
+    // MAX_FILE_SIZE — multer aborted the stream mid-upload).
+    if (multerError.code === 'LIMIT_FILE_SIZE') {
+      const maxMb = parseInt(process.env.MAX_UPLOAD_SIZE_MB || '50', 10);
+      return new PayloadTooLargeException({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: `File too large. Max size: ${maxMb}MB`,
+        },
+      });
+    }
+    // LIMIT_UNEXPECTED_FILE (wrong field name), LIMIT_PART_COUNT,
+    // LIMIT_FIELD_KEY, etc. → 400 Bad Request.
+    return new BadRequestException({
+      error: {
+        code: 'VALIDATION_ERROR',
+        message:
+          multerError.message ||
+          'Upload validation failed — check the field name ("file") and file format.',
+      },
+    });
   }
 
   // Unknown error — log + 500.
