@@ -8,20 +8,19 @@
 //
 // Hashnode API docs: https://apidocs.hashnode.com/graphql-api-v2
 //
-// IMPORTANT — endpoint history (verified Nov 2026 via Hashnode changelog +
-// current API docs):
-//   - https://gql.hashnode.com  → the CURRENT, official GraphQL endpoint.
-//     (Confirmed by Hashnode's own API docs + the official Hashnode GQL Agent
-//     Skill: "All Hashnode API requests go through a single GraphQL endpoint:
-//      https://gql.hashnode.com (POST only)".)
-//   - https://gql-beta.hashnode.com → the DEPRECATED beta host. An earlier
-//     revision of this file swapped to gql-beta on the (incorrect) belief
-//     that gql.hashnode.com had been retired. That belief conflated two
-//     separate changelog items: (a) the May 2026 "GraphQL API is moving to a
-//     paid offering" change (Pro-plan requirement — NOT an endpoint change),
-//     and (b) a transient HTML redirect some users hit. The safeJsonResp()
-//     guard below already handles any non-JSON response defensively, so the
-//     correct, current endpoint gql.hashnode.com is used here.
+// IMPORTANT — endpoint history (verified Nov 2026 via live curl tests +
+// postiz's working implementation):
+//   - https://gql.hashnode.com → NOW RETURNS A 301 REDIRECT to
+//     https://hashnode.com/announcements/graphql-api (an HTML announcement
+//     page, NOT the GraphQL API). A GraphQL POST here gets a text/html 301
+//     response → safeJsonResp throws "non-JSON response". This broke every
+//     Hashnode publish + validateCredentials call.
+//   - https://gql-beta.hashnode.com → the WORKING GraphQL endpoint (returns
+//     200 + application/json for GraphQL POSTs). This is what postiz uses
+//     (libraries/nestjs-libraries/src/integrations/social/hashnode.provider.ts).
+//     An earlier revision incorrectly swapped AWAY from gql-beta on the
+//     belief that gql.hashnode.com was current — the live curl test proves
+//     that was wrong: gql-beta returns JSON, gql returns HTML.
 //
 // Trust model per docs/12-TRUST-COPY.md §1:
 //   "You generate this key yourself in your account's settings. It can
@@ -38,10 +37,13 @@ import type {
 } from '../adapter.interface';
 import { PublishError } from '../adapter.interface';
 import type { Platform } from '@prisma/client';
+import { isVideoMedia } from '../../services/uploads-dir';
 
-// The current official Hashnode GraphQL endpoint (POST only).
-// See https://apidocs.hashnode.com/graphql-api-v2 + the Nov 2026 API docs.
-const HASHNODE_GRAPHQL_URL = 'https://gql.hashnode.com';
+// The working Hashnode GraphQL endpoint (POST only).
+// gql.hashnode.com now redirects to an HTML page; gql-beta.hashnode.com
+// still serves the GraphQL API. Verified by live curl: gql-beta returns
+// 200 + application/json, gql returns 301 + text/html.
+const HASHNODE_GRAPHQL_URL = 'https://gql-beta.hashnode.com';
 
 /**
  * The shape of the credentials JSON blob stored encrypted in
@@ -277,10 +279,23 @@ export class HashnodeAdapter implements PlatformAdapter {
     // coverImageURL — Hashnode fetches the image from this URL for the post's
     // cover. The hashnodeFormatter provides it as formatted.options.coverImage
     // (from postCard.imageUrl); the per-platform panel can override it.
+    //
+    // IMPORTANT: Hashnode is a BLOGGING platform — coverImageURL must be an
+    // IMAGE (jpg/png/gif/webp). If the PostCard's media is a VIDEO (.mp4),
+    // sending it as coverImageURL silently fails (Hashnode can't render a
+    // video as a cover). So: if the cover image URL points to a video file,
+    // skip it entirely — the article still publishes (markdown content +
+    // tags), just without a cover image. This is the correct behavior:
+    // Hashnode does not support video posts or video covers.
+    let coverImage =
+      (typeof opt.coverImage === 'string' && opt.coverImage.trim()) ? opt.coverImage.trim() : undefined;
+    if (coverImage && isVideoMedia(coverImage)) {
+      // Video can't be a Hashnode cover image — skip it, publish without a cover.
+      // (Not an error — the article content is still valid; only the cover is dropped.)
+      coverImage = undefined;
+    }
     // canonicalUrl — defaults to the PostCard repo/live URL (formatted.url);
     // the panel can override (e.g. for cross-posting a canonical source).
-    const coverImage =
-      (typeof opt.coverImage === 'string' && opt.coverImage.trim()) ? opt.coverImage.trim() : undefined;
     const canonicalUrl =
       (typeof opt.canonicalUrl === 'string' && opt.canonicalUrl.trim()) ? opt.canonicalUrl.trim() : formatted.url;
     const variables = {

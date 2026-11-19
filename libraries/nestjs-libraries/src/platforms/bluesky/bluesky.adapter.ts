@@ -348,7 +348,7 @@ export class BlueskyAdapter implements PlatformAdapter {
     let embed: unknown | undefined;
     if (mediaUrl) {
       if (isVideoMedia(mediaUrl)) {
-        embed = await this.uploadVideoEmbed(mediaUrl, creds.accessJwt);
+        embed = await this.uploadVideoEmbed(mediaUrl, creds.accessJwt, creds.did);
       } else {
         const altText =
           (formatted.options?.altText as string | undefined) ?? '';
@@ -576,20 +576,26 @@ export class BlueskyAdapter implements PlatformAdapter {
    * `app.bsky.embed.video` embed object.
    *
    * Bluesky videos go through a SEPARATE service (video.bsky.app) that
-   * transcodes the upload asynchronously. Flow (per postflare + postiz):
+   * transcodes the upload asynchronously. The video service does NOT accept
+   * the PDS accessJwt — it requires a **service JWT** (a short-lived delegated
+   * token scoped to the video service). Flow (per postflare + postiz + the
+   * AT Protocol spec):
+   *   0. Call com.atproto.server.getServiceAuth on the PDS with the accessJwt
+   *      → get a service JWT scoped to did:web:{pds_host} +
+   *      lxm=com.atproto.repo.uploadBlob, valid for 30 min.
    *   1. Read the video bytes (local disk or HTTP).
-   *   2. POST to app.bsky.video.uploadVideo → get a jobId (the blob ref may
-   *      be present immediately for small videos, or require polling).
-   *   3. Poll app.bsky.video.getJobStatus until state=JOB_STATE_COMPLETED
-   *      → extract the blob ref. Fail on JOB_STATE_FAILED.
+   *   2. POST to app.bsky.video.uploadVideo?did={did}&name={filename} with
+   *      the SERVICE JWT (not accessJwt) → get a jobId.
+   *   3. Poll app.bsky.video.getJobStatus?jobId={jobId} until
+   *      state=JOB_STATE_COMPLETED → extract the blob ref.
    *   4. Wrap the blob in an app.bsky.embed.video embed.
    *
-   * Constraints: video/mp4 only, ≤50MB (Bluesky's limit). The adapter polls
-   * for up to 120s (videos typically transcode in 10-30s).
+   * Constraints: video/mp4 only, ≤50MB. The adapter polls for up to 120s.
    */
   private async uploadVideoEmbed(
     mediaUrl: string,
     accessToken: string,
+    did: string,
   ): Promise<{ $type: string; video: unknown }> {
     const { bytes, mimeType } = await this.readMediaBytes(mediaUrl);
 
@@ -610,24 +616,39 @@ export class BlueskyAdapter implements PlatformAdapter {
       );
     }
 
+    // Step 0: get a service JWT scoped to the video service.
+    // The PDS accessJwt is scoped to did:web:bsky.social; the video service
+    // (did:web:video.bsky.app) rejects it with 401. getServiceAuth mints a
+    // short-lived (30 min) delegated token that the video service accepts.
+    const serviceJwt = await this.getServiceJwt(accessToken);
+
     // Extract a safe filename for the upload's `name` query param.
     const filename = mediaUrl.split(/[?#]/)[0].split('/').pop() || 'video.mp4';
 
-    // Step 1: upload to the video service
+    // Step 1: upload to the video service using the SERVICE JWT.
+    // The upload URL requires `did` + `name` query params (per postflare).
     const uploadUrl = new URL(`${BLUESKY_VIDEO_BASE}/app.bsky.video.uploadVideo`);
+    uploadUrl.searchParams.set('did', did);
     uploadUrl.searchParams.set('name', filename);
 
     const uploadResp = await fetch(uploadUrl.toString(), {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${accessToken}`,
+        Authorization: `Bearer ${serviceJwt}`,
         'Content-Type': 'video/mp4',
       },
       body: bytes,
     });
 
     if (uploadResp.status === 401) {
-      throw new PublishError('AUTH', 'Bluesky access token invalid during video upload');
+      // If the service JWT was rejected, the accessJwt itself may be expired
+      // (refreshCredentials should have handled this, but a race is possible).
+      // Classify as AUTH so the worker refreshes + retries — NOT as a
+      // permanent REVOKED (the accessJwt is likely still valid for the PDS).
+      throw new PublishError(
+        'AUTH',
+        'Bluesky service JWT rejected by video service — accessJwt may have expired during the upload. Will refresh + retry.',
+      );
     }
     if (!uploadResp.ok) {
       const errText = await uploadResp.text();
@@ -713,6 +734,55 @@ export class BlueskyAdapter implements PlatformAdapter {
       $type: 'app.bsky.embed.video',
       video: videoBlob,
     };
+  }
+
+  /**
+   * Get a Bluesky service JWT — a short-lived delegated token scoped to a
+   * specific service (e.g. the video service). The PDS accessJwt is scoped
+   * to the PDS itself; other services (video.bsky.app) reject it with 401.
+   *
+   * Calls com.atproto.server.getServiceAuth on the PDS with the accessJwt +
+   * query params specifying the target audience (did:web:{pds_host}), the
+   * allowed method (com.atproto.repo.uploadBlob), and an expiry (30 min).
+   * Returns the service JWT string.
+   *
+   * Per postflare's implementation + the AT Protocol service-auth spec.
+   */
+  private async getServiceJwt(accessToken: string): Promise<string> {
+    const authUrl = new URL(`${BLUESKY_PDS_BASE}/com.atproto.server.getServiceAuth`);
+    // aud = the target service's DID. The PDS host (bsky.social) is the
+    // audience for uploadBlob — the video service trusts tokens minted by
+    // the PDS for this method.
+    authUrl.searchParams.set('aud', 'did:web:bsky.social');
+    authUrl.searchParams.set('lxm', 'com.atproto.repo.uploadBlob');
+    authUrl.searchParams.set('exp', String(Math.floor(Date.now() / 1000) + 1800));
+
+    const resp = await fetch(authUrl.toString(), {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (resp.status === 401) {
+      throw new PublishError(
+        'AUTH',
+        'Bluesky access token expired — could not mint service JWT for video upload',
+      );
+    }
+    if (!resp.ok) {
+      const errText = await resp.text();
+      throw new PublishError(
+        'NETWORK',
+        `Bluesky getServiceAuth failed (${resp.status}): ${errText.slice(0, 300)}`,
+      );
+    }
+
+    const data = (await resp.json()) as { token?: string };
+    if (!data.token) {
+      throw new PublishError(
+        'NETWORK',
+        'Bluesky getServiceAuth returned no token',
+      );
+    }
+    return data.token;
   }
 }
 

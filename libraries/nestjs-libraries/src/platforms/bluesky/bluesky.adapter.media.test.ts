@@ -138,11 +138,15 @@ describe('BlueskyAdapter — media embeds', () => {
 
     const mockFetch = vi.fn()
       .mockResolvedValueOnce(
-        // app.bsky.video.uploadVideo → returns jobId (no immediate blob)
+        // Call 1: com.atproto.server.getServiceAuth → returns service JWT
+        mockResponse(200, { token: 'service-jwt-abc' }),
+      )
+      .mockResolvedValueOnce(
+        // Call 2: app.bsky.video.uploadVideo → returns jobId (no immediate blob)
         mockResponse(200, { jobId: 'job-123' }),
       )
       .mockResolvedValueOnce(
-        // app.bsky.video.getJobStatus → completed with blob
+        // Call 3: app.bsky.video.getJobStatus → completed with blob
         mockResponse(200, {
           jobStatus: {
             state: 'JOB_STATE_COMPLETED',
@@ -156,7 +160,7 @@ describe('BlueskyAdapter — media embeds', () => {
         }),
       )
       .mockResolvedValueOnce(
-        // com.atproto.repo.createRecord
+        // Call 4: com.atproto.repo.createRecord
         mockResponse(200, {
           uri: 'at://did:plc:abc/app.bsky.feed.post/video-rkey',
           cid: 'cid',
@@ -172,16 +176,23 @@ describe('BlueskyAdapter — media embeds', () => {
 
     expect(result.id).toBe('video-rkey');
 
-    // First call: video upload service
-    expect(mockFetch.mock.calls[0][0]).toContain('app.bsky.video.uploadVideo');
-    expect(mockFetch.mock.calls[0][1].headers['Content-Type']).toBe('video/mp4');
+    // Call 1: getServiceAuth — mints the service JWT the video service needs
+    expect(mockFetch.mock.calls[0][0]).toContain('com.atproto.server.getServiceAuth');
+    expect(mockFetch.mock.calls[0][0]).toContain('aud=did%3Aweb%3Absky.social');
 
-    // Second call: job status poll
-    expect(mockFetch.mock.calls[1][0]).toContain('app.bsky.video.getJobStatus');
-    expect(mockFetch.mock.calls[1][0]).toContain('jobId=job-123');
+    // Call 2: video upload — uses the SERVICE JWT (not the accessJwt)
+    expect(mockFetch.mock.calls[1][0]).toContain('app.bsky.video.uploadVideo');
+    expect(mockFetch.mock.calls[1][0]).toContain('did=did%3Aplc%3Aabc');
+    expect(mockFetch.mock.calls[1][0]).toContain('name=clip.mp4');
+    expect(mockFetch.mock.calls[1][1].headers.Authorization).toBe('Bearer service-jwt-abc');
+    expect(mockFetch.mock.calls[1][1].headers['Content-Type']).toBe('video/mp4');
 
-    // Third call: createRecord with video embed
-    const body = JSON.parse(mockFetch.mock.calls[2][1].body as string);
+    // Call 3: job status poll
+    expect(mockFetch.mock.calls[2][0]).toContain('app.bsky.video.getJobStatus');
+    expect(mockFetch.mock.calls[2][0]).toContain('jobId=job-123');
+
+    // Call 4: createRecord with video embed
+    const body = JSON.parse(mockFetch.mock.calls[3][1].body as string);
     expect(body.record.embed.$type).toBe('app.bsky.embed.video');
     expect(body.record.embed.video.ref.$link).toBe('bafy-video-cid');
   });

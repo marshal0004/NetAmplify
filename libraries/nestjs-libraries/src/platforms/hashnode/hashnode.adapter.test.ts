@@ -72,11 +72,12 @@ describe('HashnodeAdapter', () => {
       expect(result.credentials.pat).toBe('hashnode-pat-123');
       expect(result.credentials.publicationId).toBe('pub-abc');
 
-      // Verify the adapter hits the current official endpoint (gql.hashnode.com,
-      // NOT the deprecated gql-beta host).
+      // Verify the adapter hits the WORKING endpoint (gql-beta.hashnode.com).
+      // gql.hashnode.com now redirects to an HTML announcement page (301);
+      // gql-beta.hashnode.com still serves the GraphQL API (200 + JSON).
+      // Verified by live curl + matches postiz's implementation.
       const fetchUrl = fetchMock.mock.calls[0][0] as string;
-      expect(fetchUrl).toBe('https://gql.hashnode.com');
-      expect(fetchUrl).not.toContain('gql-beta');
+      expect(fetchUrl).toBe('https://gql-beta.hashnode.com');
     });
 
     it('saves connection even when user has no publications', async () => {
@@ -253,6 +254,63 @@ describe('HashnodeAdapter', () => {
       // Verify the publish used the re-fetched publicationId
       const secondCallBody = JSON.parse(fetchMock.mock.calls[1][1].body);
       expect(secondCallBody.variables.input.publicationId).toBe('pub-re-fetched');
+    });
+
+    it('skips coverImageURL when the cover media is a video (.mp4) — Hashnode only supports image covers', async () => {
+      // Hashnode is a blogging platform — coverImageURL must be an IMAGE.
+      // If the PostCard's media is a video, sending it as coverImageURL would
+      // silently fail (Hashnode can't render a video cover). The adapter
+      // skips it + publishes the article without a cover (not an error).
+      const fetchMock = vi.fn().mockResolvedValue(
+        mockResponse(200, {
+          data: {
+            publishPost: {
+              post: { id: 'post-no-cover', slug: 'no-cover', url: 'https://janedev.hashnode.dev/no-cover' },
+            },
+          },
+        }),
+      );
+      vi.stubGlobal('fetch', fetchMock);
+
+      await adapter.publish(
+        { pat: 'pat', publicationId: 'pub' },
+        {
+          title: 'Video-cover post',
+          body: '# content',
+          options: { coverImage: '/uploads/clip.mp4' }, // video → must be skipped
+        },
+      );
+
+      const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+      expect(body.variables.input.coverImageURL).toBeUndefined();
+      // The article still publishes (title + content are present)
+      expect(body.variables.input.title).toBe('Video-cover post');
+      expect(body.variables.input.contentMarkdown).toBe('# content');
+    });
+
+    it('sends coverImageURL when the cover media is an image (.jpg)', async () => {
+      const fetchMock = vi.fn().mockResolvedValue(
+        mockResponse(200, {
+          data: {
+            publishPost: {
+              post: { id: 'post-cover', slug: 'with-cover', url: 'https://janedev.hashnode.dev/with-cover' },
+            },
+          },
+        }),
+      );
+      vi.stubGlobal('fetch', fetchMock);
+
+      await adapter.publish(
+        { pat: 'pat', publicationId: 'pub' },
+        {
+          title: 'Image-cover post',
+          body: '# content',
+          options: { coverImage: '/uploads/photo.jpg' }, // image → sent as cover
+        },
+      );
+
+      const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+      expect(body.variables.input.coverImageURL).toBe('/uploads/photo.jpg');
     });
 
     it('throws PublishError(AUTH) when pat missing', async () => {
