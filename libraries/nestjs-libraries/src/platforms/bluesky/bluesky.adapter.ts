@@ -125,6 +125,67 @@ function decodeJwtExp(jwt: string): number | null {
   }
 }
 
+/**
+ * Decode the `aud` (audience) claim from a Bluesky access JWT.
+ *
+ * The access JWT's `aud` is the DID of the PDS that issued the token — i.e.
+ * the user's PDS. This is NOT always `did:web:bsky.social`: Bluesky hosts
+ * users across multiple PDS instances (e.g. fibercap.us-west.host.bsky.network).
+ *
+ * The video service requires the service JWT's `aud` to match the user's PDS
+ * DID (NOT the video service's DID) — it uses `aud` to identify which PDS
+ * minted the token. Without the correct PDS DID, the video service returns:
+ *   "invalid token audience ..., should be the user's PDS DID ..."
+ *
+ * Returns null if the JWT is malformed or has no `aud`.
+ */
+function decodeJwtAud(jwt: string): string | null {
+  try {
+    const parts = jwt.split('.');
+    if (parts.length < 2) return null;
+    const payloadB64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = payloadB64.padEnd(
+      payloadB64.length + ((4 - (payloadB64.length % 4)) % 4),
+      '=',
+    );
+    const payload = JSON.parse(
+      Buffer.from(padded, 'base64').toString('utf8'),
+    ) as { aud?: string };
+    return typeof payload.aud === 'string' ? payload.aud : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Convert a PDS DID to its HTTPS URL.
+ *
+ *  - did:web:fibercap.us-west.host.bsky.network → https://fibercap.us-west.host.bsky.network
+ *  - did:plc:xxx → resolved via the PLC directory (https://plc.directory/did:plc:xxx),
+ *    extracting service[0].serviceEndpoint. Returns null if resolution fails.
+ *
+ * Most Bluesky PDS DIDs are did:web (bsky.social, fibercap, etc.). did:plc
+ * PDS DIDs are rare but handled for completeness.
+ */
+async function resolvePdsUrl(pdsDid: string): Promise<string | null> {
+  if (pdsDid.startsWith('did:web:')) {
+    return `https://${pdsDid.slice('did:web:'.length)}`;
+  }
+  if (pdsDid.startsWith('did:plc:')) {
+    try {
+      const resp = await fetch(`https://plc.directory/${pdsDid}`);
+      if (!resp.ok) return null;
+      const data = (await resp.json()) as {
+        service?: Array<{ serviceEndpoint?: string }>;
+      };
+      return data.service?.[0]?.serviceEndpoint ?? null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 @Injectable()
 export class BlueskyAdapter implements PlatformAdapter {
   readonly platform: Platform = 'BLUESKY';
@@ -617,12 +678,13 @@ export class BlueskyAdapter implements PlatformAdapter {
     }
 
     // Step 0: get a service JWT scoped to the video service.
-    // The PDS accessJwt is scoped to did:web:bsky.social; the video service
-    // (did:web:video.bsky.app) rejects it with 401. getServiceAuth mints a
+    // The PDS accessJwt is scoped to the user's PDS; the video service
+    // (video.bsky.app) rejects it with 401. getServiceAuth mints a
     // short-lived (30 min) delegated token that the video service accepts.
-    // The `aud` MUST be the video service's DID (did:web:video.bsky.app) —
-    // the AT Protocol spec says `aud` is the TARGET service, not the PDS.
-    const serviceJwt = await this.getServiceJwt(accessToken, 'did:web:video.bsky.app');
+    // getServiceJwt decodes the accessJwt to find the user's PDS DID + URL,
+    // then calls getServiceAuth ON THE USER'S PDS (not bsky.social — users
+    // may be on a different PDS like fibercap.us-west.host.bsky.network).
+    const serviceJwt = await this.getServiceJwt(accessToken);
 
     // Extract a safe filename for the upload's `name` query param.
     const filename = mediaUrl.split(/[?#]/)[0].split('/').pop() || 'video.mp4';
@@ -746,29 +808,55 @@ export class BlueskyAdapter implements PlatformAdapter {
   }
 
   /**
-   * Get a Bluesky service JWT — a short-lived delegated token scoped to a
-   * specific service (e.g. the video service at did:web:video.bsky.app).
-   * The PDS accessJwt is scoped to the PDS itself; other services reject it
-   * with 401.
+   * Get a Bluesky service JWT for the video upload service.
    *
-   * Calls com.atproto.server.getServiceAuth on the PDS with the accessJwt +
-   * query params specifying the target audience (`aud` — the DID of the
-   * service that will consume the token), the allowed method
-   * (`lxm` = com.atproto.repo.uploadBlob), and an expiry (30 min).
+   * The video service (video.bsky.app) does NOT accept the PDS accessJwt — it
+   * requires a service JWT minted via `com.atproto.server.getServiceAuth`.
    *
-   * Per the AT Protocol spec: `aud` is the TARGET SERVICE's DID, not the
-   * PDS's DID. For the video service, `aud` = `did:web:video.bsky.app`.
+   * CRITICAL: the `aud` (audience) for the service JWT must be the USER'S PDS
+   * DID — NOT the video service's DID. The video service uses `aud` to
+   * identify which PDS minted the token. If `aud` is wrong, the video service
+   * returns: "invalid token audience '...', should be the user's PDS DID '...'".
    *
-   * Returns the service JWT string.
+   * The user's PDS is NOT always bsky.social — Bluesky hosts users across
+   * multiple PDS instances (fibercap.us-west.host.bsky.network, etc.). The
+   * access JWT's `aud` claim IS the PDS DID, so we decode it to find the
+   * user's PDS, resolve its URL, and call getServiceAuth ON THE USER'S PDS
+   * (not bsky.social — a different PDS can't mint tokens for the video
+   * service that the video service will accept).
+   *
+   * Flow (matching postflare's implementation):
+   *   1. Decode the accessJwt → extract the `aud` claim (the PDS DID).
+   *   2. Resolve the PDS DID → PDS HTTPS URL (did:web → direct, did:plc → PLC directory).
+   *   3. Call getServiceAuth on the USER'S PDS with aud=PDS DID, lxm=com.atproto.repo.uploadBlob.
+   *   4. Return the service JWT.
    */
-  private async getServiceJwt(
-    accessToken: string,
-    audienceDid: string,
-  ): Promise<string> {
-    const authUrl = new URL(`${BLUESKY_PDS_BASE}/com.atproto.server.getServiceAuth`);
-    // aud = the TARGET service's DID (e.g. did:web:video.bsky.app for the
-    // video service). The PDS mints a token that ONLY that service accepts.
-    authUrl.searchParams.set('aud', audienceDid);
+  private async getServiceJwt(accessToken: string): Promise<string> {
+    // Step 1: decode the PDS DID from the accessJwt's `aud` claim.
+    const pdsDid = decodeJwtAud(accessToken);
+    if (!pdsDid) {
+      throw new PublishError(
+        'NETWORK',
+        'Could not extract the PDS DID from the Bluesky access token — ' +
+          'the JWT payload has no `aud` claim. The user may need to reconnect.',
+      );
+    }
+
+    // Step 2: resolve the PDS DID → PDS HTTPS URL.
+    const pdsUrl = await resolvePdsUrl(pdsDid);
+    if (!pdsUrl) {
+      throw new PublishError(
+        'NETWORK',
+        `Could not resolve the PDS URL from DID "${pdsDid}". ` +
+          `The user's PDS may be unreachable or the DID format is unsupported.`,
+      );
+    }
+
+    // Step 3: call getServiceAuth on the USER'S PDS (not bsky.social).
+    // aud = the user's PDS DID (the video service uses this to identify the
+    // minting PDS). lxm = com.atproto.repo.uploadBlob (the authorized method).
+    const authUrl = new URL(`${pdsUrl}/xrpc/com.atproto.server.getServiceAuth`);
+    authUrl.searchParams.set('aud', pdsDid);
     authUrl.searchParams.set('lxm', 'com.atproto.repo.uploadBlob');
     authUrl.searchParams.set('exp', String(Math.floor(Date.now() / 1000) + 1800));
 
@@ -786,7 +874,7 @@ export class BlueskyAdapter implements PlatformAdapter {
       const errText = await resp.text();
       throw new PublishError(
         'NETWORK',
-        `Bluesky getServiceAuth failed (${resp.status}): ${errText.slice(0, 300)}`,
+        `Bluesky getServiceAuth failed (${resp.status}) on PDS ${pdsUrl}: ${errText.slice(0, 300)}`,
       );
     }
 
@@ -794,7 +882,7 @@ export class BlueskyAdapter implements PlatformAdapter {
     if (!data.token) {
       throw new PublishError(
         'NETWORK',
-        'Bluesky getServiceAuth returned no token',
+        `Bluesky getServiceAuth on PDS ${pdsUrl} returned no token`,
       );
     }
     return data.token;

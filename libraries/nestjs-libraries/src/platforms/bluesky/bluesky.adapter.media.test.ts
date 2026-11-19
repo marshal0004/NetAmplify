@@ -47,6 +47,19 @@ function mockResponse(status: number, body: unknown): Response {
   } as Response;
 }
 
+/**
+ * Build a fake Bluesky JWT with the given `aud` (PDS DID) claim in the payload.
+ * The adapter decodes the payload to extract the PDS DID for getServiceAuth.
+ */
+function fakeJwt(aud: string): string {
+  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({
+    aud,
+    exp: Math.floor(Date.now() / 1000) + 3600,
+  })).toString('base64url');
+  return `${header}.${payload}.signature`;
+}
+
 describe('BlueskyAdapter — media embeds', () => {
   let adapter: BlueskyAdapter;
 
@@ -60,7 +73,7 @@ describe('BlueskyAdapter — media embeds', () => {
   });
 
   const creds = {
-    accessJwt: 'jwt-access',
+    accessJwt: fakeJwt('did:web:bsky.social'),
     refreshJwt: 'jwt-refresh',
     did: 'did:plc:abc',
     handle: 'jane.bsky.social',
@@ -102,7 +115,7 @@ describe('BlueskyAdapter — media embeds', () => {
     // Verify the uploadBlob call
     const [uploadUrl, uploadInit] = mockFetch.mock.calls[0];
     expect(uploadUrl).toContain('com.atproto.repo.uploadBlob');
-    expect(uploadInit.headers.Authorization).toBe('Bearer jwt-access');
+    expect(uploadInit.headers.Authorization).toBe(`Bearer ${creds.accessJwt}`);
     expect(uploadInit.headers['Content-Type']).toBe('image/png');
 
     // Verify the createRecord body has an embed
@@ -176,11 +189,14 @@ describe('BlueskyAdapter — media embeds', () => {
 
     expect(result.id).toBe('video-rkey');
 
-    // Call 1: getServiceAuth — mints the service JWT the video service needs.
-    // The `aud` is the VIDEO SERVICE's DID (did:web:video.bsky.app), not the
-    // PDS's DID — per the AT Protocol spec, `aud` is the TARGET service.
+    // Call 1: getServiceAuth — mints the service JWT on the USER'S PDS.
+    // The `aud` is the user's PDS DID (decoded from the accessJwt), NOT the
+    // video service's DID. The video service uses `aud` to identify which
+    // PDS minted the token. For this test, the accessJwt has aud=did:web:bsky.social.
     expect(mockFetch.mock.calls[0][0]).toContain('com.atproto.server.getServiceAuth');
-    expect(mockFetch.mock.calls[0][0]).toContain('aud=did%3Aweb%3Avideo.bsky.app');
+    expect(mockFetch.mock.calls[0][0]).toContain('aud=did%3Aweb%3Absky.social');
+    // getServiceAuth is called on the PDS URL (https://bsky.social/xrpc/...)
+    expect(mockFetch.mock.calls[0][0]).toContain('bsky.social/xrpc');
 
     // Call 2: video upload — uses the SERVICE JWT (not the accessJwt)
     expect(mockFetch.mock.calls[1][0]).toContain('app.bsky.video.uploadVideo');
@@ -197,6 +213,59 @@ describe('BlueskyAdapter — media embeds', () => {
     const body = JSON.parse(mockFetch.mock.calls[3][1].body as string);
     expect(body.record.embed.$type).toBe('app.bsky.embed.video');
     expect(body.record.embed.video.ref.$link).toBe('bafy-video-cid');
+  });
+
+  it('resolves the user\'s PDS from the accessJwt — calls getServiceAuth on the CORRECT PDS (not always bsky.social)', async () => {
+    // Reproduces the exact bug from the user's logs: their PDS is
+    // did:web:fibercap.us-west.host.bsky.network (NOT bsky.social). The
+    // accessJwt's `aud` claim carries the PDS DID. getServiceJwt decodes it,
+    // resolves the PDS URL, and calls getServiceAuth on the USER'S PDS.
+    vi.mocked(readLocalUploadFile).mockReturnValue(FAKE_MP4);
+
+    const fibercapCreds = {
+      ...creds,
+      accessJwt: fakeJwt('did:web:fibercap.us-west.host.bsky.network'),
+      did: 'did:plc:user123',
+    };
+
+    const mockFetch = vi.fn()
+      .mockResolvedValueOnce(
+        // getServiceAuth on the user's PDS (fibercap) → returns service JWT
+        mockResponse(200, { token: 'fibercap-service-jwt' }),
+      )
+      .mockResolvedValueOnce(
+        // uploadVideo → returns jobId
+        mockResponse(200, { jobId: 'job-fiber-1' }),
+      )
+      .mockResolvedValueOnce(
+        // getJobStatus → completed
+        mockResponse(200, {
+          jobStatus: {
+            state: 'JOB_STATE_COMPLETED',
+            blob: { $type: 'blob', ref: { $link: 'bafy-fiber-video' }, mimeType: 'video/mp4', size: 200 },
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        // createRecord
+        mockResponse(200, { uri: 'at://did:plc:user123/app.bsky.feed.post/fiber-rkey', cid: 'cid' }),
+      );
+    vi.stubGlobal('fetch', mockFetch);
+
+    const result = await adapter.publish(fibercapCreds, {
+      title: 'Video on fibercap PDS',
+      body: 'B',
+      options: { imageUrl: '/uploads/clip.mp4' },
+    });
+
+    expect(result.id).toBe('fiber-rkey');
+
+    // Call 1: getServiceAuth is on the FIBERCAP PDS (not bsky.social)
+    expect(mockFetch.mock.calls[0][0]).toContain('fibercap.us-west.host.bsky.network/xrpc/com.atproto.server.getServiceAuth');
+    // aud = the user's PDS DID (fibercap), NOT did:web:video.bsky.app
+    expect(mockFetch.mock.calls[0][0]).toContain('aud=did%3Aweb%3Afibercap.us-west.host.bsky.network');
+    // The upload uses the service JWT from the fibercap PDS
+    expect(mockFetch.mock.calls[1][1].headers.Authorization).toBe('Bearer fibercap-service-jwt');
   });
 
   it('throws VALIDATION when the media has an unsupported extension (.bmp)', async () => {
