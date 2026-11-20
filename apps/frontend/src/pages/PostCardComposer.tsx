@@ -40,8 +40,9 @@ export function PostCardComposer() {
   const [description, setDescription] = useState('');
   const [techStack, setTechStack] = useState<string[]>([]);
   const [techInput, setTechInput] = useState('');
-  const [repoUrl, setRepoUrl] = useState('');
-  const [liveUrl, setLiveUrl] = useState('');
+  // Repository URL + Live URL were removed from the UI — users can include
+  // links directly in their content/body text. The backend still accepts
+  // these fields (optional), but they're always undefined now.
   const [imageUrl, setImageUrl] = useState('');
   const [uploading, setUploading] = useState(false);
   const [imagePreview, setImagePreview] = useState('');
@@ -66,8 +67,7 @@ export function PostCardComposer() {
       setSummary(existingCard.summary);
       setDescription(existingCard.description);
       setTechStack(existingCard.techStack);
-      setRepoUrl(existingCard.repoUrl ?? '');
-      setLiveUrl(existingCard.liveUrl ?? '');
+      // repoUrl + liveUrl are no longer in the UI — users type links in content
       setImageUrl(existingCard.imageUrl ?? '');
       setImagePreview(existingCard.imageUrl ?? '');
       populatedRef.current = true;
@@ -146,8 +146,9 @@ export function PostCardComposer() {
         summary,
         description,
         techStack,
-        repoUrl: repoUrl || undefined,
-        liveUrl: liveUrl || undefined,
+        // repoUrl + liveUrl removed from UI — users include links in content
+        repoUrl: undefined,
+        liveUrl: undefined,
         imageUrl: imageUrl || undefined,
       };
       const card = isEditMode
@@ -261,23 +262,11 @@ export function PostCardComposer() {
           </Card>
         </motion.div>
 
-        {/* Links + Media */}
+        {/* Media */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.25 }}>
           <Card className="border-white/10 bg-white/[0.03] backdrop-blur-xl">
-            <CardHeader><CardTitle className="text-white">Links + Media</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-white">Media</CardTitle></CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="repoUrl" className="text-white/60">Repository URL</Label>
-                <Input id="repoUrl" type="url" value={repoUrl} onChange={(e) => setRepoUrl(e.target.value)} placeholder="https://github.com/user/repo"
-                  className="mt-1 border-white/10 bg-white/5 text-white placeholder:text-white/20 focus:border-indigo-500/50" />
-                {errors.repoUrl && <p className="text-xs text-red-400">{errors.repoUrl}</p>}
-              </div>
-              <div>
-                <Label htmlFor="liveUrl" className="text-white/60">Live URL</Label>
-                <Input id="liveUrl" type="url" value={liveUrl} onChange={(e) => setLiveUrl(e.target.value)} placeholder="https://example.com"
-                  className="mt-1 border-white/10 bg-white/5 text-white placeholder:text-white/20 focus:border-indigo-500/50" />
-                {errors.liveUrl && <p className="text-xs text-red-400">{errors.liveUrl}</p>}
-              </div>
               <div>
                 <div className="flex items-center justify-between">
                   <Label className="text-white/60">Image / Video <span className="text-white/30">(required for Instagram/Threads, recommended for all)</span></Label>
