@@ -753,18 +753,46 @@ export class BlueskyAdapter implements PlatformAdapter {
           `need re-encoding (H.264 mp4, ≤50MB). Response: ${errBody.slice(0, 200)}`,
       );
     }
-    if (!uploadResp.ok) {
+
+    // Parse the upload response. For a 200, the body has { jobId, blob? }.
+    // For a 409, the video was ALREADY uploaded in a previous attempt — the
+    // body has { jobId, state: "JOB_STATE_COMPLETED", error: "already_exists" }.
+    // The 409 is NOT an error: the video is processed + ready. Extract the
+    // jobId and proceed to polling (getJobStatus returns the completed blob
+    // immediately). This matches postflare's 409 handling (catch → extract
+    // jobId → return it for polling).
+    let uploadData: {
+      jobId?: string;
+      blob?: { $type: string; ref: { $link: string }; mimeType: string; size: number };
+    };
+
+    if (uploadResp.status === 409) {
+      const body409 = (await uploadResp.json().catch(() => ({}))) as {
+        jobId?: string;
+        state?: string;
+        error?: string;
+        message?: string;
+      };
+      if (body409.jobId) {
+        // The video was already processed — use the existing jobId for polling.
+        // getJobStatus will return JOB_STATE_COMPLETED + the blob immediately.
+        uploadData = { jobId: body409.jobId };
+      } else {
+        throw new PublishError(
+          'NETWORK',
+          `Bluesky video service returned 409 (already_exists) but no jobId — ` +
+            `cannot retrieve the processed video. Response: ${JSON.stringify(body409).slice(0, 200)}`,
+        );
+      }
+    } else if (!uploadResp.ok) {
       const errText = await uploadResp.text();
       throw new PublishError(
         'NETWORK',
         `Bluesky video upload failed (${uploadResp.status}): ${errText.slice(0, 300)}`,
       );
+    } else {
+      uploadData = (await uploadResp.json()) as typeof uploadData;
     }
-
-    const uploadData = (await uploadResp.json()) as {
-      jobId?: string;
-      blob?: { $type: string; ref: { $link: string }; mimeType: string; size: number };
-    };
 
     // Small videos may return the blob immediately (no polling needed).
     if (uploadData.blob) {

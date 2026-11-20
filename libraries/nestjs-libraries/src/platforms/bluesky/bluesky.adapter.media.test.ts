@@ -369,4 +369,61 @@ describe('BlueskyAdapter — media embeds', () => {
       expect((e as Error).message).toContain('bsky.app');
     }
   });
+
+  it('handles 409 already_exists — extracts jobId, polls, succeeds (video was already uploaded)', async () => {
+    // When the same video is uploaded twice (retry, or a previous publish
+    // attempt), the video service returns 409 with the EXISTING jobId +
+    // state=JOB_STATE_COMPLETED. This is NOT an error — the video is
+    // already processed. The adapter extracts the jobId + polls
+    // getJobStatus, which returns the completed blob immediately.
+    // Matches postflare's 409 handling (catch → extract jobId → poll).
+    vi.mocked(readLocalUploadFile).mockReturnValue(FAKE_MP4);
+
+    const mockFetch = vi.fn()
+      .mockResolvedValueOnce(
+        // getServiceAuth → service JWT
+        mockResponse(200, { token: 'service-jwt-abc' }),
+      )
+      .mockResolvedValueOnce(
+        // Video upload returns 409 — video already exists.
+        // Pass as an object (not JSON.stringify) so mockResponse.json()
+        // returns the parsed object.
+        mockResponse(409, {
+          did: 'did:plc:user123',
+          error: 'already_exists',
+          jobId: 'existing-job-xyz',
+          message: 'Video already processed',
+          state: 'JOB_STATE_COMPLETED',
+        }),
+      )
+      .mockResolvedValueOnce(
+        // getJobStatus for the existing jobId → completed with blob
+        mockResponse(200, {
+          jobStatus: {
+            state: 'JOB_STATE_COMPLETED',
+            blob: { $type: 'blob', ref: { $link: 'bafy-existing-video' }, mimeType: 'video/mp4', size: 200 },
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        // createRecord
+        mockResponse(200, { uri: 'at://did:plc:abc/app.bsky.feed.post/rkey-409', cid: 'cid' }),
+      );
+    vi.stubGlobal('fetch', mockFetch);
+
+    const result = await adapter.publish(creds, {
+      title: 'Reuploaded video',
+      body: 'B',
+      options: { imageUrl: '/uploads/clip.mp4' },
+    });
+
+    expect(result.id).toBe('rkey-409');
+    // Call 3: getJobStatus polled with the EXISTING jobId from the 409 response
+    expect(mockFetch.mock.calls[2][0]).toContain('app.bsky.video.getJobStatus');
+    expect(mockFetch.mock.calls[2][0]).toContain('jobId=existing-job-xyz');
+    // createRecord has the video embed with the existing blob
+    const body = JSON.parse(mockFetch.mock.calls[3][1].body as string);
+    expect(body.record.embed.$type).toBe('app.bsky.embed.video');
+    expect(body.record.embed.video.ref.$link).toBe('bafy-existing-video');
+  });
 });
