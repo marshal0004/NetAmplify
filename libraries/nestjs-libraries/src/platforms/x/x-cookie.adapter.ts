@@ -321,13 +321,34 @@ export class XCookieAdapter implements PlatformAdapter {
           } else {
             await fileInput.setInputFiles(tmpPath);
             this._logger.log(`setInputFiles() called via selector: ${usedSelector}`);
-            // Wait for X to upload the media + show the preview.
-            // X shows a preview thumbnail + removes the "Add media" button
-            // when the upload is complete. 3s is usually enough for images;
-            // videos may take longer but 3s is a reasonable start.
-            await page.waitForTimeout(3000);
+            // Wait for X to finish uploading the media. X disables the Post
+            // button during upload + shows a progress spinner. We poll until:
+            //   1. The Post button is enabled (upload complete), OR
+            //   2. Timeout (180s for video, 30s for image).
+            const isVideoMedia = /\.(mp4|webm|mov|m4v|ogg)$/i.test(mediaUrl.split(/[?#]/)[0]);
+            const uploadTimeout = isVideoMedia ? 180_000 : 30_000;
+            const uploadDeadline = Date.now() + uploadTimeout;
+            let uploadComplete = false;
+            while (Date.now() < uploadDeadline) {
+              await page.waitForTimeout(2000);
+              const btnEnabled = await page.evaluate(() => {
+                const btn = document.querySelector('button[data-testid="tweetButton"]') as HTMLButtonElement | null;
+                return btn ? !btn.disabled : false;
+              });
+              if (btnEnabled) {
+                uploadComplete = true;
+                break;
+              }
+            }
+            if (!uploadComplete) {
+              throw new PublishError(
+                'VALIDATION',
+                `Media upload to X did not complete within ${uploadTimeout / 1000}s ` +
+                  `(${isVideoMedia ? 'video' : 'image'}). The file may be too large or in an unsupported format.`,
+              );
+            }
             imageAttached = true;
-            this._logger.log(`Media attached successfully`);
+            this._logger.log(`Media attached successfully (upload waited ${Math.round((Date.now() - (uploadDeadline - uploadTimeout)) / 1000)}s)`);
           }
 
           // Clean up temp file

@@ -316,19 +316,32 @@ export class HashnodeAdapter implements PlatformAdapter {
       }
       coverImage = resolved;
     }
-    // canonicalUrl — defaults to the PostCard repo/live URL (formatted.url);
-    // the panel can override (e.g. for cross-posting a canonical source).
-    const canonicalUrl =
-      (typeof opt.canonicalUrl === 'string' && opt.canonicalUrl.trim()) ? opt.canonicalUrl.trim() : formatted.url;
+    // canonicalUrl — validate it's a real http/https URL. Hashnode's GraphQL
+    // API uses `originalArticleURL` (NOT `canonicalUrl`) for the canonical URL
+    // field. Only send if it's valid.
+    let originalArticleURL: string | undefined;
+    const rawCanonical = (typeof opt.canonicalUrl === 'string' && opt.canonicalUrl.trim())
+      ? opt.canonicalUrl.trim()
+      : (formatted.url ?? '');
+    if (rawCanonical) {
+      try {
+        const parsed = new URL(rawCanonical);
+        if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+          originalArticleURL = rawCanonical;
+        }
+      } catch {
+        // Invalid URL — omit
+      }
+    }
     const variables = {
       input: {
         publicationId,
         title: formatted.title,
         contentMarkdown: formatted.body,
         tags: tags.map((slug) => ({ slug, name: slug })),
-        ...(canonicalUrl ? { canonicalUrl } : {}),
-        ...(coverImage ? { coverImageURL: coverImage } : {}),
         ...(subtitle ? { subtitle } : {}),
+        ...(originalArticleURL ? { originalArticleURL } : {}),
+        ...(coverImage ? { coverImageOptions: { coverImageURL: coverImage } } : {}),
       },
     };
 
@@ -352,6 +365,14 @@ export class HashnodeAdapter implements PlatformAdapter {
     }
     if (!resp.ok) {
       const text = await resp.text();
+      // 4xx (except 429) = permanent rejection (BAD_USER_INPUT, invalid field
+      // names, etc.). Classify as VALIDATION so the worker doesn't retry 3×.
+      if (resp.status >= 400 && resp.status < 500 && resp.status !== 429) {
+        throw new PublishError(
+          'VALIDATION',
+          `Hashnode publish rejected (${resp.status}): ${text.slice(0, 1000)}`
+        );
+      }
       throw new PublishError(
         'NETWORK',
         `Hashnode publish failed (${resp.status}): ${text.slice(0, 1000)}`

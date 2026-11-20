@@ -573,20 +573,30 @@ export class BlueskyAdapter implements PlatformAdapter {
       );
     }
 
-    // Resize if over the 1 MB limit. sharp is an optional native dep — if
-    // it's not built (pnpm blocks build scripts by default), the dynamic
-    // import fails and we surface a clear error instead of a silent crash.
+    // Resize if over the 1 MB limit. Iteratively compress: try JPEG quality
+    // 85, 75, 65, 55 until under 950KB (leaves headroom under the 1MB hard
+    // limit). sharp is a native dep — if not built (pnpm blocks build scripts),
+    // surface a clear error.
     if (bytes.length > MAX_IMAGE_BYTES) {
       try {
         const sharp = (await import('sharp')).default;
-        // Scale down proportionally until under the byte limit. A max width
-        // of 2000px + JPEG quality 80 is what postflare uses — well under 1MB
-        // for any reasonable image.
-        bytes = await sharp(bytes)
-          .resize({ width: 2000, withoutEnlargement: true })
-          .jpeg({ quality: 80 })
-          .toBuffer();
-        mimeType = 'image/jpeg'; // re-encoded to JPEG
+        const qualities = [85, 75, 65, 55];
+        for (const q of qualities) {
+          const resized = await sharp(bytes)
+            .resize({ width: 2000, withoutEnlargement: true })
+            .jpeg({ quality: q })
+            .toBuffer();
+          if (resized.length <= 950_000) {
+            bytes = resized;
+            mimeType = 'image/jpeg';
+            break;
+          }
+          // If this was the last quality attempt, use it anyway (best effort)
+          if (q === qualities[qualities.length - 1]) {
+            bytes = resized;
+            mimeType = 'image/jpeg';
+          }
+        }
       } catch {
         throw new PublishError(
           'VALIDATION',

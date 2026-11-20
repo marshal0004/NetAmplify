@@ -42,7 +42,7 @@ import type {
 } from '../adapter.interface';
 import { PublishError } from '../adapter.interface';
 import type { Platform } from '@prisma/client';
-import { readLocalUploadFile, resolvePublicMediaUrl } from '../../services/uploads-dir';
+import { readLocalUploadFile, resolvePublicMediaUrl, isVideoMedia } from '../../services/uploads-dir';
 
 const FB_AUTHORIZE_URL = 'https://www.facebook.com/v21.0/dialog/oauth';
 const FB_TOKEN_URL = 'https://graph.facebook.com/v21.0/oauth/access_token';
@@ -298,90 +298,72 @@ export class FacebookAdapter implements PlatformAdapter {
     const urlLine = formatted.url ? `\n${formatted.url}` : '';
     const message = `${formatted.title}\n\n${formatted.body}${urlLine}${tagsLine}`;
 
-    // Step 3: Check if an image URL was provided
+    // Step 3: Check if a media URL was provided
     const imageUrl = formatted.options?.imageUrl as string | undefined;
 
     let resp: Response;
 
     if (imageUrl) {
-      // Read the image bytes. For local /uploads/ files, read directly from
-      // disk via readLocalUploadFile (bypasses the URL roundtrip — Node's
-      // fetch can't parse relative URLs like "/uploads/x.jpg", and even if
-      // it could, an HTTP roundtrip to localhost is wasteful). For external
-      // URLs (e.g. a CDN image), HTTP-fetch the resolved absolute URL.
-      //
-      // Meta's servers CANNOT access localhost, so we must read/download the
-      // image and upload the raw data to Meta's API (not the URL).
-      let imgBuffer: Buffer;
-      let imgContentType: string;
+      // Read the media bytes from local disk (preferred) or HTTP-fetch.
+      let mediaBuffer: Buffer;
+      let mediaContentType: string;
+      const isVideo = isVideoMedia(imageUrl);
 
       const localBytes = readLocalUploadFile(imageUrl);
       if (localBytes) {
-        // Local file — read from disk. Detect MIME from the extension.
-        imgBuffer = localBytes;
+        mediaBuffer = localBytes;
         const ext = imageUrl.split(/[?#]/)[0].match(/\.[a-z0-9]+$/i)?.[0]?.toLowerCase() ?? '';
         const EXT_MIME: Record<string, string> = {
           '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
           '.gif': 'image/gif', '.webp': 'image/webp',
+          '.mp4': 'video/mp4',
         };
-        imgContentType = EXT_MIME[ext] || 'image/jpeg';
+        mediaContentType = EXT_MIME[ext] || (isVideo ? 'video/mp4' : 'image/jpeg');
       } else {
-        // External URL — resolve to absolute (in case it's relative + the
-        // local file doesn't exist), then HTTP-fetch.
         const absoluteUrl = resolvePublicMediaUrl(imageUrl);
         if (!absoluteUrl) {
           throw new PublishError(
             'VALIDATION',
-            `Facebook image URL "${imageUrl}" is relative and PUBLIC_APP_URL is not set. ` +
-              `Set PUBLIC_APP_URL in .env to an HTTPS tunnel URL (e.g. ngrok) so the image can be fetched.`,
+            `Facebook media URL "${imageUrl}" is relative and PUBLIC_APP_URL is not set.`,
           );
         }
-        const imgDownloadResp = await fetch(absoluteUrl);
-        if (!imgDownloadResp.ok) {
-          throw new PublishError(
-            'NETWORK',
-            `Failed to download image from ${absoluteUrl} (${imgDownloadResp.status})`,
-          );
+        const dlResp = await fetch(absoluteUrl);
+        if (!dlResp.ok) {
+          throw new PublishError('NETWORK', `Failed to download media (${dlResp.status})`);
         }
-        imgBuffer = Buffer.from(await imgDownloadResp.arrayBuffer());
-        imgContentType = imgDownloadResp.headers.get('content-type') || 'image/jpeg';
+        mediaBuffer = Buffer.from(await dlResp.arrayBuffer());
+        mediaContentType = dlResp.headers.get('content-type') || (isVideo ? 'video/mp4' : 'image/jpeg');
       }
 
-      // Upload image directly to Meta via multipart/form-data
-      // POST /{page-id}/photos with 'source' field (file upload)
-      // instead of 'url' field (which Meta fetches — fails on localhost)
-      const photosUrl = `${FB_GRAPH_BASE}/${page.id}/photos`;
+      // Route to the correct Graph API endpoint:
+      //   Video → POST /{page-id}/videos (source = file upload, description = text)
+      //   Image → POST /{page-id}/photos (source = file upload, caption = text)
+      const endpoint = isVideo ? 'videos' : 'photos';
+      const textField = isVideo ? 'description' : 'caption';
+      const uploadUrl = `${FB_GRAPH_BASE}/${page.id}/${endpoint}`;
 
-      // Build multipart/form-data manually
       const boundary = `----NetAmplify${Date.now()}`;
       const formDataParts: Buffer[] = [];
 
-      // Add 'caption' field
       formDataParts.push(
-        Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="caption"\r\n\r\n${message}\r\n`),
+        Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="${textField}"\r\n\r\n${message}\r\n`),
       );
-
-      // Add 'access_token' field
       formDataParts.push(
         Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="access_token"\r\n\r\n${page.access_token}\r\n`),
       );
-
-      // Add 'source' field (the image file)
-      const filename = `upload.${imgContentType.split('/')[1] || 'jpg'}`;
+      const filename = isVideo ? 'upload.mp4' : `upload.${mediaContentType.split('/')[1] || 'jpg'}`;
       formDataParts.push(
-        Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="source"; filename="${filename}"\r\nContent-Type: ${imgContentType}\r\n\r\n`),
+        Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="source"; filename="${filename}"\r\nContent-Type: ${mediaContentType}\r\n\r\n`),
       );
-      formDataParts.push(Buffer.from(imgBuffer));
+      formDataParts.push(Buffer.from(mediaBuffer));
       formDataParts.push(Buffer.from(`\r\n--${boundary}--\r\n`));
 
       const body = Buffer.concat(formDataParts);
 
-      resp = await fetch(photosUrl, {
+      resp = await fetch(uploadUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': `multipart/form-data; boundary=${boundary}`,
-        },
-        body: body,
+        headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
+        body,
       });
     } else {
       // No image — POST to /{page-id}/feed (text-only post)
@@ -416,6 +398,11 @@ export class FacebookAdapter implements PlatformAdapter {
     }
     if (!resp.ok) {
       const text = await resp.text();
+      // 4xx (except 429) = permanent rejection (wrong format, too large, etc.)
+      // Classify as VALIDATION so the worker doesn't retry 3×.
+      if (resp.status >= 400 && resp.status < 500 && resp.status !== 429) {
+        throw new PublishError('VALIDATION', `Facebook rejected post (${resp.status}): ${text.slice(0, 300)}`);
+      }
       throw new PublishError('NETWORK', `Facebook publish failed (${resp.status}): ${text}`);
     }
 

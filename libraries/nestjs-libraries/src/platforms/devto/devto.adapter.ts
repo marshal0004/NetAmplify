@@ -138,10 +138,20 @@ export class DevtoAdapter implements PlatformAdapter {
       .filter((t) => t.length > 0)
       .slice(0, 4); // Dev.to limit: 4 tags
     const published = typeof opt.published === 'boolean' ? opt.published : true;
-    const canonicalUrl =
-      typeof opt.canonicalUrl === 'string' && opt.canonicalUrl.trim().length > 0
-        ? opt.canonicalUrl.trim()
-        : undefined;
+    // Validate canonical URL — Dev.to rejects invalid URLs with 422.
+    // Only send if it's a valid http/https URL.
+    let canonicalUrl: string | undefined;
+    const rawCanonical = typeof opt.canonicalUrl === 'string' ? opt.canonicalUrl.trim() : '';
+    if (rawCanonical) {
+      try {
+        const parsed = new URL(rawCanonical);
+        if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+          canonicalUrl = rawCanonical;
+        }
+      } catch {
+        // Invalid URL — omit it (Dev.to would reject with 422)
+      }
+    }
 
     // Resolve the main image URL. Dev.to fetches the image from this URL —
     // it MUST be an absolute URL. The upload controller stores relative URLs
