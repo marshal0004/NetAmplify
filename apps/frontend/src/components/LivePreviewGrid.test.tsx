@@ -134,8 +134,8 @@ describe('LivePreviewGrid', () => {
     render(
       <LivePreviewGrid
         card={textOnlyCard}
-        selectedPlatforms={new Set(['DEVTO'])}
-        previews={{ DEVTO: previewOf('DEVTO', 'body') }}
+        selectedPlatforms={new Set(['INSTAGRAM'])}
+        previews={{ INSTAGRAM: previewOf('INSTAGRAM', 'body') }}
         platformName={platformName}
       />,
     );
@@ -144,21 +144,43 @@ describe('LivePreviewGrid', () => {
     expect(screen.queryByRole('img')).toBeNull();
     expect(document.getElementsByTagName('video')).toHaveLength(0);
     // Formatted text still renders under the note.
-    expect(screen.getByText('Title for DEVTO')).toBeInTheDocument();
+    expect(screen.getByText('Title for INSTAGRAM')).toBeInTheDocument();
   });
 
-  it('truncates the formatted body at 500 chars with an ellipsis', () => {
+  it('truncates the formatted body at 500 chars when no char limit is known', () => {
     const longBody = 'B'.repeat(600);
-    render(
+    const { container } = render(
       <LivePreviewGrid
         card={imageCard}
         selectedPlatforms={new Set(['INSTAGRAM'])}
-        previews={{ INSTAGRAM: previewOf('INSTAGRAM', longBody) }}
+        previews={{ INSTAGRAM: { ...previewOf('INSTAGRAM', longBody), formatted: { ...previewOf('INSTAGRAM', longBody).formatted, limit: 0 } } }}
         platformName={platformName}
       />,
     );
-    const bodyPara = screen.getByText(/^B{500}…$/);
-    expect(bodyPara.textContent).toBe('B'.repeat(500) + '…');
+    // When limit is 0 (unknown), the display truncates at 500 + ellipsis
+    expect(container.textContent).toContain('B'.repeat(500) + '…');
+    // The remaining 100 chars should NOT be visible
+    expect(container.textContent).not.toContain('B'.repeat(501));
+  });
+
+  it('highlights text over the platform char limit in red (overflow warning)', () => {
+    // Set a small limit (100) so the 200-char body overflows by 100 chars.
+    const body = 'X'.repeat(200);
+    const { container } = render(
+      <LivePreviewGrid
+        card={imageCard}
+        selectedPlatforms={new Set(['INSTAGRAM'])}
+        previews={{ INSTAGRAM: { ...previewOf('INSTAGRAM', body), formatted: { ...previewOf('INSTAGRAM', body).formatted, limit: 100, charCount: 200 } } }}
+        platformName={platformName}
+      />,
+    );
+    // The full text is present (100 visible + 100 overflow in red span)
+    expect(container.textContent).toContain('X'.repeat(100));
+    // The overflow span exists with line-through styling (use line-through
+    // selector to avoid matching the char-counter badge which is also red)
+    const overflowSpan = container.querySelector('[class*="line-through"]');
+    expect(overflowSpan).not.toBeNull();
+    expect(overflowSpan?.textContent).toContain('X');
   });
 
   it('shows a loading state for a platform whose preview has not loaded yet', () => {
