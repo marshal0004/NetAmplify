@@ -148,6 +148,13 @@ export const POSTCARD_CREATE_SCHEMA = z.object({
   // The upload controller stores relative URLs; a strict URL schema here was
   // what 400'd every create-with-device-upload.
   imageUrl: MEDIA_URL_SCHEMA,
+  // Multi-media support: array of relative URLs (/uploads/x.jpg).
+  // Each item must pass MEDIA_URL_SCHEMA (relative path or absolute URL).
+  // Max 10 items (the highest platform limit — Discord allows 10 attachments).
+  mediaUrls: z
+    .array(MEDIA_URL_SCHEMA)
+    .max(10, 'Maximum 10 media items per PostCard')
+    .default([]),
 });
 
 export const POSTCARD_UPDATE_SCHEMA = POSTCARD_CREATE_SCHEMA.partial();

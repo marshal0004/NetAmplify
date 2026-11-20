@@ -222,6 +222,7 @@ const PostCardSchema = z.object({
   repoUrl: z.string().nullable(),
   liveUrl: z.string().nullable(),
   imageUrl: z.string().nullable(),
+  mediaUrls: z.array(z.string()).optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });

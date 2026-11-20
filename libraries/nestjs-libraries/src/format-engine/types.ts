@@ -24,6 +24,8 @@ export interface FormatEnginePostCard {
   repoUrl?: string;
   liveUrl?: string;
   imageUrl?: string;
+  /** Multi-media URLs (relative paths like /uploads/x.jpg). */
+  mediaUrls?: string[];
 }
 
 /**

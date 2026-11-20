@@ -1000,6 +1000,24 @@ function platformName(platform: string): string {
 /** Platforms that REQUIRE media (image or video) to publish. */
 const MEDIA_REQUIRED_PLATFORMS = new Set(['INSTAGRAM', 'YOUTUBE', 'THREADS']);
 
+/** Per-platform media limits (mirrors PLATFORM_CONFIG on the backend). */
+const PLATFORM_MEDIA_LIMITS: Record<string, { maxImages: number; maxVideos: number; mixedMedia: boolean }> = {
+  DISCORD: { maxImages: 10, maxVideos: 10, mixedMedia: true },
+  DEVTO: { maxImages: 1, maxVideos: 0, mixedMedia: false },
+  TELEGRAM: { maxImages: 1, maxVideos: 1, mixedMedia: false },
+  BLUESKY: { maxImages: 4, maxVideos: 1, mixedMedia: false },
+  HASHNODE: { maxImages: 1, maxVideos: 0, mixedMedia: false },
+  TWITTER: { maxImages: 4, maxVideos: 1, mixedMedia: false },
+  LINKEDIN: { maxImages: 1, maxVideos: 0, mixedMedia: false },
+  MASTODON: { maxImages: 4, maxVideos: 1, mixedMedia: false },
+  WORDPRESS: { maxImages: 1, maxVideos: 0, mixedMedia: false },
+  TWITTER_COOKIE: { maxImages: 4, maxVideos: 1, mixedMedia: false },
+  FACEBOOK: { maxImages: 10, maxVideos: 1, mixedMedia: false },
+  INSTAGRAM: { maxImages: 1, maxVideos: 1, mixedMedia: false },
+  YOUTUBE: { maxImages: 0, maxVideos: 1, mixedMedia: false },
+  THREADS: { maxImages: 1, maxVideos: 1, mixedMedia: false },
+};
+
 interface ValidationIssue {
   platform: string;
   level: 'error' | 'warning';
@@ -1020,11 +1038,20 @@ interface ValidationIssue {
 function validatePublish(
   selectedPlatforms: Set<string>,
   connections: Array<{ platform: string; status: string; platformUsername: string | null }>,
-  card: { imageUrl?: string | null; title: string } | undefined,
+  card: { imageUrl?: string | null; mediaUrls?: string[]; title: string } | undefined,
   previews: Record<string, { formatted: { charCount?: number; limit?: number } }>,
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
+  // Collect all media URLs from the PostCard (mediaUrls array + imageUrl for
+  // backward compat). Split into images vs videos by extension.
+  const allMedia = [
+    ...(card?.mediaUrls ?? []),
+    ...(card?.imageUrl ? [card.imageUrl] : []),
+  ];
+  const videoRe = /\.(mp4|webm|mov|m4v|ogg)$/i;
+  const imageCount = allMedia.filter((u) => !videoRe.test(u.split(/[?#]/)[0])).length;
+  const videoCount = allMedia.filter((u) => videoRe.test(u.split(/[?#]/)[0])).length;
   for (const platform of selectedPlatforms) {
     const conn = connections.find((c) => c.platform === platform);
 
@@ -1045,13 +1072,39 @@ function validatePublish(
       });
     }
 
-    // Check 2: media requirement
-    if (MEDIA_REQUIRED_PLATFORMS.has(platform) && !card?.imageUrl) {
+    // Check 2: media requirement (Instagram, YouTube, Threads need at least 1 media)
+    if (MEDIA_REQUIRED_PLATFORMS.has(platform) && allMedia.length === 0) {
       issues.push({
         platform,
         level: 'error',
         message: 'Media required — upload an image or video in the PostCard.',
       });
+    }
+
+    // Check 2b: per-platform media limits (maxImages, maxVideos, mixedMedia)
+    const limits = PLATFORM_MEDIA_LIMITS[platform];
+    if (limits) {
+      if (imageCount > limits.maxImages) {
+        issues.push({
+          platform,
+          level: 'warning',
+          message: `${platformName(platform)} allows max ${limits.maxImages} image${limits.maxImages === 1 ? '' : 's'} — extra will be dropped.`,
+        });
+      }
+      if (videoCount > limits.maxVideos) {
+        issues.push({
+          platform,
+          level: 'warning',
+          message: `${platformName(platform)} allows max ${limits.maxVideos} video${limits.maxVideos === 1 ? '' : 's'} — extra will be dropped.`,
+        });
+      }
+      if (!limits.mixedMedia && imageCount > 0 && videoCount > 0) {
+        issues.push({
+          platform,
+          level: 'warning',
+          message: `${platformName(platform)} doesn't support mixed images + videos — only the first media item will be used.`,
+        });
+      }
     }
 
     // Check 3: char limit overflow (warning, not error — text gets truncated)

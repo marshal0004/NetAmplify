@@ -136,7 +136,8 @@ model PostCard {
   techStack String[] // 1–10 tags
   repoUrl String?
   liveUrl String?
-  imageUrl String? // MVP: ≤1 image per PostCard
+  imageUrl String? // Primary media (backward compat — single image/video)
+  mediaUrls String[] // Multi-media support: array of relative URLs (/uploads/x.jpg)
 
   media ProjectMedia[]
   posts Post[]

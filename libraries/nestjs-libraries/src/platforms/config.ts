@@ -28,6 +28,10 @@ export interface PlatformConfig {
   imageSupported: boolean;
   /** Max image count per post (0 = no images) */
   maxImages: number;
+  /** Max video count per post (0 = no videos). */
+  maxVideos: number;
+  /** Whether images + videos can be mixed in a single post. */
+  mixedMedia: boolean;
 }
 
 /**
@@ -43,6 +47,8 @@ export const PLATFORM_CONFIG: Record<Platform, PlatformConfig> = {
     markdownSupported: true,
     imageSupported: true,
     maxImages: 1,
+    maxVideos: 10, 
+    mixedMedia: true, // images + videos allowed
   },
   DEVTO: {
     platform: 'DEVTO',
@@ -52,6 +58,8 @@ export const PLATFORM_CONFIG: Record<Platform, PlatformConfig> = {
     markdownSupported: true,
     imageSupported: true,
     maxImages: 1,
+    maxVideos: 0, // no videos
+    mixedMedia: false, 
   },
   TELEGRAM: {
     platform: 'TELEGRAM',
@@ -61,6 +69,8 @@ export const PLATFORM_CONFIG: Record<Platform, PlatformConfig> = {
     markdownSupported: false, // supports HTML, not markdown
     imageSupported: true,
     maxImages: 1,
+    maxVideos: 1, 
+    mixedMedia: false, 
   },
   BLUESKY: {
     platform: 'BLUESKY',
@@ -70,6 +80,8 @@ export const PLATFORM_CONFIG: Record<Platform, PlatformConfig> = {
     markdownSupported: false, // supports facets (rich text), not markdown
     imageSupported: true,
     maxImages: 4,
+    maxVideos: 1, 
+    mixedMedia: false, 
   },
   HASHNODE: {
     platform: 'HASHNODE',
@@ -79,6 +91,8 @@ export const PLATFORM_CONFIG: Record<Platform, PlatformConfig> = {
     markdownSupported: true,
     imageSupported: true,
     maxImages: 1,
+    maxVideos: 0, // no videos
+    mixedMedia: false, 
   },
   TWITTER: {
     platform: 'TWITTER',
@@ -88,6 +102,8 @@ export const PLATFORM_CONFIG: Record<Platform, PlatformConfig> = {
     markdownSupported: false,
     imageSupported: true,
     maxImages: 4,
+    maxVideos: 1, 
+    mixedMedia: false, 
   },
   LINKEDIN: {
     platform: 'LINKEDIN',
@@ -97,6 +113,8 @@ export const PLATFORM_CONFIG: Record<Platform, PlatformConfig> = {
     markdownSupported: false,
     imageSupported: false,
     maxImages: 0,
+    maxVideos: 0, // no videos
+    mixedMedia: false, 
   },
   MASTODON: {
     platform: 'MASTODON',
@@ -106,6 +124,8 @@ export const PLATFORM_CONFIG: Record<Platform, PlatformConfig> = {
     markdownSupported: true, // Mastodon renders a markdown subset
     imageSupported: true,
     maxImages: 4,
+    maxVideos: 1, 
+    mixedMedia: false, 
   },
   WORDPRESS: {
     platform: 'WORDPRESS',
@@ -115,6 +135,8 @@ export const PLATFORM_CONFIG: Record<Platform, PlatformConfig> = {
     markdownSupported: true, // pass-through; theme/plugin handles rendering
     imageSupported: true,
     maxImages: 1,
+    maxVideos: 0, // no videos
+    mixedMedia: false, 
   },
   TWITTER_COOKIE: {
     platform: 'TWITTER_COOKIE',
@@ -124,6 +146,8 @@ export const PLATFORM_CONFIG: Record<Platform, PlatformConfig> = {
     markdownSupported: false,
     imageSupported: false, // MVP: text only via cookie method
     maxImages: 0,
+    maxVideos: 0, // no videos
+    mixedMedia: false, 
   },
   FACEBOOK: {
     platform: 'FACEBOOK',
@@ -133,6 +157,8 @@ export const PLATFORM_CONFIG: Record<Platform, PlatformConfig> = {
     markdownSupported: false, // plain text only via Graph API
     imageSupported: true,
     maxImages: 1, // single image per post via /photos
+    maxVideos: 1, // single video per post via /videos
+    mixedMedia: false,
   },
   INSTAGRAM: {
     platform: 'INSTAGRAM',
@@ -142,6 +168,8 @@ export const PLATFORM_CONFIG: Record<Platform, PlatformConfig> = {
     markdownSupported: false, // hashtags + mentions only
     imageSupported: true,
     maxImages: 1, // IG requires an image/video for every post
+    maxVideos: 1, // IG supports 1 video (Reel) per post
+    mixedMedia: false,
   },
   YOUTUBE: {
     platform: 'YOUTUBE',
@@ -155,6 +183,8 @@ export const PLATFORM_CONFIG: Record<Platform, PlatformConfig> = {
     markdownSupported: false, // plain text description only
     imageSupported: false, // videos only — no image posts via Data API
     maxImages: 0,
+    maxVideos: 1, 
+    mixedMedia: false, 
   },
   THREADS: {
     platform: 'THREADS',
@@ -164,6 +194,8 @@ export const PLATFORM_CONFIG: Record<Platform, PlatformConfig> = {
     markdownSupported: false, // plain text + hashtags
     imageSupported: true, // IMAGE media_type supported (VIDEO requires async processing)
     maxImages: 1, // single image per thread (carousel is a future enhancement)
+    maxVideos: 1, // single video per thread
+    mixedMedia: false,
   },
 };
 

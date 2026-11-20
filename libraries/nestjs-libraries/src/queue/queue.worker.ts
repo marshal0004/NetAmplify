@@ -190,6 +190,7 @@ export class PublishWorker implements OnModuleInit, OnModuleDestroy {
       repoUrl: postCard.repoUrl ?? undefined,
       liveUrl: postCard.liveUrl ?? undefined,
       imageUrl: postCard.imageUrl ?? undefined,
+      mediaUrls: postCard.mediaUrls ?? undefined,
     };
     const formatted = formatForPlatform(platform, formatInput, null, (target.options ?? {}) as Record<string, unknown>);
 

@@ -54,6 +54,13 @@ export const linkedinFormatter: Formatter = (
     // PostCard's imageUrl is the default + incoming options win.
     options: {
       ...(postCard.imageUrl ? { imageUrl: postCard.imageUrl } : {}),
+      // Multi-media: thread the PostCard's mediaUrls array into formatted.options
+      // so adapters that support multiple media (Bluesky, Facebook, X) can read it.
+      // Adapters that only support single media use formatted.options.imageUrl
+      // (the first/primary media) — backward compatible.
+      ...(postCard.mediaUrls && postCard.mediaUrls.length > 0
+        ? { mediaUrls: postCard.mediaUrls }
+        : {}),
       ...options,
     },
     charCount: truncatedBody.length,
