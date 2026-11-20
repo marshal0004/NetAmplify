@@ -190,7 +190,11 @@ export class PublishWorker implements OnModuleInit, OnModuleDestroy {
       repoUrl: postCard.repoUrl ?? undefined,
       liveUrl: postCard.liveUrl ?? undefined,
       imageUrl: postCard.imageUrl ?? undefined,
-      mediaUrls: postCard.mediaUrls ?? undefined,
+      // Type-safe access: the Prisma PostCard type may not include mediaUrls
+      // until the user runs `prisma-generate` after the schema change.
+      // The cast lets this compile regardless; at runtime, the field is
+      // undefined until the DB column exists (after `prisma-db-push`).
+      mediaUrls: (postCard as { mediaUrls?: string[] }).mediaUrls ?? undefined,
     };
     const formatted = formatForPlatform(platform, formatInput, null, (target.options ?? {}) as Record<string, unknown>);
 
