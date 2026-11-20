@@ -359,22 +359,28 @@ export class BlueskyAdapter implements PlatformAdapter {
       throw new PublishError('AUTH', 'Bluesky access token or DID missing from credentials');
     }
 
-    // Build post text: title + body + tags (all concatenated, ≤300 graphemes)
-    const tags = formatted.hashtags ?? [];
-    const tagsLine = tags.length > 0 ? `\n\n${tags.map((t) => `#${t}`).join(' ')}` : '';
-    const urlLine = formatted.url ? `\n${formatted.url}` : '';
-    const text = `${formatted.title}\n\n${formatted.body}${urlLine}${tagsLine}`;
+    // The format-engine (blueskyFormatter) already builds the COMPLETE post
+    // text — title + summary + description + URL + hashtags — and truncates
+    // it to ≤300 graphemes. The adapter uses formatted.body directly as the
+    // post text. Previously, the adapter RE-concatenated title + body + URL +
+    // hashtags on top of the already-complete formatted.body, duplicating
+    // everything and pushing the text over the 300-grapheme limit.
+    const text = formatted.body;
 
-    // Grapheme count check (Bluesky uses graphemes, not UTF-16 code units)
+    // Safety net: the formatter truncates to 300, but verify before sending
+    // (Bluesky hard-rejects posts >300 graphemes with a 400).
     const graphemeCount = countGraphemes(text);
     if (graphemeCount > 300) {
       throw new PublishError(
         'VALIDATION',
-        `Bluesky post exceeds 300 graphemes (got ${graphemeCount})`
+        `Bluesky post exceeds 300 graphemes (got ${graphemeCount}) — ` +
+          `the format-engine should have truncated to 300. Check the blueskyFormatter.`,
       );
     }
 
-    // Build facets for the URL (so Bluesky renders it as a clickable link)
+    // Build facets for the URL (so Bluesky renders it as a clickable link).
+    // The URL is already inside formatted.body (the formatter included it),
+    // so text.indexOf finds it and we build the byte-offset facet for it.
     const facets: unknown[] = [];
     if (formatted.url) {
       const urlStart = text.indexOf(formatted.url);

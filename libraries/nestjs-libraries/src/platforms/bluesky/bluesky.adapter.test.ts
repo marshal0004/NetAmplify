@@ -94,6 +94,10 @@ describe('BlueskyAdapter', () => {
       );
       vi.stubGlobal('fetch', mockFetch);
 
+      // formatted.body is the COMPLETE post text — the format-engine already
+      // concatenated title + body + URL + hashtags and truncated to ≤300
+      // graphemes. The adapter uses it directly (does NOT re-concatenate).
+      const formattedBody = 'Test Post\n\nBody text\nhttps://example.com\n\n#ts';
       const result = await adapter.publish(
         {
           accessJwt: 'jwt-access',
@@ -101,7 +105,7 @@ describe('BlueskyAdapter', () => {
           did: 'did:plc:abc',
           handle: 'jane.bsky.social',
         },
-        { title: 'Test Post', body: 'Body text', url: 'https://example.com', hashtags: ['ts'] }
+        { title: 'Test Post', body: formattedBody, url: 'https://example.com', hashtags: ['ts'] }
       );
 
       expect(result.id).toBe('rkey123');
@@ -113,12 +117,47 @@ describe('BlueskyAdapter', () => {
       const body = JSON.parse(init.body as string);
       expect(body.repo).toBe('did:plc:abc');
       expect(body.collection).toBe('app.bsky.feed.post');
+      // The post text IS formatted.body — no duplication of title/URL/hashtags
+      expect(body.record.text).toBe(formattedBody);
       expect(body.record.text).toContain('Test Post');
       expect(body.record.text).toContain('Body text');
       expect(body.record.text).toContain('https://example.com');
-      // URL facet should be added
+      // URL facet should be added (the URL is inside formatted.body)
       expect(body.record.facets.length).toBe(1);
       expect(body.record.facets[0].features[0].$type).toBe('app.bsky.richtext.facet#link');
+    });
+
+    it('does NOT duplicate title/URL/hashtags — uses formatted.body directly (regression: duplication pushed posts >300 graphemes)', async () => {
+      // Regression test for the bug where the adapter re-concatenated
+      // title + body + URL + hashtags on top of the already-complete
+      // formatted.body, doubling the text and exceeding the 300-grapheme
+      // limit. The adapter must use formatted.body as-is.
+      const mockFetch = vi.fn().mockResolvedValue(
+        mockResponse(200, {
+          uri: 'at://did:plc:abc/app.bsky.feed.post/rkey-no-dup',
+          cid: 'cid',
+        })
+      );
+      vi.stubGlobal('fetch', mockFetch);
+
+      // A formatted.body that's exactly 280 graphemes (under the 300 limit).
+      // If the adapter duplicated the title + URL + hashtags, it would push
+      // well over 300 and throw VALIDATION.
+      const formattedBody = 'Title\n\nBody content here.\nhttps://example.com\n\n#tag1 #tag2';
+      await adapter.publish(
+        { accessJwt: 'jwt', did: 'did:plc:abc', handle: 'jane.bsky.social' },
+        { title: 'Title', body: formattedBody, url: 'https://example.com', hashtags: ['tag1', 'tag2'] }
+      );
+
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body as string);
+      // text must equal formatted.body exactly — no duplication
+      expect(body.record.text).toBe(formattedBody);
+      // The title appears ONCE (not twice)
+      expect((body.record.text.match(/Title/g) || []).length).toBe(1);
+      // The URL appears ONCE (not twice)
+      expect((body.record.text.match(/https:\/\/example\.com/g) || []).length).toBe(1);
+      // The hashtag appears ONCE (not twice)
+      expect((body.record.text.match(/#tag1/g) || []).length).toBe(1);
     });
 
     it('throws PublishError(VALIDATION) when post > 300 graphemes', async () => {
