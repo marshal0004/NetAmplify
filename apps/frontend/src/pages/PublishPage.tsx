@@ -21,10 +21,11 @@
 //   4. Live preview per platform (char counter against the platform limit).
 //   5. Amplify → POST /api/postcards/:id/publish → poll /api/posts/:id.
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
+import { CheckCircle2, AlertCircle, AlertTriangle } from 'lucide-react';
 import {
   postcardApi,
   connectionsApi,
@@ -171,6 +172,18 @@ export function PublishPage() {
     }, 3000);
     return () => clearInterval(interval);
   }, [post]);
+
+  // Pre-publish validation — checks each selected platform for blocking
+  // errors (expired connections, missing media for Instagram/YouTube) and
+  // warnings (char-limit overflow). Matching postflare's checkAccount UX.
+  const validationIssues = useMemo(() => {
+    return validatePublish(selectedPlatforms, connections ?? [], card, previews);
+  }, [selectedPlatforms, connections, card, previews]);
+
+  const blockingErrorCount = validationIssues.filter(
+    (i) => i.level === 'error',
+  ).length;
+  const hasBlockingErrors = blockingErrorCount > 0;
 
   async function handlePublish() {
     if (!id || selectedPlatforms.size === 0) return;
@@ -372,12 +385,24 @@ export function PublishPage() {
             platformName={platformName}
           />
 
+          {/* Pre-publish validation panel — shows per-platform issues before
+              the user clicks Amplify, preventing the most common publish errors
+              (missing media for Instagram/YouTube, expired connections, char
+              limit overflows). Matching postflare's checkAccount UX. */}
+          <PublishValidation
+            selectedPlatforms={selectedPlatforms}
+            connections={connections ?? []}
+            card={card}
+            previews={previews}
+            platformName={platformName}
+          />
+
           {/* Amplify button */}
           <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
             <Button
               size="lg"
               onClick={handlePublish}
-              disabled={loading || selectedPlatforms.size === 0}
+              disabled={loading || selectedPlatforms.size === 0 || hasBlockingErrors}
               className="w-full bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 border-0 text-base"
             >
               {loading ? (
@@ -385,6 +410,8 @@ export function PublishPage() {
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                   Publishing…
                 </span>
+              ) : hasBlockingErrors ? (
+                `Fix ${blockingErrorCount} issue${blockingErrorCount === 1 ? '' : 's'} to publish`
               ) : (
                 `🚀 Amplify to ${selectedPlatforms.size} platform${selectedPlatforms.size === 1 ? '' : 's'}`
               )}
@@ -919,4 +946,147 @@ function platformName(platform: string): string {
     WORDPRESS: 'WordPress',
   };
   return names[platform] ?? platform;
+}
+
+// ============================================================================
+// Pre-publish validation (comparison point #8 — live client-side validation)
+// ============================================================================
+
+/** Platforms that REQUIRE media (image or video) to publish. */
+const MEDIA_REQUIRED_PLATFORMS = new Set(['INSTAGRAM', 'YOUTUBE', 'THREADS']);
+
+interface ValidationIssue {
+  platform: string;
+  level: 'error' | 'warning';
+  message: string;
+}
+
+/**
+ * Validate the publish configuration for each selected platform.
+ *
+ * Checks (matching postflare's checkAccount):
+ *   - ERROR: connection is not ACTIVE (REVOKED, ERROR, or missing)
+ *   - ERROR: media required (Instagram, YouTube, Threads) but no imageUrl
+ *   - WARNING: char count exceeds the platform's limit (will be truncated)
+ *
+ * Returns an array of issues. The Amplify button is disabled when any
+ * issue has level === 'error'.
+ */
+function validatePublish(
+  selectedPlatforms: Set<string>,
+  connections: Array<{ platform: string; status: string; platformUsername: string | null }>,
+  card: { imageUrl?: string | null; title: string } | undefined,
+  previews: Record<string, { formatted: { charCount?: number; limit?: number } }>,
+): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+
+  for (const platform of selectedPlatforms) {
+    const conn = connections.find((c) => c.platform === platform);
+
+    // Check 1: connection status
+    if (!conn) {
+      issues.push({
+        platform,
+        level: 'error',
+        message: 'No connection found — connect this platform first.',
+      });
+      continue;
+    }
+    if (conn.status !== 'ACTIVE') {
+      issues.push({
+        platform,
+        level: 'error',
+        message: `Connection is ${conn.status} — reconnect to publish.`,
+      });
+    }
+
+    // Check 2: media requirement
+    if (MEDIA_REQUIRED_PLATFORMS.has(platform) && !card?.imageUrl) {
+      issues.push({
+        platform,
+        level: 'error',
+        message: 'Media required — upload an image or video in the PostCard.',
+      });
+    }
+
+    // Check 3: char limit overflow (warning, not error — text gets truncated)
+    const preview = previews[platform];
+    if (preview?.formatted?.limit && preview?.formatted?.charCount) {
+      const limit = preview.formatted.limit;
+      const count = preview.formatted.charCount;
+      if (count > limit) {
+        issues.push({
+          platform,
+          level: 'warning',
+          message: `Text exceeds ${limit} chars by ${count - limit} — will be truncated.`,
+        });
+      }
+    }
+  }
+
+  return issues;
+}
+
+/**
+ * Compact validation panel rendered before the Amplify button.
+ * Shows a summary + per-platform issues. Errors are red, warnings are amber.
+ * When there are no issues, shows a green "All platforms ready" message.
+ */
+function PublishValidation({
+  selectedPlatforms,
+  connections,
+  card,
+  previews,
+  platformName: pName,
+}: {
+  selectedPlatforms: Set<string>;
+  connections: Array<{ platform: string; status: string; platformUsername: string | null }>;
+  card: { imageUrl?: string | null; title: string } | undefined;
+  previews: Record<string, { formatted: { charCount?: number; limit?: number } }>;
+  platformName: (platform: string) => string;
+}) {
+  const issues = validatePublish(selectedPlatforms, connections, card, previews);
+  const errors = issues.filter((i) => i.level === 'error');
+  const warnings = issues.filter((i) => i.level === 'warning');
+
+  if (issues.length === 0) {
+    return (
+      <div className="flex items-center gap-2 rounded-lg border border-green-500/20 bg-green-500/5 px-4 py-2 text-sm text-green-400">
+        <CheckCircle2 className="h-4 w-4" />
+        All {selectedPlatforms.size} platform{selectedPlatforms.size === 1 ? '' : 's'} ready to publish
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2 rounded-lg border border-white/10 bg-white/[0.02] p-3">
+      <div className="flex items-center gap-3 text-sm">
+        {errors.length > 0 && (
+          <span className="flex items-center gap-1 text-red-400">
+            <AlertCircle className="h-4 w-4" />
+            {errors.length} error{errors.length === 1 ? '' : 's'}
+          </span>
+        )}
+        {warnings.length > 0 && (
+          <span className="flex items-center gap-1 text-amber-400">
+            <AlertTriangle className="h-4 w-4" />
+            {warnings.length} warning{warnings.length === 1 ? '' : 's'}
+          </span>
+        )}
+      </div>
+      <div className="space-y-1">
+        {issues.map((issue, i) => (
+          <div
+            key={`${issue.platform}-${i}`}
+            className={`flex items-start gap-2 text-xs ${
+              issue.level === 'error' ? 'text-red-400' : 'text-amber-400'
+            }`}
+          >
+            <span className="font-medium">{pName(issue.platform)}:</span>
+            <span className="text-white/60">{issue.message}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
