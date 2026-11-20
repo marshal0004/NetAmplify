@@ -286,10 +286,15 @@ export class FacebookAdapter implements PlatformAdapter {
       : pagesData.data[0];
 
     // Step 2: Build the post message
-    const tagsLine =
-      formatted.hashtags && formatted.hashtags.length > 0
-        ? `\n${formatted.hashtags.map((t) => `#${t}`).join(' ')}`
-        : '';
+    // Per-platform override: formatted.options.hashtags (comma-separated)
+    // overrides the Format Engine's techStack hashtags.
+    const optHashtags = (formatted.options?.hashtags as string | undefined)?.trim();
+    const hashtagArr = optHashtags
+      ? optHashtags.split(',').map((t) => t.trim()).filter(Boolean).slice(0, 10)
+      : (formatted.hashtags ?? []);
+    const tagsLine = hashtagArr.length > 0
+      ? `\n${hashtagArr.map((t) => `#${t}`).join(' ')}`
+      : '';
     const urlLine = formatted.url ? `\n${formatted.url}` : '';
     const message = `${formatted.title}\n\n${formatted.body}${urlLine}${tagsLine}`;
 

@@ -180,11 +180,16 @@ export class TelegramAdapter implements PlatformAdapter {
       );
     }
 
+    // Per-platform override: formatted.options.disableNotification sends the
+    // message silently (recipients get no notification sound).
+    const disableNotif = formatted.options?.disableNotification === true;
+
     const body = new URLSearchParams({
       chat_id: creds.channel,
       text,
       parse_mode: 'HTML',
       disable_web_page_preview: 'false',
+      ...(disableNotif ? { disable_notification: 'true' } : {}),
     });
 
     const resp = await fetch(

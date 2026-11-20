@@ -168,9 +168,12 @@ export class DiscordAdapter implements PlatformAdapter {
       embed.fields = fields.slice(0, 25); // Discord limit: 25 fields per embed
     }
 
+    // Per-platform override: formatted.options.username overrides the
+    // webhook display name (defaults to "NetAmplify").
+    const optUsername = (formatted.options?.username as string | undefined)?.trim();
     const body = {
       embeds: [embed],
-      username: 'NetAmplify',
+      username: optUsername || 'NetAmplify',
     };
 
     const resp = await fetch(`${creds.webhookUrl}?wait=true`, {

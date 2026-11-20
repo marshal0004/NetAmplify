@@ -411,12 +411,16 @@ export class ThreadsAdapter implements PlatformAdapter {
     }
 
     // Build the caption (Threads is text-first: title + body + url + hashtags).
+    // Per-platform override: formatted.options.caption replaces the auto-built
+    // caption entirely (user wrote a custom one in the per-platform panel).
     const tagsLine =
       formatted.hashtags && formatted.hashtags.length > 0
         ? `\n${formatted.hashtags.map((t) => `#${t}`).join(' ')}`
         : '';
     const urlLine = formatted.url ? `\n${formatted.url}` : '';
-    const rawCaption = `${formatted.title}\n\n${formatted.body}${urlLine}${tagsLine}`;
+    const autoCaption = `${formatted.title}\n\n${formatted.body}${urlLine}${tagsLine}`;
+    const optCaption = (formatted.options?.caption as string | undefined)?.trim();
+    const rawCaption = optCaption || autoCaption;
 
     // Enforce Threads' 500-char limit (truncate with ellipsis — better than
     // rejecting the whole publish, which would fail the entire Amplify batch).

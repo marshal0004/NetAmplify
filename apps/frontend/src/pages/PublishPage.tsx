@@ -719,10 +719,93 @@ function PerPlatformFields({ platform, card, options, onChange }: PerPlatformFie
         </div>
       );
 
+    case 'LINKEDIN':
+      return (
+        <div className="space-y-3">
+          <div>
+            <Label className={labelCls}>Hashtags <span className="text-white/30">(comma-separated, ≤5)</span></Label>
+            <Input
+              value={(options.hashtags as string) ?? ''}
+              onChange={(e) => onChange('hashtags', e.target.value)}
+              placeholder={card.techStack.join(', ')}
+              className={fieldCls}
+            />
+          </div>
+          <div>
+            <Label className={labelCls}>Visibility</Label>
+            <select
+              value={(options.visibility as string) ?? 'PUBLIC'}
+              onChange={(e) => onChange('visibility', e.target.value)}
+              className={`${fieldCls} w-full rounded px-3 py-2`}
+            >
+              <option value="PUBLIC">Public — anyone on LinkedIn</option>
+              <option value="CONNECTIONS">Connections only</option>
+            </select>
+          </div>
+        </div>
+      );
+
+    case 'FACEBOOK':
+      return (
+        <div>
+          <Label className={labelCls}>Hashtags <span className="text-white/30">(comma-separated)</span></Label>
+          <Input
+            value={(options.hashtags as string) ?? ''}
+            onChange={(e) => onChange('hashtags', e.target.value)}
+            placeholder={card.techStack.join(', ')}
+            className={fieldCls}
+          />
+        </div>
+      );
+
+    case 'THREADS':
+      return (
+        <div>
+          <Label className={labelCls}>Caption <span className="text-white/30">(≤500 chars, overrides auto-formatted)</span></Label>
+          <Textarea
+            value={(options.caption as string) ?? ''}
+            onChange={(e) => onChange('caption', e.target.value)}
+            maxLength={500}
+            rows={3}
+            placeholder="Custom caption for Threads (empty = auto-formatted)"
+            className={fieldCls}
+          />
+        </div>
+      );
+
+    case 'DISCORD':
+      return (
+        <div className="space-y-3">
+          <div>
+            <Label className={labelCls}>Display name <span className="text-white/30">(webhook username override)</span></Label>
+            <Input
+              value={(options.username as string) ?? ''}
+              onChange={(e) => onChange('username', e.target.value)}
+              maxLength={80}
+              placeholder="NetAmplify"
+              className={fieldCls}
+            />
+          </div>
+        </div>
+      );
+
+    case 'TELEGRAM':
+      return (
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="tg-disable-notif"
+            checked={(options.disableNotification as boolean) ?? false}
+            onChange={(e) => onChange('disableNotification', e.target.checked)}
+            className="h-4 w-4 rounded border-white/20 bg-white/5"
+          />
+          <Label htmlFor="tg-disable-notif" className={labelCls}>Send silently <span className="text-white/30">(no notification sound)</span></Label>
+        </div>
+      );
+
     default:
-      // Threads, Facebook, LinkedIn, X (Twitter), Discord, Telegram,
-      // Mastodon, WordPress — no per-platform options yet; the auto-formatted
-      // post (Format Engine) is used as-is.
+      // X (Twitter), TWITTER_COOKIE, Mastodon, WordPress — no per-platform
+      // options; the auto-formatted PostCard is used as-is.
       return (
         <p className="text-xs text-white/30">
           No per-platform options for {platformName(platform)} — the auto-formatted PostCard is used as-is.
@@ -768,6 +851,16 @@ function defaultOptionsFor(platform: string, card: PostCard): Record<string, str
       };
     case 'BLUESKY':
       return { altText: '' };
+    case 'LINKEDIN':
+      return { hashtags: '', visibility: 'PUBLIC' };
+    case 'FACEBOOK':
+      return { hashtags: '' };
+    case 'THREADS':
+      return { caption: '' };
+    case 'DISCORD':
+      return { username: '' };
+    case 'TELEGRAM':
+      return { disableNotification: false };
     default:
       return {};
   }

@@ -203,7 +203,16 @@ export class LinkedInAdapter implements PlatformAdapter {
 
     // LinkedIn shares text content (no markdown, line breaks preserved).
     // Per FR-011: ≤3000 chars, ≤3 hashtags, link on own line.
-    const text = `${formatted.title}\n\n${formatted.body}\n${formatted.url || ''}`.trim();
+    // Per-platform override: formatted.options.hashtags (comma-separated)
+    // overrides the Format Engine's techStack hashtags.
+    const optHashtags = (formatted.options?.hashtags as string | undefined)?.trim();
+    const hashtagArr = optHashtags
+      ? optHashtags.split(',').map((t) => t.trim()).filter(Boolean).slice(0, 3)
+      : (formatted.hashtags ?? []).slice(0, 3);
+    const tagsLine = hashtagArr.length > 0
+      ? `\n\n${hashtagArr.map((t) => `#${t}`).join(' ')}`
+      : '';
+    const text = `${formatted.title}\n\n${formatted.body}${formatted.url ? `\n${formatted.url}` : ''}${tagsLine}`.trim();
     if (text.length > 3000) {
       throw new PublishError(
         'VALIDATION',
