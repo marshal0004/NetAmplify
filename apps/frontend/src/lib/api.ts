@@ -380,10 +380,15 @@ export const publishApi = {
     postCardId: string,
     platforms: Array<{ platform: string; options?: Record<string, unknown> }>,
     requestId?: string,
+    scheduledAt?: string,
   ): Promise<Post> {
     return request(`/postcards/${postCardId}/publish`, {
       method: 'POST',
-      body: JSON.stringify({ platforms, ...(requestId ? { requestId } : {}) }),
+      body: JSON.stringify({
+        platforms,
+        ...(requestId ? { requestId } : {}),
+        ...(scheduledAt ? { scheduledAt } : {}),
+      }),
     }, PostSchema);
   },
 

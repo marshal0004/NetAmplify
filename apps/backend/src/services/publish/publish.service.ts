@@ -184,6 +184,15 @@ export class PublishService {
     }
 
     // 6. Enqueue BullMQ jobs for non-skipped targets
+    // If scheduledAt is set + in the future, delay each job until that time.
+    // BullMQ holds delayed jobs in the queue until the delay expires, then
+    // processes them normally — no schema change needed, no cron job, no
+    // extra infrastructure.
+    const scheduledAt = input.scheduledAt
+      ? new Date(input.scheduledAt).getTime()
+      : undefined;
+    const delayMs = scheduledAt ? Math.max(0, scheduledAt - Date.now()) : undefined;
+
     for (const target of targets) {
       const skipped = skippedTargets.find((s) => s.platform === target.platform);
       if (skipped) continue;
@@ -201,6 +210,7 @@ export class PublishService {
           jobId: target.id, // dedup by target id
           attempts: 3, // BullMQ-level retries (worker also handles via PublishError class)
           backoff: { type: 'exponential', delay: 10_000 }, // 10s, 20s, 40s
+          ...(delayMs && delayMs > 0 ? { delay: delayMs } : {}),
         },
       );
     }

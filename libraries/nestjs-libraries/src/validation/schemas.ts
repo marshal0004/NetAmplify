@@ -188,6 +188,17 @@ export const PUBLISH_SCHEMA = z.object({
     .min(1, 'requestId is required for idempotency')
     .max(128, 'requestId too long')
     .optional(),
+  // Optional ISO date string for scheduling. If set + in the future,
+  // the BullMQ job is delayed until that time. If unset or in the past,
+  // the job runs immediately (current behavior).
+  scheduledAt: z
+    .string()
+    .datetime()
+    .optional()
+    .refine(
+      (val) => !val || new Date(val).getTime() > Date.now(),
+      'scheduledAt must be in the future',
+    ),
 });
 
 // ============================================================================

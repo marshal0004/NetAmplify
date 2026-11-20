@@ -75,6 +75,7 @@ const YOUTUBE_CATEGORIES = [
 export function PublishPage() {
   const { id } = useParams<{ id: string }>();
   const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(new Set());
+  const [scheduledAt, setScheduledAt] = useState(''); // ISO datetime string for scheduling (empty = publish now)
   const [post, setPost] = useState<Post | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -190,16 +191,13 @@ export function PublishPage() {
     setError(null);
     setLoading(true);
     try {
-      // Attach the per-platform options to each platform entry. sanitizeOptions
-      // drops empty-string fields (so the adapter falls back to its default)
-      // and keeps booleans (e.g. YouTube madeForKids, DevTo published).
       const platforms = Array.from(selectedPlatforms).map((p) => {
         const opts = platformOptions[p];
         const sanitized = opts ? sanitizeOptions(opts) : undefined;
         return { platform: p, ...(sanitized ? { options: sanitized } : {}) };
       });
       const requestId = `publish-${Date.now()}`;
-      const result = await publishApi.publish(id, platforms, requestId);
+      const result = await publishApi.publish(id, platforms, requestId, scheduledAt || undefined);
       setPost(result);
     } catch (err) {
       setError(getErrorMessage(err));
@@ -397,7 +395,52 @@ export function PublishPage() {
             platformName={platformName}
           />
 
-          {/* Amplify button */}
+          {/* Scheduling — datetime picker with quick picks (matching postflare's
+              SchedulePicker UX). Empty = publish immediately (current behavior). */}
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="datetime-local"
+              value={scheduledAt ? scheduledAt.slice(0, 16) : ''}
+              onChange={(e) => {
+                const val = e.target.value;
+                setScheduledAt(val ? new Date(val).toISOString() : '');
+              }}
+              className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white [color-scheme:dark]"
+              title="Schedule for later (leave empty to publish now)"
+            />
+            {scheduledAt && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setScheduledAt('')}
+                className="text-white/40 hover:text-white"
+              >
+                Clear (publish now)
+              </Button>
+            )}
+            {!scheduledAt && (
+              <>
+                <Button type="button" variant="ghost" size="sm"
+                  onClick={() => setScheduledAt(new Date(Date.now() + 3600_000).toISOString())}
+                  className="text-white/40 hover:text-white">
+                  In 1 hour
+                </Button>
+                <Button type="button" variant="ghost" size="sm"
+                  onClick={() => {
+                    const d = new Date();
+                    d.setDate(d.getDate() + 1);
+                    d.setHours(9, 0, 0, 0);
+                    setScheduledAt(d.toISOString());
+                  }}
+                  className="text-white/40 hover:text-white">
+                  Tomorrow 9:00
+                </Button>
+              </>
+            )}
+          </div>
+
+          {/* Amplify / Schedule button */}
           <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
             <Button
               size="lg"
@@ -408,10 +451,12 @@ export function PublishPage() {
               {loading ? (
                 <span className="flex items-center gap-2">
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                  Publishing…
+                  {scheduledAt ? 'Scheduling…' : 'Publishing…'}
                 </span>
               ) : hasBlockingErrors ? (
                 `Fix ${blockingErrorCount} issue${blockingErrorCount === 1 ? '' : 's'} to publish`
+              ) : scheduledAt ? (
+                `📅 Schedule for ${new Date(scheduledAt).toLocaleString()}`
               ) : (
                 `🚀 Amplify to ${selectedPlatforms.size} platform${selectedPlatforms.size === 1 ? '' : 's'}`
               )}
