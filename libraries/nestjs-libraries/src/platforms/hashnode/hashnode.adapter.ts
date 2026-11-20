@@ -37,7 +37,7 @@ import type {
 } from '../adapter.interface';
 import { PublishError } from '../adapter.interface';
 import type { Platform } from '@prisma/client';
-import { isVideoMedia } from '../../services/uploads-dir';
+import { isVideoMedia, resolvePublicMediaUrl } from '../../services/uploads-dir';
 
 // The working Hashnode GraphQL endpoint (POST only).
 // gql.hashnode.com now redirects to an HTML page; gql-beta.hashnode.com
@@ -155,7 +155,7 @@ export class HashnodeAdapter implements PlatformAdapter {
       const text = await resp.text();
       throw new PublishError(
         'NETWORK',
-        `Hashnode validation failed (${resp.status}): ${text.slice(0, 300)}`
+        `Hashnode validation failed (${resp.status}): ${text.slice(0, 1000)}`
       );
     }
 
@@ -301,6 +301,21 @@ export class HashnodeAdapter implements PlatformAdapter {
       // (Not an error — the article content is still valid; only the cover is dropped.)
       coverImage = undefined;
     }
+    // Resolve the cover image URL to an ABSOLUTE URL. Hashnode fetches the
+    // image from this URL — a relative URL (/uploads/x.jpg) is invalid.
+    // resolvePublicMediaUrl converts relative → absolute via PUBLIC_APP_URL.
+    if (coverImage) {
+      const resolved = resolvePublicMediaUrl(coverImage);
+      if (!resolved) {
+        throw new PublishError(
+          'VALIDATION',
+          `Hashnode cover image URL "${coverImage}" is relative and ` +
+            `PUBLIC_APP_URL is not set. Set PUBLIC_APP_URL in .env to an HTTPS URL ` +
+            `(e.g. an ngrok tunnel) so Hashnode can fetch the cover image.`,
+        );
+      }
+      coverImage = resolved;
+    }
     // canonicalUrl — defaults to the PostCard repo/live URL (formatted.url);
     // the panel can override (e.g. for cross-posting a canonical source).
     const canonicalUrl =
@@ -339,7 +354,7 @@ export class HashnodeAdapter implements PlatformAdapter {
       const text = await resp.text();
       throw new PublishError(
         'NETWORK',
-        `Hashnode publish failed (${resp.status}): ${text.slice(0, 300)}`
+        `Hashnode publish failed (${resp.status}): ${text.slice(0, 1000)}`
       );
     }
 
@@ -419,7 +434,7 @@ export class HashnodeAdapter implements PlatformAdapter {
       const text = await resp.text();
       throw new PublishError(
         'NETWORK',
-        `Hashnode publication fetch failed (${resp.status}): ${text.slice(0, 300)}`,
+        `Hashnode publication fetch failed (${resp.status}): ${text.slice(0, 1000)}`,
       );
     }
 

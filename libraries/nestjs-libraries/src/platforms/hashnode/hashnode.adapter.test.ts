@@ -289,6 +289,11 @@ describe('HashnodeAdapter', () => {
     });
 
     it('sends coverImageURL when the cover media is an image (.jpg)', async () => {
+      // Set PUBLIC_APP_URL so the relative cover image URL is resolved to
+      // an absolute URL (Hashnode fetches the image from this URL).
+      const prevPublicAppUrl = process.env.PUBLIC_APP_URL;
+      process.env.PUBLIC_APP_URL = 'https://my-tunnel.ngrok-free.dev';
+
       const fetchMock = vi.fn().mockResolvedValue(
         mockResponse(200, {
           data: {
@@ -305,12 +310,15 @@ describe('HashnodeAdapter', () => {
         {
           title: 'Image-cover post',
           body: '# content',
-          options: { coverImage: '/uploads/photo.jpg' }, // image → sent as cover
+          options: { coverImage: '/uploads/photo.jpg' }, // relative → resolved to absolute
         },
       );
 
       const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-      expect(body.variables.input.coverImageURL).toBe('/uploads/photo.jpg');
+      // The relative URL is resolved to an absolute URL via PUBLIC_APP_URL
+      expect(body.variables.input.coverImageURL).toBe('https://my-tunnel.ngrok-free.dev/uploads/photo.jpg');
+
+      process.env.PUBLIC_APP_URL = prevPublicAppUrl; // restore
     });
 
     it('throws PublishError(AUTH) when pat missing', async () => {

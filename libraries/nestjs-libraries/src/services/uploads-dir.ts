@@ -113,3 +113,40 @@ export function readLocalUploadFile(url: string): Buffer | null {
   const { readFileSync } = require('fs') as typeof import('fs');
   return readFileSync(localPath);
 }
+
+/**
+ * Resolve a media URL to an absolute, publicly-fetchable URL.
+ *
+ * The upload controller stores RELATIVE URLs ("/uploads/<filename>") so media
+ * renders on any origin in the browser. But platforms that FETCH the media
+ * from their servers (Dev.to, Hashnode, Facebook, Instagram, Threads) need an
+ * ABSOLUTE URL — a relative URL like "/uploads/x.jpg" is not a valid URL they
+ * can download from.
+ *
+ * This function:
+ *   - Returns absolute URLs (http://, https://) unchanged.
+ *   - Resolves relative URLs against PUBLIC_APP_URL (the public backend origin
+ *     — e.g. an ngrok tunnel in dev, the prod domain in production).
+ *   - Returns null if the URL is relative AND PUBLIC_APP_URL is unset (the
+ *     caller should throw a clear VALIDATION error telling the user to set
+ *     PUBLIC_APP_URL).
+ *
+ * Used by: Dev.to (main_image), Hashnode (coverImageURL), Facebook (image
+ * fallback for external URLs). Instagram + Threads use their own
+ * rewriteLocalhostUrlForMeta (same logic, inline).
+ */
+export function resolvePublicMediaUrl(url: string): string | null {
+  if (!url) return null;
+  // Already absolute — return as-is.
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  // Relative URL — resolve against PUBLIC_APP_URL.
+  const publicAppUrl = process.env.PUBLIC_APP_URL;
+  if (!publicAppUrl) return null;
+  try {
+    return new URL(url, publicAppUrl).toString();
+  } catch {
+    return null;
+  }
+}

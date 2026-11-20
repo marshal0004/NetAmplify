@@ -42,6 +42,7 @@ import type {
 } from '../adapter.interface';
 import { PublishError } from '../adapter.interface';
 import type { Platform } from '@prisma/client';
+import { readLocalUploadFile, resolvePublicMediaUrl } from '../../services/uploads-dir';
 
 const FB_AUTHORIZE_URL = 'https://www.facebook.com/v21.0/dialog/oauth';
 const FB_TOKEN_URL = 'https://graph.facebook.com/v21.0/oauth/access_token';
@@ -298,19 +299,48 @@ export class FacebookAdapter implements PlatformAdapter {
     let resp: Response;
 
     if (imageUrl) {
-      // Download the image locally first — the backend CAN access localhost
-      // (uploaded files are at http://localhost:3000/uploads/xxx.jpg).
-      // Meta's servers CANNOT access localhost, so we must download the
-      // image and upload the raw data to Meta's API.
-      const imgDownloadResp = await fetch(imageUrl);
-      if (!imgDownloadResp.ok) {
-        throw new PublishError(
-          'NETWORK',
-          `Failed to download image from ${imageUrl} (${imgDownloadResp.status})`,
-        );
+      // Read the image bytes. For local /uploads/ files, read directly from
+      // disk via readLocalUploadFile (bypasses the URL roundtrip — Node's
+      // fetch can't parse relative URLs like "/uploads/x.jpg", and even if
+      // it could, an HTTP roundtrip to localhost is wasteful). For external
+      // URLs (e.g. a CDN image), HTTP-fetch the resolved absolute URL.
+      //
+      // Meta's servers CANNOT access localhost, so we must read/download the
+      // image and upload the raw data to Meta's API (not the URL).
+      let imgBuffer: Buffer;
+      let imgContentType: string;
+
+      const localBytes = readLocalUploadFile(imageUrl);
+      if (localBytes) {
+        // Local file — read from disk. Detect MIME from the extension.
+        imgBuffer = localBytes;
+        const ext = imageUrl.split(/[?#]/)[0].match(/\.[a-z0-9]+$/i)?.[0]?.toLowerCase() ?? '';
+        const EXT_MIME: Record<string, string> = {
+          '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+          '.gif': 'image/gif', '.webp': 'image/webp',
+        };
+        imgContentType = EXT_MIME[ext] || 'image/jpeg';
+      } else {
+        // External URL — resolve to absolute (in case it's relative + the
+        // local file doesn't exist), then HTTP-fetch.
+        const absoluteUrl = resolvePublicMediaUrl(imageUrl);
+        if (!absoluteUrl) {
+          throw new PublishError(
+            'VALIDATION',
+            `Facebook image URL "${imageUrl}" is relative and PUBLIC_APP_URL is not set. ` +
+              `Set PUBLIC_APP_URL in .env to an HTTPS tunnel URL (e.g. ngrok) so the image can be fetched.`,
+          );
+        }
+        const imgDownloadResp = await fetch(absoluteUrl);
+        if (!imgDownloadResp.ok) {
+          throw new PublishError(
+            'NETWORK',
+            `Failed to download image from ${absoluteUrl} (${imgDownloadResp.status})`,
+          );
+        }
+        imgBuffer = Buffer.from(await imgDownloadResp.arrayBuffer());
+        imgContentType = imgDownloadResp.headers.get('content-type') || 'image/jpeg';
       }
-      const imgBuffer = await imgDownloadResp.arrayBuffer();
-      const imgContentType = imgDownloadResp.headers.get('content-type') || 'image/jpeg';
 
       // Upload image directly to Meta via multipart/form-data
       // POST /{page-id}/photos with 'source' field (file upload)
