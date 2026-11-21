@@ -34,14 +34,14 @@ export function History() {
 
       <div className="flex gap-4">
         <select value={platformFilter} onChange={(e) => setPlatformFilter(e.target.value)}
-          className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white">
+          className="rounded-lg border ring-1 ring-zinc-200 text-zinc-50 px-3 py-2 text-sm text-white">
           <option value="">All platforms</option>
-          {['DISCORD', 'DEVTO', 'TELEGRAM', 'BLUESKY', 'HASHNODE', 'TWITTER', 'LINKEDIN', 'MASTODON', 'WORDPRESS', 'TWITTER_COOKIE', 'FACEBOOK', 'INSTAGRAM', 'YOUTUBE', 'THREADS'].map((p) => (
+          {['DISCORD', 'DEVTO', 'TELEGRAM', 'BLUESKY', 'TWITTER', 'LINKEDIN', 'MASTODON', 'WORDPRESS', 'TWITTER_COOKIE', 'FACEBOOK', 'INSTAGRAM', 'YOUTUBE', 'THREADS'].map((p) => (
             <option key={p} value={p}>{p}</option>
           ))}
         </select>
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
-          className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white">
+          className="rounded-lg border ring-1 ring-zinc-200 text-zinc-50 px-3 py-2 text-sm text-white">
           <option value="">All statuses</option>
           {['QUEUED', 'PUBLISHING', 'SUCCESS', 'FAILED', 'SKIPPED'].map((s) => (
             <option key={s} value={s}>{s}</option>
@@ -50,20 +50,20 @@ export function History() {
       </div>
 
       {isLoading ? (
-        <div className="text-white/50">Loading history…</div>
+        <div className="text-zinc-500">Loading history…</div>
       ) : data && data.items.length > 0 ? (
         <div className="space-y-4">
           {data.items.map((item, i) => (
             <motion.div key={item.post.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: i * 0.05 }}>
-              <Card className="border-white/10 bg-white/[0.03] backdrop-blur-xl">
+              <Card className="ring-1 ring-zinc-200 bg-white shadow-sm">
                 <CardContent className="pt-6">
                   <div className="mb-3 flex items-center justify-between">
-                    <span className="text-sm text-white/40">{new Date(item.post.createdAt).toLocaleString()}</span>
-                    <span className="text-xs text-white/20">Post ID: {item.post.id}</span>
+                    <span className="text-sm text-zinc-400">{new Date(item.post.createdAt).toLocaleString()}</span>
+                    <span className="text-xs text-zinc-300">Post ID: {item.post.id}</span>
                   </div>
                   <div className="space-y-2">
                     {item.post.targets.map((target) => (
-                      <div key={target.id} className="flex items-center justify-between rounded-lg bg-black/30 px-3 py-2">
+                      <div key={target.id} className="flex items-center justify-between rounded-lg bg-zinc-50 px-3 py-2">
                         <div className="flex items-center gap-3">
                           <span className={`rounded-md px-2 py-0.5 text-xs font-mono ${statusConfig[target.status] ?? statusConfig.QUEUED}`}>
                             {target.status}
@@ -73,7 +73,7 @@ export function History() {
                         <div className="flex items-center gap-3">
                           {target.error && <span className="max-w-xs truncate text-xs text-red-400" title={target.error}>{target.error}</span>}
                           {target.platformPostUrl && (
-                            <a href={target.platformPostUrl} target="_blank" rel="noreferrer" className="text-xs text-indigo-400 hover:underline">View →</a>
+                            <a href={target.platformPostUrl} target="_blank" rel="noreferrer" className="text-xs text-orange-500 hover:underline">View →</a>
                           )}
                         </div>
                       </div>
@@ -85,10 +85,10 @@ export function History() {
           ))}
         </div>
       ) : (
-        <Card className="border-dashed border-white/10 bg-white/[0.02]">
+        <Card className="border-dashed ring-1 ring-zinc-200 bg-zinc-50">
           <CardContent className="pt-6 text-center">
-            <p className="text-lg text-white/40">No publishes yet</p>
-            <p className="text-sm text-white/30">Create a Post Card and amplify it to see history here.</p>
+            <p className="text-lg text-zinc-400">No publishes yet</p>
+            <p className="text-sm text-zinc-400">Create a Post Card and amplify it to see history here.</p>
           </CardContent>
         </Card>
       )}

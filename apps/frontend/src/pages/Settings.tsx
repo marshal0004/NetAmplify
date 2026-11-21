@@ -41,29 +41,29 @@ export function Settings() {
       </motion.h1>
 
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }}>
-        <Card className="border-white/10 bg-white/[0.03] backdrop-blur-xl">
+        <Card className="ring-1 ring-zinc-200 bg-white shadow-sm">
           <CardHeader><CardTitle className="text-white">Profile</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <Label htmlFor="name" className="text-white/60">Name</Label>
-              <Input id="name" value={user?.name ?? ''} readOnly className="mt-1 border-white/10 bg-white/5 text-white/50" />
+              <Label htmlFor="name" className="text-zinc-600">Name</Label>
+              <Input id="name" value={user?.name ?? ''} readOnly className="mt-1 ring-1 ring-zinc-200 text-zinc-50 text-zinc-500" />
             </div>
             <div>
-              <Label htmlFor="email" className="text-white/60">Email</Label>
-              <Input id="email" value={user?.email ?? ''} readOnly className="mt-1 border-white/10 bg-white/5 text-white/50" />
+              <Label htmlFor="email" className="text-zinc-600">Email</Label>
+              <Input id="email" value={user?.email ?? ''} readOnly className="mt-1 ring-1 ring-zinc-200 text-zinc-50 text-zinc-500" />
             </div>
-            <p className="text-xs text-white/30">Profile editing is coming in a future update.</p>
+            <p className="text-xs text-zinc-400">Profile editing is coming in a future update.</p>
           </CardContent>
         </Card>
       </motion.div>
 
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.2 }}>
-        <Card className="border-white/10 bg-white/[0.03] backdrop-blur-xl">
+        <Card className="ring-1 ring-zinc-200 bg-white shadow-sm">
           <CardHeader><CardTitle className="text-white">Trust & Security</CardTitle></CardHeader>
           <CardContent>
             <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/5 p-4">
-              <h3 className="mb-3 font-semibold text-indigo-300">How we protect you</h3>
-              <ul className="space-y-2 text-sm text-white/60">
+              <h3 className="mb-3 font-semibold text-orange-600">How we protect you</h3>
+              <ul className="space-y-2 text-sm text-zinc-600">
                 <li>🔐 We never see or store your platform passwords — OAuth or keys you control, only.</li>
                 <li>🔒 Credentials are encrypted (AES-256-GCM) — even a database breach alone can't expose usable credentials.</li>
                 <li>✅ We request the minimum permissions possible: posting only. No DMs, no password changes, no account access.</li>
@@ -80,12 +80,12 @@ export function Settings() {
           <CardHeader><CardTitle className="text-red-400">Danger Zone</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <p className="mb-2 text-sm text-white/50">
+              <p className="mb-2 text-sm text-zinc-500">
                 Permanently delete your account and all associated data (Post Cards, connections, publish history). This action cannot be undone.
               </p>
-              <Label htmlFor="delete-confirm" className="text-white/60">Type "DELETE" to confirm</Label>
+              <Label htmlFor="delete-confirm" className="text-zinc-600">Type "DELETE" to confirm</Label>
               <Input id="delete-confirm" value={deleteConfirm} onChange={(e) => setDeleteConfirm(e.target.value)}
-                placeholder="DELETE" className="mt-1 max-w-xs border-white/10 bg-white/5 text-white placeholder:text-white/20" />
+                placeholder="DELETE" className="mt-1 max-w-xs ring-1 ring-zinc-200 text-zinc-50 text-zinc-900 placeholder:text-zinc-300" />
             </div>
             <Button variant="destructive" onClick={handleDeleteAccount} disabled={loading || deleteConfirm !== 'DELETE'}>
               {loading ? 'Deleting…' : 'Permanently delete account'}

@@ -57,8 +57,7 @@ const PLATFORM_COLORS: Record<string, string> = {
   YOUTUBE: 'bg-red-600',
   BLUESKY: 'bg-sky-500',
   THREADS: 'bg-black',
-  HASHNODE: 'bg-blue-500',
-  DEVTO: 'bg-gray-800',
+    DEVTO: 'bg-gray-800',
   DISCORD: 'bg-indigo-600',
   TELEGRAM: 'bg-sky-600',
   MASTODON: 'bg-purple-600',
@@ -70,7 +69,7 @@ const PLATFORM_COLORS: Record<string, string> = {
  * a cover image). Social platforms show the media ABOVE the text (like a
  * photo post with a caption).
  */
-const BLOG_PLATFORMS = new Set(['HASHNODE', 'DEVTO', 'LINKEDIN']);
+const BLOG_PLATFORMS = new Set(['DEVTO', 'LINKEDIN']);
 
 /**
  * Render the Live Preview panel. Returns null when no platforms are selected.
@@ -103,7 +102,7 @@ export function LivePreviewGrid({
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.3, delay: i * 0.1 }}
             >
-              <Card className="h-full overflow-hidden border-white/10 bg-white/[0.03] backdrop-blur-xl">
+              <Card className="h-full overflow-hidden ring-1 ring-zinc-200 bg-white shadow-sm">
                 <CardContent className="p-4">
                   {/* === Platform-native header === */}
                   <div className="mb-3 flex items-center gap-2.5">
@@ -114,7 +113,7 @@ export function LivePreviewGrid({
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold text-white">{name}</p>
-                      <p className="text-xs text-white/40">now</p>
+                      <p className="text-xs text-zinc-400">now</p>
                     </div>
                     {/* Char counter badge — red when over limit */}
                     {charLimit > 0 && (
@@ -124,7 +123,7 @@ export function LivePreviewGrid({
                             ? 'bg-red-500/20 text-red-400'
                             : charCount > charLimit * 0.9
                               ? 'bg-amber-500/20 text-amber-400'
-                              : 'bg-white/5 text-white/40'
+                              : 'text-zinc-50 text-zinc-400'
                         }`}
                       >
                         {charCount}/{charLimit}
@@ -142,7 +141,7 @@ export function LivePreviewGrid({
                     <MediaPreview
                       src={card.imageUrl}
                       alt={card.title}
-                      className="mb-3 max-h-48 w-full rounded-lg border border-white/10 object-cover"
+                      className="mb-3 max-h-48 w-full rounded-lg border ring-1 ring-zinc-200 object-cover"
                     />
                   )}
 
@@ -151,10 +150,10 @@ export function LivePreviewGrid({
                     <MediaPreview
                       src={card.imageUrl}
                       alt={card.title}
-                      className="mb-3 max-h-64 w-full rounded-lg border border-white/10 object-cover"
+                      className="mb-3 max-h-64 w-full rounded-lg border ring-1 ring-zinc-200 object-cover"
                     />
                   ) : !isBlog && !card?.imageUrl ? (
-                    <p className="mb-3 rounded-lg border border-dashed border-white/10 bg-black/20 p-3 text-xs text-white/30">
+                    <p className="mb-3 rounded-lg border border-dashed ring-1 ring-zinc-200 bg-zinc-100 p-3 text-xs text-zinc-400">
                       No media attached — Instagram and YouTube require media.
                     </p>
                   ) : null}
@@ -168,35 +167,35 @@ export function LivePreviewGrid({
                           {preview.formatted.title}
                         </p>
                       )}
-                      <p className="whitespace-pre-wrap text-white/70">
+                      <p className="whitespace-pre-wrap text-zinc-700">
                         {renderTextWithOverflow(body, charLimit)}
                       </p>
                       {preview.formatted.url && (
-                        <p className="mt-2 break-all text-indigo-400">
+                        <p className="mt-2 break-all text-orange-500">
                           {preview.formatted.url}
                         </p>
                       )}
                       {preview.formatted.hashtags &&
                         preview.formatted.hashtags.length > 0 && (
-                          <p className="mt-2 text-xs text-white/40">
+                          <p className="mt-2 text-xs text-zinc-400">
                             {preview.formatted.hashtags.map((t) => `#${t}`).join(' ')}
                           </p>
                         )}
                     </div>
                   ) : (
-                    <div className="flex items-center gap-2 text-sm text-white/30">
+                    <div className="flex items-center gap-2 text-sm text-zinc-400">
                       <div className="h-3 w-3 animate-spin rounded-full border border-white/20 border-t-indigo-400" />
                       Loading preview…
                     </div>
                   )}
 
                   {/* === Engagement buttons row (visual only) === */}
-                  <div className="mt-3 flex items-center gap-4 border-t border-white/5 pt-3 text-white/30">
+                  <div className="mt-3 flex items-center gap-4 border-t ring-1 ring-zinc-100 pt-3 text-zinc-400">
                     <Heart className="h-4 w-4 hover:text-red-400" />
                     <MessageCircle className="h-4 w-4 hover:text-sky-400" />
                     <Repeat2 className="h-4 w-4 hover:text-green-400" />
                     <Bookmark className="ml-auto h-4 w-4 hover:text-amber-400" />
-                    <Share className="h-4 w-4 hover:text-white/60" />
+                    <Share className="h-4 w-4 hover:text-zinc-600" />
                   </div>
                 </CardContent>
               </Card>

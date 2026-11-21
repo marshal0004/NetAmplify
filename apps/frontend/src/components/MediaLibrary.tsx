@@ -49,7 +49,7 @@ export function MediaLibrary({
   });
 
   return (
-    <Card className="border-white/10 bg-white/[0.03] backdrop-blur-xl">
+    <Card className="ring-1 ring-zinc-200 bg-white shadow-sm">
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm text-white">Media Library</CardTitle>
@@ -59,7 +59,7 @@ export function MediaLibrary({
               variant="outline"
               size="sm"
               onClick={onUploadNew}
-              className="border-white/10 bg-white/5 text-white/60 hover:bg-white/10"
+              className="ring-1 ring-zinc-200 text-zinc-50 text-zinc-600 hover:text-zinc-100"
             >
               + Upload new
             </Button>
@@ -67,10 +67,10 @@ export function MediaLibrary({
         </div>
       </CardHeader>
       <CardContent>
-        {isLoading && <p className="text-sm text-white/40">Loading your media…</p>}
+        {isLoading && <p className="text-sm text-zinc-400">Loading your media…</p>}
         {error && <p className="text-sm text-red-400">Could not load media library.</p>}
         {!isLoading && !error && media && media.length === 0 && (
-          <p className="text-sm text-white/30">
+          <p className="text-sm text-zinc-400">
             No media yet. Upload an image or video to reuse it across PostCards.
           </p>
         )}
@@ -82,7 +82,7 @@ export function MediaLibrary({
                 className={`group relative cursor-pointer overflow-hidden rounded-lg border transition-all ${
                   selectedUrl === item.url
                     ? 'border-indigo-500 ring-2 ring-indigo-500/50'
-                    : 'border-white/10 hover:border-indigo-500/50'
+                    : 'ring-1 ring-zinc-200 hover:border-indigo-500/50'
                 }`}
                 onClick={() => onSelect(item.url)}
                 title={item.filename}

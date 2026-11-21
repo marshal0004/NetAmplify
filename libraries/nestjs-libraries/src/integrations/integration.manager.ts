@@ -23,7 +23,6 @@ export const NETAMPLIFY_PLATFORMS = [
   'DEVTO',
   'TELEGRAM',
   'BLUESKY',
-  'HASHNODE',
   'LINKEDIN',
 ] as const;
 
@@ -38,7 +37,6 @@ export const TIER_A_PLATFORMS: ReadonlyArray<NetAmplifyPlatform> = [
   'DEVTO',
   'TELEGRAM',
   'BLUESKY',
-  'HASHNODE',
 ];
 
 export const TIER_B_PLATFORMS: ReadonlyArray<NetAmplifyPlatform> = [
@@ -63,7 +61,6 @@ export class IntegrationManager {
         );
       case 'discord':
       case 'devto':
-      case 'hashnode':
       case 'telegram':
       case 'bluesky':
         return true; // user-pasted credentials, no env vars required

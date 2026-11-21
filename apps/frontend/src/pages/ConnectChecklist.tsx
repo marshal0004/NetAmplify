@@ -13,7 +13,6 @@ const trustCopy: Record<string, string> = {
   DEVTO: 'You generate this key yourself in your account\'s settings. It can only manage content — and you can regenerate or delete it whenever you want.',
   TELEGRAM: 'The bot is YOURS — you create it with @BotFather and control it. We only get the ability to send messages to the one channel where you made it an admin. Remove the bot anytime.',
   BLUESKY: 'Bluesky built App Passwords exactly for this: separate from your real password, limited to posting, revocable in one click.',
-  HASHNODE: 'You generate this PAT yourself in your account\'s settings. It can only manage content — and you can regenerate or delete it whenever you want.',
   LINKEDIN: 'You\'ll log in on LinkedIn\'s official page — NetAmplify never sees your password. We receive only a limited permission to post on your behalf, and you can revoke it anytime in your LinkedIn settings.',
   TWITTER_COOKIE: 'Your X session is stored encrypted (AES-256-GCM) — we never see your X password. The session only allows posting tweets; we can\'t read your DMs, change your password, or take over your account. Log out of x.com on any device to instantly invalidate it.',
   FACEBOOK: 'You\'ll log in on Facebook\'s official page — NetAmplify never sees your password. We receive only a limited permission to post to your Facebook Page, and you can revoke it anytime in your Facebook settings.',
@@ -54,16 +53,6 @@ const platformConfig: Record<string, PlatformConfig> = {
       { text: 'Copy the key and paste it above' },
     ],
     docsLink: 'https://developers.forem.com/api/v1#section/Authentication',
-  },
-  HASHNODE: {
-    fields: [{ key: 'pat', label: 'Personal Access Token', placeholder: 'Your Hashnode PAT' }],
-    steps: [
-      { text: 'Open Hashnode developer settings (opens in new tab)', link: 'https://hashnode.com/settings/developer', linkText: 'Open Hashnode Settings' },
-      { text: 'Scroll down to "Personal Access Tokens"' },
-      { text: 'Click "Generate a new token"' },
-      { text: 'Copy the PAT and paste it above' },
-    ],
-    docsLink: 'https://apidocs.hashnode.com',
   },
   TELEGRAM: {
     fields: [
@@ -275,7 +264,7 @@ export function ConnectChecklist() {
     }
   }
 
-  if (isLoading) return <div className="text-white/50">Loading connections…</div>;
+  if (isLoading) return <div className="text-zinc-500">Loading connections…</div>;
 
   const connectedCount = connections?.filter((c) => c.platformUsername !== null).length ?? 0;
   const totalCount = connections?.length ?? 12;
@@ -289,20 +278,20 @@ export function ConnectChecklist() {
         transition={{ duration: 0.5 }}
       >
         <h1 className="text-3xl font-bold text-white">Connect your platforms</h1>
-        <p className="mt-2 text-white/50">
+        <p className="mt-2 text-zinc-500">
           Connect each platform once. After that, you can publish to all of them with one click.
         </p>
         {/* Progress bar */}
         <div className="mt-4 flex items-center gap-4">
-          <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/10">
+          <div className="h-2 flex-1 overflow-hidden rounded-full text-zinc-100">
             <motion.div
               initial={{ width: 0 }}
               animate={{ width: `${(connectedCount / totalCount) * 100}%` }}
               transition={{ duration: 0.8, ease: 'easeOut' }}
-              className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-500"
+              className="h-full rounded-full bg-gradient-to-r bg-orange-600"
             />
           </div>
-          <span className="text-sm font-medium text-white/70">{connectedCount}/{totalCount} connected</span>
+          <span className="text-sm font-medium text-zinc-700">{connectedCount}/{totalCount} connected</span>
         </div>
       </motion.div>
 
@@ -378,7 +367,7 @@ export function ConnectChecklist() {
               transition={{ duration: 0.4, delay: i * 0.05 }}
               whileHover={{ y: -3 }}
             >
-              <Card className={`relative overflow-hidden border-white/10 bg-white/[0.03] backdrop-blur-xl transition-all ${
+              <Card className={`relative overflow-hidden ring-1 ring-zinc-200 bg-white shadow-sm transition-all ${
                 isConnected ? 'border-green-500/20' : isTierB && !isConfigured ? 'border-amber-500/20' : ''
               }`}>
                 {/* Glow effect */}
@@ -403,7 +392,7 @@ export function ConnectChecklist() {
                       ) : isTierB && !isConfigured ? (
                         <Badge variant="outline" className="mt-1 border-amber-500/30 bg-amber-500/10 text-amber-400">Setup pending</Badge>
                       ) : (
-                        <span className="mt-1 block text-sm text-white/30">Not connected</span>
+                        <span className="mt-1 block text-sm text-zinc-400">Not connected</span>
                       )}
                     </div>
                     {isConnected ? (
@@ -423,13 +412,13 @@ export function ConnectChecklist() {
                           size="sm"
                           onClick={() => handleDisconnect(conn.platform)}
                           disabled={disconnectMutation.isPending}
-                          className="border-white/10 bg-white/5 text-white/60 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30"
+                          className="ring-1 ring-zinc-200 text-zinc-50 text-zinc-600 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30"
                         >
                           Disconnect
                         </Button>
                       </div>
                     ) : isTierB && !isConfigured ? (
-                      <Button variant="outline" size="sm" disabled className="border-white/5 text-white/20">Coming soon</Button>
+                      <Button variant="outline" size="sm" disabled className="ring-1 ring-zinc-100 text-zinc-300">Coming soon</Button>
                     ) : conn.platform === 'TWITTER_COOKIE' ? (
                       <Button
                         size="sm"
@@ -444,7 +433,7 @@ export function ConnectChecklist() {
                         size="sm"
                         onClick={() => handleConnect(conn.platform)}
                         disabled={connectMutation.isPending}
-                        className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 border-0"
+                        className="bg-gradient-to-r bg-orange-600 hover:bg-orange-700 border-0"
                       >
                         {fields ? 'Connect' : 'Connect via OAuth'}
                       </Button>
@@ -456,7 +445,7 @@ export function ConnectChecklist() {
                     <div className="space-y-3">
                       {fields.map((f) => (
                         <div key={f.key}>
-                          <Label htmlFor={`${conn.platform}-${f.key}`} className="text-xs text-white/40">{f.label}</Label>
+                          <Label htmlFor={`${conn.platform}-${f.key}`} className="text-xs text-zinc-400">{f.label}</Label>
                           <Input
                             id={`${conn.platform}-${f.key}`}
                             type={f.type ?? 'text'}
@@ -468,22 +457,22 @@ export function ConnectChecklist() {
                                 [conn.platform]: { ...prev[conn.platform], [f.key]: e.target.value },
                               }))
                             }
-                            className="mt-1 border-white/10 bg-white/5 text-white placeholder:text-white/20 focus:border-indigo-500/50"
+                            className="mt-1 ring-1 ring-zinc-200 text-zinc-50 text-zinc-900 placeholder:text-zinc-300 focus:ring-2 focus:ring-orange-500"
                           />
                         </div>
                       ))}
 
                       {/* Step-by-step instructions */}
-                      <div className="rounded-lg border border-white/5 bg-black/20 p-3">
-                        <p className="mb-2 text-xs font-medium text-indigo-300">📋 How to connect:</p>
+                      <div className="rounded-lg border ring-1 ring-zinc-100 bg-zinc-100 p-3">
+                        <p className="mb-2 text-xs font-medium text-orange-600">📋 How to connect:</p>
                         <ol className="space-y-1.5">
                           {config.steps.map((step, idx) => (
-                            <li key={idx} className="flex gap-2 text-xs text-white/50">
-                              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-white/10 text-[10px]">{idx + 1}</span>
+                            <li key={idx} className="flex gap-2 text-xs text-zinc-500">
+                              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-zinc-100 text-[10px]">{idx + 1}</span>
                               <span>
                                 {step.text}
                                 {step.link && (
-                                  <a href={step.link} target="_blank" rel="noreferrer" className="ml-1 text-indigo-400 hover:underline">
+                                  <a href={step.link} target="_blank" rel="noreferrer" className="ml-1 text-orange-500 hover:underline">
                                     {step.linkText ?? 'Open →'}
                                   </a>
                                 )}
@@ -492,7 +481,7 @@ export function ConnectChecklist() {
                           ))}
                         </ol>
                         {config.docsLink && (
-                          <a href={config.docsLink} target="_blank" rel="noreferrer" className="mt-2 block text-xs text-white/30 hover:text-white/50">
+                          <a href={config.docsLink} target="_blank" rel="noreferrer" className="mt-2 block text-xs text-zinc-400 hover:text-zinc-500">
                             📖 Read official docs
                           </a>
                         )}
@@ -502,14 +491,14 @@ export function ConnectChecklist() {
 
                   {/* OAuth instructions */}
                   {!isConnected && !fields && isConfigured && config?.steps && (
-                    <div className="rounded-lg border border-white/5 bg-black/20 p-3">
-                      <p className="text-xs text-white/50">{config.steps[0].text}</p>
+                    <div className="rounded-lg border ring-1 ring-zinc-100 bg-zinc-100 p-3">
+                      <p className="text-xs text-zinc-500">{config.steps[0].text}</p>
                     </div>
                   )}
 
                   {/* Publish result (for Test Publish on cookie platforms) */}
                   {publishResult[conn.platform] && (
-                    <div className="mt-3 rounded-lg border border-white/10 bg-black/30 p-3 text-sm">
+                    <div className="mt-3 rounded-lg border ring-1 ring-zinc-200 bg-zinc-50 p-3 text-sm">
                       {publishResult[conn.platform]}
                     </div>
                   )}
@@ -517,7 +506,7 @@ export function ConnectChecklist() {
                   {/* "Why is this safe?" expander */}
                   <button
                     onClick={() => setExpandedPlatform(isExpanded ? null : conn.platform)}
-                    className="mt-4 flex items-center gap-1 text-xs font-medium text-indigo-400 hover:text-indigo-300 transition-colors"
+                    className="mt-4 flex items-center gap-1 text-xs font-medium text-orange-500 hover:text-orange-600 transition-colors"
                   >
                     {isExpanded ? '− Hide' : '+ Why is this safe?'}
                   </button>
@@ -527,7 +516,7 @@ export function ConnectChecklist() {
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: 'auto' }}
                         exit={{ opacity: 0, height: 0 }}
-                        className="mt-2 text-sm leading-relaxed text-white/50"
+                        className="mt-2 text-sm leading-relaxed text-zinc-500"
                       >
                         {trustCopy[conn.platform]}
                       </motion.p>
@@ -549,7 +538,6 @@ function platformName(platform: string): string {
     DEVTO: 'Dev.to',
     TELEGRAM: 'Telegram',
     BLUESKY: 'Bluesky',
-    HASHNODE: 'Hashnode',
     LINKEDIN: 'LinkedIn',
     TWITTER_COOKIE: 'X (Twitter)',
     FACEBOOK: 'Facebook',

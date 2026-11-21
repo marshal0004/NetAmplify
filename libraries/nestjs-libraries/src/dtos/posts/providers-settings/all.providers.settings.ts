@@ -13,7 +13,6 @@ import { LinkedinDto } from '@netamplify/nestjs-libraries/dtos/posts/providers-s
 import { IsIn } from 'class-validator';
 import { MediumSettingsDto } from '@netamplify/nestjs-libraries/dtos/posts/providers-settings/medium.settings.dto';
 import { DevToSettingsDto } from '@netamplify/nestjs-libraries/dtos/posts/providers-settings/dev.to.settings.dto';
-import { HashnodeSettingsDto } from '@netamplify/nestjs-libraries/dtos/posts/providers-settings/hashnode.settings.dto';
 import { WordpressDto } from '@netamplify/nestjs-libraries/dtos/posts/providers-settings/wordpress.dto';
 import { ListmonkDto } from '@netamplify/nestjs-libraries/dtos/posts/providers-settings/listmonk.dto';
 import { GmbSettingsDto } from '@netamplify/nestjs-libraries/dtos/posts/providers-settings/gmb.settings.dto';
@@ -44,7 +43,6 @@ export type AllProvidersSettings =
   | ProviderExtension<'instagram-standalone', InstagramDto>
   | ProviderExtension<'medium', MediumSettingsDto>
   | ProviderExtension<'devto', DevToSettingsDto>
-  | ProviderExtension<'hashnode', HashnodeSettingsDto>
   | ProviderExtension<'wordpress', WordpressDto>
   | ProviderExtension<'listmonk', ListmonkDto>
   | ProviderExtension<'gmb', GmbSettingsDto>
@@ -84,8 +82,7 @@ export const allProviders = (setEmpty?: any) => {
     { value: MediumSettingsDto, name: 'medium' },
     { value: DevToSettingsDto, name: 'devto' },
     { value: WordpressDto, name: 'wordpress' },
-    { value: HashnodeSettingsDto, name: 'hashnode' },
-    { value: ListmonkDto, name: 'listmonk' },
+      { value: ListmonkDto, name: 'listmonk' },
     { value: GmbSettingsDto, name: 'gmb' },
     { value: FarcasterDto, name: 'wrapcast' },
     { value: FacebookDto, name: 'facebook' },

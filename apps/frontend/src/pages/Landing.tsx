@@ -5,14 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
-const platforms = ['Discord', 'Dev.to', 'Telegram', 'Bluesky', 'Hashnode', 'X', 'LinkedIn', 'Instagram', 'YouTube'];
+const platforms = ['Discord', 'Dev.to', 'Telegram', 'Bluesky', 'X', 'LinkedIn', 'Instagram', 'YouTube'];
 
 const features = [
   {
     icon: '🚀',
     title: 'One-Click Amplify',
     desc: 'Create a Post Card once. Click Amplify. NetAmplify formats and publishes to all your connected platforms simultaneously.',
-    gradient: 'from-indigo-500 to-purple-500',
+    gradient: 'bg-orange-600',
   },
   {
     icon: '🔐',
@@ -83,17 +83,17 @@ export function Landing() {
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="fixed top-0 z-50 w-full border-b border-white/5 bg-black/20 backdrop-blur-xl"
+        className="fixed top-0 z-50 w-full border-b ring-1 ring-zinc-100 bg-zinc-100 backdrop-blur-xl"
       >
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-500 text-sm font-bold">N</div>
-            <span className="text-lg font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">NetAmplify</span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br bg-orange-600 text-sm font-bold">N</div>
+            <span className="text-lg font-bold bg-gradient-to-r text-orange-500 bg-clip-text text-transparent">NetAmplify</span>
           </div>
           <div className="flex gap-3">
-            <Link to="/login"><Button variant="ghost" className="text-white/70 hover:text-white hover:bg-white/10">Log in</Button></Link>
+            <Link to="/login"><Button variant="ghost" className="text-zinc-700 hover:text-zinc-900 hover:text-zinc-100">Log in</Button></Link>
             <Link to="/signup">
-              <Button className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 border-0">
+              <Button className="bg-gradient-to-r bg-orange-600 hover:bg-orange-700 border-0">
                 Get started
               </Button>
             </Link>
@@ -112,7 +112,7 @@ export function Landing() {
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.8, ease: 'easeOut' }}
           >
-            <Badge className="mb-6 border-indigo-500/30 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20">
+            <Badge className="mb-6 border-indigo-500/30 bg-orange-50 text-orange-600 hover:bg-orange-100">
               ✨ Open Source · OAuth 2.0 · AES-256-GCM
             </Badge>
           </motion.div>
@@ -134,7 +134,7 @@ export function Landing() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.4 }}
-            className="mx-auto mt-8 max-w-2xl text-lg md:text-xl text-white/60"
+            className="mx-auto mt-8 max-w-2xl text-lg md:text-xl text-zinc-600"
           >
             A student creates a Post Card once; NetAmplify formats it per-platform and
             publishes to Discord, Dev.to, Telegram, Bluesky, Hashnode, and LinkedIn
@@ -148,12 +148,12 @@ export function Landing() {
             className="mt-10 flex justify-center gap-4"
           >
             <Link to="/signup">
-              <Button size="lg" className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 border-0 text-base px-8">
+              <Button size="lg" className="bg-gradient-to-r bg-orange-600 hover:bg-orange-700 border-0 text-base px-8">
                 Get started — it's free
               </Button>
             </Link>
             <Link to="/login">
-              <Button size="lg" variant="outline" className="border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white text-base px-8">
+              <Button size="lg" variant="outline" className="border-white/20 text-zinc-50 text-zinc-900 hover:text-zinc-100 hover:text-zinc-900 text-base px-8">
                 Log in
               </Button>
             </Link>
@@ -173,7 +173,7 @@ export function Landing() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.8 + i * 0.1 }}
                 whileHover={{ scale: 1.1, y: -5 }}
-                className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/80 backdrop-blur-sm transition-colors hover:border-indigo-500/50 hover:bg-indigo-500/10"
+                className="rounded-xl border ring-1 ring-zinc-200 text-zinc-50 px-4 py-2 text-sm font-medium text-zinc-800 backdrop-blur-sm transition-colors hover:border-indigo-500/50 hover:bg-orange-50"
               >
                 {p}
               </motion.div>
@@ -192,22 +192,22 @@ export function Landing() {
       >
         <motion.div variants={itemVariants} className="mb-16 text-center">
           <h2 className="text-4xl md:text-5xl font-bold">
-            Built for <span className="bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">students</span>
+            Built for <span className="bg-gradient-to-r text-orange-500 bg-clip-text text-transparent">students</span>
           </h2>
-          <p className="mt-4 text-lg text-white/50">Everything you need to showcase your work across the developer ecosystem.</p>
+          <p className="mt-4 text-lg text-zinc-500">Everything you need to showcase your work across the developer ecosystem.</p>
         </motion.div>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {features.map((f) => (
             <motion.div key={f.title} variants={itemVariants} whileHover={{ y: -8 }}>
-              <Card className="group relative overflow-hidden border-white/10 bg-white/[0.03] backdrop-blur-xl transition-all hover:border-white/20">
+              <Card className="group relative overflow-hidden ring-1 ring-zinc-200 bg-white shadow-sm transition-all hover:border-white/20">
                 <div className={`absolute inset-0 bg-gradient-to-br ${f.gradient} opacity-0 transition-opacity duration-500 group-hover:opacity-10`} />
                 <CardContent className="relative pt-6">
                   <div className={`mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br ${f.gradient} text-2xl shadow-lg`}>
                     {f.icon}
                   </div>
                   <h3 className="mb-2 text-lg font-semibold text-white">{f.title}</h3>
-                  <p className="text-sm leading-relaxed text-white/50">{f.desc}</p>
+                  <p className="text-sm leading-relaxed text-zinc-500">{f.desc}</p>
                 </CardContent>
               </Card>
             </motion.div>
@@ -224,7 +224,7 @@ export function Landing() {
         className="relative z-10 mx-auto max-w-4xl px-6 py-32"
       >
         <motion.h2 variants={itemVariants} className="mb-16 text-center text-4xl md:text-5xl font-bold">
-          How it <span className="bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">works</span>
+          How it <span className="bg-gradient-to-r text-orange-500 bg-clip-text text-transparent">works</span>
         </motion.h2>
 
         <div className="space-y-8">
@@ -234,12 +234,12 @@ export function Landing() {
             { step: '03', title: 'Amplify', desc: 'One click publishes to all connected platforms with per-platform formatting. Watch real-time status updates.' },
           ].map((s) => (
             <motion.div key={s.step} variants={itemVariants} className="flex items-start gap-6">
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-500 text-lg font-bold shadow-lg shadow-indigo-500/30">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br bg-orange-600 text-lg font-bold shadow-lg shadow-indigo-500/30">
                 {s.step}
               </div>
-              <div className="flex-1 border-l border-white/10 pl-6 pb-8">
+              <div className="flex-1 border-l ring-1 ring-zinc-200 pl-6 pb-8">
                 <h3 className="mb-2 text-xl font-semibold text-white">{s.title}</h3>
-                <p className="text-white/50">{s.desc}</p>
+                <p className="text-zinc-500">{s.desc}</p>
               </div>
             </motion.div>
           ))}
@@ -255,13 +255,13 @@ export function Landing() {
         className="relative z-10 mx-auto max-w-6xl px-6 py-32"
       >
         <motion.h2 variants={itemVariants} className="mb-16 text-center text-4xl md:text-5xl font-bold">
-          Loved by <span className="bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">students</span>
+          Loved by <span className="bg-gradient-to-r text-orange-500 bg-clip-text text-transparent">students</span>
         </motion.h2>
 
         <div className="grid gap-6 md:grid-cols-3">
           {testimonials.map((t) => (
             <motion.div key={t.name} variants={itemVariants} whileHover={{ y: -5 }}>
-              <Card className="border-white/10 bg-white/[0.03] backdrop-blur-xl">
+              <Card className="ring-1 ring-zinc-200 bg-white shadow-sm">
                 <CardContent className="pt-6">
                   <div className="mb-4 flex items-center gap-3">
                     <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500/20 to-purple-500/20 text-2xl">
@@ -269,10 +269,10 @@ export function Landing() {
                     </div>
                     <div>
                       <p className="font-semibold text-white">{t.name}</p>
-                      <p className="text-xs text-white/40">{t.role}</p>
+                      <p className="text-xs text-zinc-400">{t.role}</p>
                     </div>
                   </div>
-                  <p className="text-sm leading-relaxed text-white/60">"{t.text}"</p>
+                  <p className="text-sm leading-relaxed text-zinc-600">"{t.text}"</p>
                   <div className="mt-4 flex gap-1 text-yellow-400">★★★★★</div>
                 </CardContent>
               </Card>
@@ -289,16 +289,16 @@ export function Landing() {
         transition={{ duration: 0.8 }}
         className="relative z-10 mx-auto max-w-4xl px-6 py-32 text-center"
       >
-        <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 p-12 backdrop-blur-xl">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[300px] h-[300px] bg-indigo-500/20 rounded-full blur-[80px]" />
+        <div className="relative overflow-hidden rounded-3xl border ring-1 ring-zinc-200 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 p-12 backdrop-blur-xl">
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[300px] h-[300px] bg-orange-100 rounded-full blur-[80px]" />
           <h2 className="relative text-3xl md:text-4xl font-bold">
             Ready to get seen?
           </h2>
-          <p className="relative mt-4 text-white/50">
+          <p className="relative mt-4 text-zinc-500">
             Join students who are amplifying their projects across the developer ecosystem.
           </p>
           <Link to="/signup">
-            <Button size="lg" className="relative mt-8 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 border-0 text-base px-10">
+            <Button size="lg" className="relative mt-8 bg-gradient-to-r bg-orange-600 hover:bg-orange-700 border-0 text-base px-10">
               Start amplifying — free
             </Button>
           </Link>
@@ -306,19 +306,19 @@ export function Landing() {
       </motion.section>
 
       {/* Footer */}
-      <footer className="relative z-10 border-t border-white/5 bg-black/30 backdrop-blur-xl">
+      <footer className="relative z-10 border-t ring-1 ring-zinc-100 bg-zinc-50 backdrop-blur-xl">
         <div className="mx-auto max-w-6xl px-6 py-12">
           <div className="flex flex-col items-center justify-between gap-6 md:flex-row">
             <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-500 text-sm font-bold">N</div>
-              <span className="text-lg font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">NetAmplify</span>
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br bg-orange-600 text-sm font-bold">N</div>
+              <span className="text-lg font-bold bg-gradient-to-r text-orange-500 bg-clip-text text-transparent">NetAmplify</span>
             </div>
-            <div className="flex gap-6 text-sm text-white/40">
-              <a href="https://github.com/marshal0004/NetAmplify" target="_blank" rel="noreferrer" className="hover:text-white/80 transition-colors">GitHub</a>
+            <div className="flex gap-6 text-sm text-zinc-400">
+              <a href="https://github.com/marshal0004/NetAmplify" target="_blank" rel="noreferrer" className="hover:text-zinc-800 transition-colors">GitHub</a>
               <span>Post once. Get seen everywhere.</span>
             </div>
           </div>
-          <p className="mt-6 text-center text-xs text-white/20">
+          <p className="mt-6 text-center text-xs text-zinc-300">
             © 2026 NetAmplify. Open source. Built with TypeScript, NestJS, React, and Prisma.
           </p>
         </div>

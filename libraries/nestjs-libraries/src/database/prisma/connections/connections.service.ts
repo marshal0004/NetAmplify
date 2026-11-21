@@ -33,8 +33,7 @@ import {
   CONNECT_DISCORD_SCHEMA,
   CONNECT_TELEGRAM_SCHEMA,
   CONNECT_BLUESKY_SCHEMA,
-  CONNECT_HASHNODE_SCHEMA,
-  CONNECT_TWITTER_COOKIE_SCHEMA,
+    CONNECT_TWITTER_COOKIE_SCHEMA,
 } from '@netamplify/nestjs-libraries/validation/schemas';
 
 interface AuditContext {
@@ -210,8 +209,6 @@ export class ConnectionsService {
       case 'BLUESKY':
         parsedInput = CONNECT_BLUESKY_SCHEMA.parse(rawInput) as Record<string, string>;
         break;
-      case 'HASHNODE':
-        parsedInput = CONNECT_HASHNODE_SCHEMA.parse(rawInput) as Record<string, string>;
         break;
       case 'TWITTER_COOKIE':
         parsedInput = CONNECT_TWITTER_COOKIE_SCHEMA.parse(rawInput) as Record<string, string>;
@@ -413,8 +410,6 @@ function connectionTypeFor(
     case 'THREADS':
       return 'OAUTH';
     case 'DEVTO':
-    case 'HASHNODE':
-    case 'MASTODON':
       return 'API_KEY';
     case 'DISCORD':
       return 'WEBHOOK';
@@ -426,8 +421,8 @@ function connectionTypeFor(
     case 'TWITTER_COOKIE':
       return 'COOKIE';
     default:
-      // Exhaustiveness check — TypeScript will error if a new platform is added
-      const _exhaustive: never = platform;
-      throw new Error(`Unknown platform: ${_exhaustive}`);
+      // Removed platforms (HASHNODE, MASTODON, WORDPRESS) still exist in the
+      // Prisma enum for data compat but have no credential type. Throw a clear error.
+      throw new Error(`Unknown or removed platform: ${platform}`);
   }
 }

@@ -21,7 +21,6 @@ import type { Platform } from '@prisma/client';
 import { LinkedInAdapter } from './linkedin/linkedin.adapter';
 import { DiscordAdapter } from './discord/discord.adapter';
 import { DevtoAdapter } from './devto/devto.adapter';
-import { HashnodeAdapter } from './hashnode/hashnode.adapter';
 import { TelegramAdapter } from './telegram/telegram.adapter';
 import { BlueskyAdapter } from './bluesky/bluesky.adapter';
 import { XCookieAdapter } from './x/x-cookie.adapter';
@@ -31,7 +30,10 @@ import { YouTubeAdapter } from './youtube/youtube.adapter';
 import { ThreadsAdapter } from './threads/threads.adapter';
 
 /**
- * Registry of the 11 NetAmplify platform adapters exposed to users.
+ * Registry of the 10 NetAmplify platform adapters exposed to users.
+ *
+ * Hashnode was removed (requires Pro plan for API publishing). The Prisma
+ * enum value HASHNODE is retained for data compat but no adapter is registered.
  *
  * The registry is a Map<Platform, PlatformAdapter>. Lookup is O(1).
  * Adapters are singletons (NestJS injectable); the registry holds one
@@ -45,7 +47,6 @@ export class AdapterRegistry {
     @Inject(LinkedInAdapter) private readonly _linkedin: LinkedInAdapter,
     @Inject(DiscordAdapter) private readonly _discord: DiscordAdapter,
     @Inject(DevtoAdapter) private readonly _devto: DevtoAdapter,
-    @Inject(HashnodeAdapter) private readonly _hashnode: HashnodeAdapter,
     @Inject(TelegramAdapter) private readonly _telegram: TelegramAdapter,
     @Inject(BlueskyAdapter) private readonly _bluesky: BlueskyAdapter,
     @Inject(XCookieAdapter) private readonly _xCookie: XCookieAdapter,
@@ -58,7 +59,6 @@ export class AdapterRegistry {
       ['LINKEDIN', this._linkedin],
       ['DISCORD', this._discord],
       ['DEVTO', this._devto],
-      ['HASHNODE', this._hashnode],
       ['TELEGRAM', this._telegram],
       ['BLUESKY', this._bluesky],
       ['TWITTER_COOKIE', this._xCookie],

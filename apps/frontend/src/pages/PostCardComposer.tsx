@@ -181,21 +181,21 @@ export function PostCardComposer() {
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Basics */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }}>
-          <Card className="border-white/10 bg-white/[0.03] backdrop-blur-xl">
+          <Card className="ring-1 ring-zinc-200 bg-white shadow-sm">
             <CardHeader><CardTitle className="text-white">Basics</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label htmlFor="title" className="text-white/60">Title <span className="text-red-500">*</span></Label>
+                <Label htmlFor="title" className="text-zinc-600">Title <span className="text-red-500">*</span></Label>
                 <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} required maxLength={120} placeholder="My Awesome Project"
-                  className="mt-1 border-white/10 bg-white/5 text-white placeholder:text-white/20 focus:border-indigo-500/50" />
-                <p className="mt-1 text-xs text-white/30">{title.length}/120</p>
+                  className="mt-1 ring-1 ring-zinc-200 text-zinc-50 text-zinc-900 placeholder:text-zinc-300 focus:ring-2 focus:ring-orange-500" />
+                <p className="mt-1 text-xs text-zinc-400">{title.length}/120</p>
                 {errors.title && <p className="text-xs text-red-400">{errors.title}</p>}
               </div>
               <div>
-                <Label htmlFor="summary" className="text-white/60">Summary <span className="text-red-500">*</span></Label>
+                <Label htmlFor="summary" className="text-zinc-600">Summary <span className="text-red-500">*</span></Label>
                 <Input id="summary" value={summary} onChange={(e) => setSummary(e.target.value)} required maxLength={200} placeholder="A one-line summary"
-                  className="mt-1 border-white/10 bg-white/5 text-white placeholder:text-white/20 focus:border-indigo-500/50" />
-                <p className="mt-1 text-xs text-white/30">{summary.length}/200</p>
+                  className="mt-1 ring-1 ring-zinc-200 text-zinc-50 text-zinc-900 placeholder:text-zinc-300 focus:ring-2 focus:ring-orange-500" />
+                <p className="mt-1 text-xs text-zinc-400">{summary.length}/200</p>
                 {errors.summary && <p className="text-xs text-red-400">{errors.summary}</p>}
               </div>
             </CardContent>
@@ -204,7 +204,7 @@ export function PostCardComposer() {
 
         {/* Story — Rich Text Editor (Tiptap) */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.15 }}>
-          <Card className="border-white/10 bg-white/[0.03] backdrop-blur-xl">
+          <Card className="ring-1 ring-zinc-200 bg-white shadow-sm">
             <CardHeader><CardTitle className="text-white">Story</CardTitle></CardHeader>
             <CardContent>
               <RichTextEditor
@@ -220,26 +220,26 @@ export function PostCardComposer() {
 
         {/* Tech Stack */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.2 }}>
-          <Card className="border-white/10 bg-white/[0.03] backdrop-blur-xl">
+          <Card className="ring-1 ring-zinc-200 bg-white shadow-sm">
             <CardHeader><CardTitle className="text-white">Tech Stack</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               <div className="flex gap-2">
                 <Input value={techInput} onChange={(e) => setTechInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTechTag(); } }}
                   placeholder="Add a technology (press Enter)"
-                  className="flex-1 border-white/10 bg-white/5 text-white placeholder:text-white/20 focus:border-indigo-500/50" />
-                <Button type="button" variant="outline" onClick={addTechTag} className="border-white/10 bg-white/5 text-white/60 hover:bg-white/10">Add</Button>
+                  className="flex-1 ring-1 ring-zinc-200 text-zinc-50 text-zinc-900 placeholder:text-zinc-300 focus:ring-2 focus:ring-orange-500" />
+                <Button type="button" variant="outline" onClick={addTechTag} className="ring-1 ring-zinc-200 text-zinc-50 text-zinc-600 hover:text-zinc-100">Add</Button>
               </div>
               <div className="flex flex-wrap gap-2">
                 {techStack.map((tag) => (
-                  <Badge key={tag} variant="secondary" className="cursor-pointer bg-indigo-500/10 font-mono text-indigo-300"
+                  <Badge key={tag} variant="secondary" className="cursor-pointer bg-orange-50 font-mono text-orange-600"
                     onClick={() => setTechStack(techStack.filter((t) => t !== tag))}>
                     {tag} ✕
                   </Badge>
                 ))}
-                {techStack.length === 0 && <p className="text-sm text-white/30">No tags yet. Add at least one.</p>}
+                {techStack.length === 0 && <p className="text-sm text-zinc-400">No tags yet. Add at least one.</p>}
               </div>
-              <p className="text-xs text-white/30">{techStack.length}/10 tags</p>
+              <p className="text-xs text-zinc-400">{techStack.length}/10 tags</p>
               {errors.techStack && <p className="text-xs text-red-400">{errors.techStack}</p>}
             </CardContent>
           </Card>
@@ -247,13 +247,13 @@ export function PostCardComposer() {
 
         {/* Media */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.25 }}>
-          <Card className="border-white/10 bg-white/[0.03] backdrop-blur-xl">
+          <Card className="ring-1 ring-zinc-200 bg-white shadow-sm">
             <CardHeader><CardTitle className="text-white">Media</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div>
                 <div className="flex items-center justify-between">
-                  <Label className="text-white/60">Image / Video <span className="text-white/30">(required for Instagram/Threads, recommended for all)</span></Label>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setShowMediaLibrary(!showMediaLibrary)} className="text-white/50 hover:text-white">
+                  <Label className="text-zinc-600">Image / Video <span className="text-zinc-400">(required for Instagram/Threads, recommended for all)</span></Label>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setShowMediaLibrary(!showMediaLibrary)} className="text-zinc-500 hover:text-zinc-900">
                     {showMediaLibrary ? 'Hide library' : 'Pick from library'}
                   </Button>
                 </div>
@@ -275,7 +275,7 @@ export function PostCardComposer() {
                 )}
                 {imagePreview ? (
                   <div className="mt-2 relative">
-                    <MediaPreview src={imagePreview} alt="Preview" className="max-h-48 rounded-lg border border-white/10" />
+                    <MediaPreview src={imagePreview} alt="Preview" className="max-h-48 rounded-lg border ring-1 ring-zinc-200" />
                     <button
                       type="button"
                       onClick={() => { setImageUrl(''); setImagePreview(''); }}
@@ -290,15 +290,15 @@ export function PostCardComposer() {
                       onClick={() => !uploading && fileInputRef.current?.click()}
                       onDrop={handleDrop}
                       onDragOver={(e) => e.preventDefault()}
-                      className="mt-2 border-2 border-dashed border-white/10 rounded-lg p-8 text-center cursor-pointer hover:border-indigo-500/50 transition-colors"
+                      className="mt-2 border-2 border-dashed ring-1 ring-zinc-200 rounded-lg p-8 text-center cursor-pointer hover:border-indigo-500/50 transition-colors"
                     >
                       {uploading ? (
-                        <p className="text-white/40">Uploading…</p>
+                        <p className="text-zinc-400">Uploading…</p>
                       ) : (
                         <>
-                          <p className="text-white/40">Drag &amp; drop an image or video here</p>
-                          <p className="text-white/20 text-sm mt-1">or click to browse — or pick from your Media Library</p>
-                          <p className="text-white/20 text-xs mt-2">JPG, PNG, GIF, WebP, MP4 — max 50MB</p>
+                          <p className="text-zinc-400">Drag &amp; drop an image or video here</p>
+                          <p className="text-zinc-300 text-sm mt-1">or click to browse — or pick from your Media Library</p>
+                          <p className="text-zinc-300 text-xs mt-2">JPG, PNG, GIF, WebP, MP4 — max 50MB</p>
                         </>
                       )}
                     </div>
@@ -310,10 +310,10 @@ export function PostCardComposer() {
         </motion.div>
 
         <div className="flex gap-3">
-          <Button type="submit" disabled={loading} className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 border-0">
+          <Button type="submit" disabled={loading} className="bg-gradient-to-r bg-orange-600 hover:bg-orange-700 border-0">
             {loading ? (isEditMode ? 'Saving…' : 'Creating…') : (isEditMode ? 'Save Changes' : 'Create Post Card')}
           </Button>
-          <Button type="button" variant="outline" onClick={() => navigate(-1)} className="border-white/10 bg-white/5 text-white/60 hover:bg-white/10">
+          <Button type="button" variant="outline" onClick={() => navigate(-1)} className="ring-1 ring-zinc-200 text-zinc-50 text-zinc-600 hover:text-zinc-100">
             Cancel
           </Button>
         </div>

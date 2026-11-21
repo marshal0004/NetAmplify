@@ -118,7 +118,7 @@ function parsePlatformParam(raw: string): Platform {
   if (!parsed.success) {
     throw new ServiceError(
       'VALIDATION_ERROR',
-      `Unknown platform: "${raw}". Must be one of: DISCORD, DEVTO, TELEGRAM, BLUESKY, HASHNODE, TWITTER, LINKEDIN, MASTODON, WORDPRESS, TWITTER_COOKIE, FACEBOOK, INSTAGRAM, YOUTUBE, THREADS.`
+      `Unknown platform: "${raw}". Must be one of: DISCORD, DEVTO, TELEGRAM, BLUESKY, TWITTER, LINKEDIN, MASTODON, WORDPRESS, TWITTER_COOKIE, FACEBOOK, INSTAGRAM, YOUTUBE, THREADS.`
     );
   }
   return parsed.data;

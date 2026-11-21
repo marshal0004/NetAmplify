@@ -83,17 +83,6 @@ export const PLATFORM_CONFIG: Record<Platform, PlatformConfig> = {
     maxVideos: 1, 
     mixedMedia: false, 
   },
-  HASHNODE: {
-    platform: 'HASHNODE',
-    name: 'Hashnode',
-    charLimit: 100000, // generous
-    rateLimitPerMinute: null,
-    markdownSupported: true,
-    imageSupported: true,
-    maxImages: 1,
-    maxVideos: 0, // no videos
-    mixedMedia: false, 
-  },
   TWITTER: {
     platform: 'TWITTER',
     name: 'X (Twitter)',
@@ -195,6 +184,17 @@ export const PLATFORM_CONFIG: Record<Platform, PlatformConfig> = {
     imageSupported: true, // IMAGE media_type supported (VIDEO requires async processing)
     maxImages: 1, // single image per thread (carousel is a future enhancement)
     maxVideos: 1, // single video per thread
+    mixedMedia: false,
+  },
+  HASHNODE: {
+    platform: 'HASHNODE',
+    name: 'Hashnode (removed)',
+    charLimit: 100000,
+    rateLimitPerMinute: null,
+    markdownSupported: true,
+    imageSupported: true,
+    maxImages: 1,
+    maxVideos: 0,
     mixedMedia: false,
   },
 };

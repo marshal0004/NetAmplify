@@ -12,7 +12,7 @@ import {
   POSTCARD_UPDATE_SCHEMA,
   PUBLISH_SCHEMA,
   CONNECT_DEVTO_SCHEMA,
-  CONNECT_HASHNODE_SCHEMA,
+  CONNECT_DEVTO_SCHEMA,
   CONNECT_DISCORD_SCHEMA,
   CONNECT_TELEGRAM_SCHEMA,
   CONNECT_BLUESKY_SCHEMA,
@@ -544,7 +544,7 @@ describe('CONNECT_BLUESKY_SCHEMA', () => {
   });
 });
 
-describe('CONNECT_DEVTO_SCHEMA / CONNECT_HASHNODE_SCHEMA', () => {
+describe('CONNECT_DEVTO_SCHEMA / CONNECT_DEVTO_SCHEMA', () => {
   it('accepts a non-empty Dev.to API key', () => {
     expect(CONNECT_DEVTO_SCHEMA.safeParse({ apiKey: 'devto-abc-123' }).success).toBe(true);
   });
@@ -553,11 +553,5 @@ describe('CONNECT_DEVTO_SCHEMA / CONNECT_HASHNODE_SCHEMA', () => {
     expect(CONNECT_DEVTO_SCHEMA.safeParse({ apiKey: '' }).success).toBe(false);
   });
 
-  it('accepts a non-empty Hashnode PAT', () => {
-    expect(CONNECT_HASHNODE_SCHEMA.safeParse({ pat: 'hashnode-pat-abc' }).success).toBe(true);
-  });
 
-  it('rejects an empty Hashnode PAT', () => {
-    expect(CONNECT_HASHNODE_SCHEMA.safeParse({ pat: '' }).success).toBe(false);
-  });
 });

@@ -85,19 +85,6 @@ export class ConnectionsController {
   /**
    * POST /api/connections/hashnode  { pat }
    */
-  @Post('hashnode')
-  @HttpCode(201)
-  async connectHashnode(@Body() body: unknown, @Req() req: Request): Promise<{ id: string; username: string }> {
-    try {
-      return await this._conn.saveSimpleConnection(
-        getUserId(req),
-        'HASHNODE',
-        body,
-        getAuditContext(req)
-      );
-    } catch (e) {
-      throw errorMapper(e);
-    }
   }
 
   /**
@@ -405,7 +392,7 @@ function parsePlatformParam(raw: string): Platform {
   if (!parsed.success) {
     throw new ServiceError(
       'VALIDATION_ERROR',
-      `Unknown platform: "${raw}". Must be one of: DISCORD, DEVTO, TELEGRAM, BLUESKY, HASHNODE, TWITTER, LINKEDIN, MASTODON, WORDPRESS, TWITTER_COOKIE, FACEBOOK, INSTAGRAM.`
+      `Unknown platform: "${raw}". Must be one of: DISCORD, DEVTO, TELEGRAM, BLUESKY, TWITTER, LINKEDIN, MASTODON, WORDPRESS, TWITTER_COOKIE, FACEBOOK, INSTAGRAM.`
     );
   }
   return parsed.data;

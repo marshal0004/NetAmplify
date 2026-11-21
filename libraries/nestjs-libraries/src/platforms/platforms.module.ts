@@ -14,7 +14,6 @@ import { AdapterRegistry } from './registry';
 import { LinkedInAdapter } from './linkedin/linkedin.adapter';
 import { DiscordAdapter } from './discord/discord.adapter';
 import { DevtoAdapter } from './devto/devto.adapter';
-import { HashnodeAdapter } from './hashnode/hashnode.adapter';
 import { TelegramAdapter } from './telegram/telegram.adapter';
 import { BlueskyAdapter } from './bluesky/bluesky.adapter';
 import { XCookieAdapter } from './x/x-cookie.adapter';
@@ -29,7 +28,6 @@ import { ThreadsAdapter } from './threads/threads.adapter';
     LinkedInAdapter,
     DiscordAdapter,
     DevtoAdapter,
-    HashnodeAdapter,
     TelegramAdapter,
     BlueskyAdapter,
     XCookieAdapter,
@@ -43,7 +41,6 @@ import { ThreadsAdapter } from './threads/threads.adapter';
     LinkedInAdapter,
     DiscordAdapter,
     DevtoAdapter,
-    HashnodeAdapter,
     TelegramAdapter,
     BlueskyAdapter,
     XCookieAdapter,

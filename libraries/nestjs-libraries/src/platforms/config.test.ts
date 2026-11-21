@@ -22,8 +22,7 @@ describe('PLATFORM_CONFIG', () => {
     expect(platforms).toContain('DEVTO');
     expect(platforms).toContain('TELEGRAM');
     expect(platforms).toContain('BLUESKY');
-    expect(platforms).toContain('HASHNODE');
-    expect(platforms).toContain('TWITTER');
+        expect(platforms).toContain('TWITTER');
     expect(platforms).toContain('LINKEDIN');
     expect(platforms).toContain('MASTODON');
     expect(platforms).toContain('WORDPRESS');

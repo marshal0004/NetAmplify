@@ -127,14 +127,14 @@ export function EditPostCardDialog({ card, onClose, onSaved }: EditPostCardDialo
       onClick={onClose}
     >
       <div
-        className="relative my-8 w-full max-w-2xl rounded-2xl border border-white/10 bg-zinc-900 p-6 shadow-2xl"
+        className="relative my-8 w-full max-w-2xl rounded-2xl border ring-1 ring-zinc-200 bg-zinc-900 p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-xl font-bold text-white">Edit Post Card</h2>
           <button
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-full text-white/50 hover:bg-white/10 hover:text-white"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-zinc-500 hover:text-zinc-100 hover:text-zinc-900"
             aria-label="Close"
           >
             ×
@@ -149,44 +149,44 @@ export function EditPostCardDialog({ card, onClose, onSaved }: EditPostCardDialo
 
         <div className="space-y-4">
           <div>
-            <Label className="text-white/60">Title</Label>
+            <Label className="text-zinc-600">Title</Label>
             <Input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               maxLength={120}
-              className="mt-1 border-white/10 bg-white/5 text-white placeholder:text-white/20"
+              className="mt-1 ring-1 ring-zinc-200 text-zinc-50 text-zinc-900 placeholder:text-zinc-300"
             />
-            <p className="mt-1 text-xs text-white/30">{title.length}/120</p>
+            <p className="mt-1 text-xs text-zinc-400">{title.length}/120</p>
             {errors.title && <p className="text-xs text-red-400">{errors.title}</p>}
           </div>
 
           <div>
-            <Label className="text-white/60">Summary</Label>
+            <Label className="text-zinc-600">Summary</Label>
             <Input
               value={summary}
               onChange={(e) => setSummary(e.target.value)}
               maxLength={200}
-              className="mt-1 border-white/10 bg-white/5 text-white placeholder:text-white/20"
+              className="mt-1 ring-1 ring-zinc-200 text-zinc-50 text-zinc-900 placeholder:text-zinc-300"
             />
-            <p className="mt-1 text-xs text-white/30">{summary.length}/200</p>
+            <p className="mt-1 text-xs text-zinc-400">{summary.length}/200</p>
             {errors.summary && <p className="text-xs text-red-400">{errors.summary}</p>}
           </div>
 
           <div>
-            <Label className="text-white/60">Description (Markdown)</Label>
+            <Label className="text-zinc-600">Description (Markdown)</Label>
             <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={8}
               maxLength={5000}
-              className="mt-1 font-mono text-sm border-white/10 bg-white/5 text-white placeholder:text-white/20"
+              className="mt-1 font-mono text-sm ring-1 ring-zinc-200 text-zinc-50 text-zinc-900 placeholder:text-zinc-300"
             />
-            <p className="mt-1 text-xs text-white/30">{description.length}/5000</p>
+            <p className="mt-1 text-xs text-zinc-400">{description.length}/5000</p>
             {errors.description && <p className="text-xs text-red-400">{errors.description}</p>}
           </div>
 
           <div>
-            <Label className="text-white/60">Tech Stack</Label>
+            <Label className="text-zinc-600">Tech Stack</Label>
             <div className="mt-1 flex gap-2">
               <Input
                 value={techInput}
@@ -198,13 +198,13 @@ export function EditPostCardDialog({ card, onClose, onSaved }: EditPostCardDialo
                   }
                 }}
                 placeholder="Add a technology (press Enter)"
-                className="flex-1 border-white/10 bg-white/5 text-white placeholder:text-white/20"
+                className="flex-1 ring-1 ring-zinc-200 text-zinc-50 text-zinc-900 placeholder:text-zinc-300"
               />
               <Button
                 type="button"
                 variant="outline"
                 onClick={addTechTag}
-                className="border-white/10 bg-white/5 text-white/60 hover:bg-white/10"
+                className="ring-1 ring-zinc-200 text-zinc-50 text-zinc-600 hover:text-zinc-100"
               >
                 Add
               </Button>
@@ -214,43 +214,43 @@ export function EditPostCardDialog({ card, onClose, onSaved }: EditPostCardDialo
                 <Badge
                   key={tag}
                   variant="secondary"
-                  className="cursor-pointer bg-indigo-500/10 font-mono text-xs text-indigo-300"
+                  className="cursor-pointer bg-orange-50 font-mono text-xs text-orange-600"
                   onClick={() => setTechStack(techStack.filter((t) => t !== tag))}
                 >
                   {tag} ✕
                 </Badge>
               ))}
               {techStack.length === 0 && (
-                <p className="text-sm text-white/30">No tags yet.</p>
+                <p className="text-sm text-zinc-400">No tags yet.</p>
               )}
             </div>
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <Label className="text-white/60">Repository URL</Label>
+              <Label className="text-zinc-600">Repository URL</Label>
               <Input
                 value={repoUrl}
                 onChange={(e) => setRepoUrl(e.target.value)}
                 type="url"
                 placeholder="https://github.com/user/repo"
-                className="mt-1 border-white/10 bg-white/5 text-white placeholder:text-white/20"
+                className="mt-1 ring-1 ring-zinc-200 text-zinc-50 text-zinc-900 placeholder:text-zinc-300"
               />
             </div>
             <div>
-              <Label className="text-white/60">Live URL</Label>
+              <Label className="text-zinc-600">Live URL</Label>
               <Input
                 value={liveUrl}
                 onChange={(e) => setLiveUrl(e.target.value)}
                 type="url"
                 placeholder="https://example.com"
-                className="mt-1 border-white/10 bg-white/5 text-white placeholder:text-white/20"
+                className="mt-1 ring-1 ring-zinc-200 text-zinc-50 text-zinc-900 placeholder:text-zinc-300"
               />
             </div>
           </div>
 
           <div>
-            <Label className="text-white/60">Image / Video</Label>
+            <Label className="text-zinc-600">Image / Video</Label>
             <input
               ref={fileInputRef}
               type="file"
@@ -266,7 +266,7 @@ export function EditPostCardDialog({ card, onClose, onSaved }: EditPostCardDialo
                 <MediaPreview
                   src={imageUrl}
                   alt="Preview"
-                  className="max-h-40 rounded-lg border border-white/10"
+                  className="max-h-40 rounded-lg border ring-1 ring-zinc-200"
                 />
                 <button
                   type="button"
@@ -280,7 +280,7 @@ export function EditPostCardDialog({ card, onClose, onSaved }: EditPostCardDialo
               <button
                 type="button"
                 onClick={() => !uploading && fileInputRef.current?.click()}
-                className="mt-1 w-full rounded-lg border-2 border-dashed border-white/10 p-6 text-center text-white/40 transition-colors hover:border-indigo-500/50"
+                className="mt-1 w-full rounded-lg border-2 border-dashed ring-1 ring-zinc-200 p-6 text-center text-zinc-400 transition-colors hover:border-indigo-500/50"
               >
                 {uploading ? 'Uploading…' : 'Click to upload an image or video'}
               </button>
@@ -292,14 +292,14 @@ export function EditPostCardDialog({ card, onClose, onSaved }: EditPostCardDialo
           <Button
             variant="outline"
             onClick={onClose}
-            className="border-white/10 bg-white/5 text-white/60 hover:bg-white/10"
+            className="ring-1 ring-zinc-200 text-zinc-50 text-zinc-600 hover:text-zinc-100"
           >
             Cancel
           </Button>
           <Button
             onClick={handleSave}
             disabled={saving}
-            className="border-0 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600"
+            className="border-0 bg-gradient-to-r bg-orange-600 hover:bg-orange-700"
           >
             {saving ? 'Saving…' : 'Save Changes'}
           </Button>

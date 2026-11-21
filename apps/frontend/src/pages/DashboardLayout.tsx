@@ -37,13 +37,13 @@ export function DashboardLayout() {
         initial={{ x: -260, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
         transition={{ duration: 0.5, ease: 'easeOut' }}
-        className="fixed z-20 flex h-screen w-64 flex-col border-r border-white/5 bg-black/40 backdrop-blur-xl"
+        className="fixed z-20 flex h-screen w-64 flex-col border-r ring-1 ring-zinc-100 bg-black/40 backdrop-blur-xl"
       >
         {/* Logo */}
         <div className="px-6 py-8">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-500 text-sm font-bold">N</div>
-            <span className="text-lg font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">NetAmplify</span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br bg-orange-600 text-sm font-bold">N</div>
+            <span className="text-lg font-bold bg-gradient-to-r text-orange-500 bg-clip-text text-transparent">NetAmplify</span>
           </div>
         </div>
 
@@ -64,7 +64,7 @@ export function DashboardLayout() {
                     'group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all',
                     isActive
                       ? 'bg-gradient-to-r from-indigo-500/20 to-purple-500/20 text-white'
-                      : 'text-white/50 hover:bg-white/5 hover:text-white/80'
+                      : 'text-zinc-500 hover:text-zinc-50 hover:text-zinc-800'
                   )
                 }
               >
@@ -73,7 +73,7 @@ export function DashboardLayout() {
                     {isActive && (
                       <motion.div
                         layoutId="active-nav"
-                        className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-gradient-to-b from-indigo-400 to-purple-400"
+                        className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-gradient-to-b text-orange-500"
                       />
                     )}
                     <span className="text-lg">{item.icon}</span>
@@ -86,17 +86,17 @@ export function DashboardLayout() {
         </nav>
 
         {/* User info + logout */}
-        <div className="border-t border-white/5 p-4">
+        <div className="border-t ring-1 ring-zinc-100 p-4">
           <div className="mb-3 rounded-xl bg-white/[0.03] p-3">
-            <p className="text-sm font-medium text-white/80">{user?.name}</p>
-            <p className="truncate text-xs text-white/40">{user?.email}</p>
+            <p className="text-sm font-medium text-zinc-800">{user?.name}</p>
+            <p className="truncate text-xs text-zinc-400">{user?.email}</p>
           </div>
           <Button
             variant="ghost"
             size="sm"
             onClick={handleLogout}
             disabled={loggingOut}
-            className="w-full justify-start text-white/50 hover:bg-red-500/10 hover:text-red-400"
+            className="w-full justify-start text-zinc-500 hover:bg-red-500/10 hover:text-red-400"
           >
             {loggingOut ? 'Logging out…' : '← Log out'}
           </Button>

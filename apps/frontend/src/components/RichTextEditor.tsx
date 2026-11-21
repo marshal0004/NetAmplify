@@ -82,8 +82,8 @@ function ToolbarButton({
       title={title}
       className={`flex h-8 w-8 items-center justify-center rounded transition-colors ${
         isActive
-          ? 'bg-indigo-500/30 text-indigo-300'
-          : 'text-white/50 hover:bg-white/10 hover:text-white'
+          ? 'bg-orange-100 text-orange-600'
+          : 'text-zinc-500 hover:text-zinc-100 hover:text-zinc-900'
       } ${disabled ? 'opacity-30 cursor-not-allowed' : ''}`}
     >
       {children}
@@ -116,7 +116,7 @@ function Toolbar({ editor }: { editor: Editor | null }) {
   }, [editor]);
 
   return (
-    <div className="flex flex-wrap items-center gap-1 border-b border-white/10 p-2">
+    <div className="flex flex-wrap items-center gap-1 border-b ring-1 ring-zinc-200 p-2">
       <ToolbarButton
         editor={editor}
         onClick={() => editor?.chain().focus().undo().run()}
@@ -136,7 +136,7 @@ function Toolbar({ editor }: { editor: Editor | null }) {
         <Redo2 className="h-4 w-4" />
       </ToolbarButton>
 
-      <div className="mx-1 h-5 w-px bg-white/10" />
+      <div className="mx-1 h-5 w-px text-zinc-100" />
 
       <ToolbarButton
         editor={editor}
@@ -163,7 +163,7 @@ function Toolbar({ editor }: { editor: Editor | null }) {
         <Heading3 className="h-4 w-4" />
       </ToolbarButton>
 
-      <div className="mx-1 h-5 w-px bg-white/10" />
+      <div className="mx-1 h-5 w-px text-zinc-100" />
 
       <ToolbarButton
         editor={editor}
@@ -198,7 +198,7 @@ function Toolbar({ editor }: { editor: Editor | null }) {
         <Strikethrough className="h-4 w-4" />
       </ToolbarButton>
 
-      <div className="mx-1 h-5 w-px bg-white/10" />
+      <div className="mx-1 h-5 w-px text-zinc-100" />
 
       <ToolbarButton
         editor={editor}
@@ -233,7 +233,7 @@ function Toolbar({ editor }: { editor: Editor | null }) {
         <Code2 className="h-4 w-4" />
       </ToolbarButton>
 
-      <div className="mx-1 h-5 w-px bg-white/10" />
+      <div className="mx-1 h-5 w-px text-zinc-100" />
 
       <ToolbarButton
         editor={editor}
@@ -279,7 +279,7 @@ export function RichTextEditor({
         openOnClick: false,
         autolink: true,
         HTMLAttributes: {
-          class: 'text-indigo-400 underline',
+          class: 'text-orange-500 underline',
         },
       }),
     ],
@@ -293,12 +293,12 @@ export function RichTextEditor({
       attributes: {
         class:
           'prose prose-invert prose-sm max-w-none min-h-[12rem] px-4 py-3 ' +
-          'focus:outline-none text-white placeholder:text-white/30 ' +
+          'focus:outline-none text-white placeholder:text-zinc-400 ' +
           '[&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 ' +
-          '[&_blockquote]:border-l-2 [&_blockquote]:border-white/20 [&_blockquote]:pl-3 [&_blockquote]:text-white/60 ' +
-          '[&_pre]:bg-black/30 [&_pre]:rounded [&_pre]:p-3 [&_pre_code]:text-sm ' +
+          '[&_blockquote]:border-l-2 [&_blockquote]:border-white/20 [&_blockquote]:pl-3 [&_blockquote]:text-zinc-600 ' +
+          '[&_pre]:bg-zinc-50 [&_pre]:rounded [&_pre]:p-3 [&_pre_code]:text-sm ' +
           '[&_h1]:text-xl [&_h1]:font-bold [&_h2]:text-lg [&_h2]:font-bold [&_h3]:text-base [&_h3]:font-semibold ' +
-          '[&_a]:text-indigo-400 [&_a]:underline',
+          '[&_a]:text-orange-500 [&_a]:underline',
         'data-placeholder': placeholder,
       },
     },
@@ -319,11 +319,11 @@ export function RichTextEditor({
   }, [value, editor]);
 
   return (
-    <div className="overflow-hidden rounded-lg border border-white/10 bg-white/5 backdrop-blur">
+    <div className="overflow-hidden rounded-lg border ring-1 ring-zinc-200 text-zinc-50 backdrop-blur">
       <Toolbar editor={editor} />
       <EditorContent editor={editor} className="tiptap-editor" />
       {maxLength !== undefined && (
-        <div className="border-t border-white/10 px-4 py-1.5 text-right text-xs text-white/30">
+        <div className="border-t ring-1 ring-zinc-200 px-4 py-1.5 text-right text-xs text-zinc-400">
           {value.length}/{maxLength}
         </div>
       )}

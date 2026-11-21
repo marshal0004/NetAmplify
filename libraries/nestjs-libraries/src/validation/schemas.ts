@@ -168,7 +168,6 @@ export const PLATFORM_SCHEMA = z.enum([
   'DEVTO',
   'TELEGRAM',
   'BLUESKY',
-  'HASHNODE',
   'TWITTER',
   'LINKEDIN',
   'MASTODON',
@@ -216,9 +215,6 @@ export const CONNECT_DEVTO_SCHEMA = z.object({
   apiKey: z.string().min(1, 'API key is required').max(256),
 });
 
-export const CONNECT_HASHNODE_SCHEMA = z.object({
-  pat: z.string().min(1, 'Personal Access Token is required').max(256),
-});
 
 export const CONNECT_DISCORD_SCHEMA = z.object({
   webhookUrl: z
@@ -313,7 +309,6 @@ export type PostCardCreateInput = z.infer<typeof POSTCARD_CREATE_SCHEMA>;
 export type PostCardUpdateInput = z.infer<typeof POSTCARD_UPDATE_SCHEMA>;
 export type PublishInput = z.infer<typeof PUBLISH_SCHEMA>;
 export type ConnectDevtoInput = z.infer<typeof CONNECT_DEVTO_SCHEMA>;
-export type ConnectHashnodeInput = z.infer<typeof CONNECT_HASHNODE_SCHEMA>;
 export type ConnectDiscordInput = z.infer<typeof CONNECT_DISCORD_SCHEMA>;
 export type ConnectTelegramInput = z.infer<typeof CONNECT_TELEGRAM_SCHEMA>;
 export type ConnectBlueskyInput = z.infer<typeof CONNECT_BLUESKY_SCHEMA>;

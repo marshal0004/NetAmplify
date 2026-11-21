@@ -19,8 +19,8 @@ export function PostCardView() {
     enabled: !!id,
   });
 
-  if (isLoading) return <div className="text-white/50">Loading…</div>;
-  if (!card) return <div className="text-white/50">PostCard not found</div>;
+  if (isLoading) return <div className="text-zinc-500">Loading…</div>;
+  if (!card) return <div className="text-zinc-500">PostCard not found</div>;
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -31,10 +31,10 @@ export function PostCardView() {
         className="flex items-center justify-between"
       >
         <Link to="/dashboard">
-          <Button variant="ghost" size="sm" className="text-white/50 hover:text-white">← Back to dashboard</Button>
+          <Button variant="ghost" size="sm" className="text-zinc-500 hover:text-zinc-900">← Back to dashboard</Button>
         </Link>
         <Link to={`/dashboard/postcards/${card.id}/publish`}>
-          <Button className="bg-gradient-to-r from-indigo-500 to-purple-500 border-0">🚀 Amplify</Button>
+          <Button className="bg-gradient-to-r bg-orange-600 border-0">🚀 Amplify</Button>
         </Link>
       </motion.div>
 
@@ -43,28 +43,28 @@ export function PostCardView() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.1 }}
       >
-        <Card className="border-white/10 bg-white/[0.03] backdrop-blur-xl">
+        <Card className="ring-1 ring-zinc-200 bg-white shadow-sm">
           <CardContent className="pt-6">
             <h1 className="mb-2 text-2xl font-bold text-white">{card.title}</h1>
-            <p className="mb-6 text-white/50">{card.summary}</p>
+            <p className="mb-6 text-zinc-500">{card.summary}</p>
             <div className="flex flex-wrap gap-2">
               {card.techStack.map((tag) => (
-                <Badge key={tag} variant="secondary" className="bg-indigo-500/10 font-mono text-indigo-300">{tag}</Badge>
+                <Badge key={tag} variant="secondary" className="bg-orange-50 font-mono text-orange-600">{tag}</Badge>
               ))}
             </div>
             {(card.repoUrl || card.liveUrl) && (
               <div className="mt-6 flex gap-4 text-sm">
-                {card.repoUrl && <a href={card.repoUrl} target="_blank" rel="noreferrer" className="text-indigo-400 hover:underline">📦 Repo</a>}
-                {card.liveUrl && <a href={card.liveUrl} target="_blank" rel="noreferrer" className="text-indigo-400 hover:underline">🌐 Live</a>}
+                {card.repoUrl && <a href={card.repoUrl} target="_blank" rel="noreferrer" className="text-orange-500 hover:underline">📦 Repo</a>}
+                {card.liveUrl && <a href={card.liveUrl} target="_blank" rel="noreferrer" className="text-orange-500 hover:underline">🌐 Live</a>}
               </div>
             )}
             {card.imageUrl && (
               <div className="mt-6">
-                <MediaPreview src={card.imageUrl} alt={card.title} className="max-w-full rounded-lg border border-white/10" />
+                <MediaPreview src={card.imageUrl} alt={card.title} className="max-w-full rounded-lg border ring-1 ring-zinc-200" />
               </div>
             )}
-            <div className="mt-8 border-t border-white/5 pt-6">
-              <div className="prose prose-sm prose-invert max-w-none text-white/70">
+            <div className="mt-8 border-t ring-1 ring-zinc-100 pt-6">
+              <div className="prose prose-sm prose-invert max-w-none text-zinc-700">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{card.description}</ReactMarkdown>
               </div>
             </div>
@@ -79,10 +79,10 @@ export function PostCardView() {
         className="flex gap-3"
       >
         <Link to={`/dashboard/postcards/${card.id}/edit`}>
-          <Button variant="outline" className="border-white/10 bg-white/5 text-white/60 hover:bg-white/10">✏️ Edit</Button>
+          <Button variant="outline" className="ring-1 ring-zinc-200 text-zinc-50 text-zinc-600 hover:text-zinc-100">✏️ Edit</Button>
         </Link>
         <Link to={`/dashboard/postcards/${card.id}/publish`}>
-          <Button className="bg-gradient-to-r from-indigo-500 to-purple-500 border-0">🚀 Amplify to platforms</Button>
+          <Button className="bg-gradient-to-r bg-orange-600 border-0">🚀 Amplify to platforms</Button>
         </Link>
         <Button
           variant="destructive"

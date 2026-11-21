@@ -206,7 +206,7 @@ export function PublishPage() {
     }
   }
 
-  if (!card) return <div className="text-white/50">Loading…</div>;
+  if (!card) return <div className="text-zinc-500">Loading…</div>;
 
   return (
     <div className="max-w-4xl space-y-8">
@@ -218,7 +218,7 @@ export function PublishPage() {
         className="flex items-center justify-between"
       >
         <Link to={`/dashboard/postcards/${card.id}`}>
-          <Button variant="ghost" size="sm" className="text-white/50 hover:text-white">
+          <Button variant="ghost" size="sm" className="text-zinc-500 hover:text-zinc-900">
             ← Back to Post Card
           </Button>
         </Link>
@@ -226,7 +226,7 @@ export function PublishPage() {
 
       <div>
         <h1 className="text-3xl font-bold text-white">
-          Amplify <span className="bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">"{card.title}"</span>
+          Amplify <span className="bg-gradient-to-r text-orange-500 bg-clip-text text-transparent">"{card.title}"</span>
         </h1>
       </div>
 
@@ -236,19 +236,19 @@ export function PublishPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.1 }}
       >
-        <Card className="border-white/10 bg-white/[0.03] backdrop-blur-xl">
+        <Card className="ring-1 ring-zinc-200 bg-white shadow-sm">
           <CardContent className="pt-6">
-            <p className="text-white/60">{card.summary}</p>
+            <p className="text-zinc-600">{card.summary}</p>
             <div className="mt-4 flex flex-wrap gap-2">
               {card.techStack.map((tag) => (
-                <span key={tag} className="rounded-md bg-indigo-500/10 px-2 py-1 font-mono text-xs text-indigo-300">
+                <span key={tag} className="rounded-md bg-orange-50 px-2 py-1 font-mono text-xs text-orange-600">
                   {tag}
                 </span>
               ))}
             </div>
             {card.imageUrl && (
               <div className="mt-4">
-                <MediaPreview src={card.imageUrl} alt={card.title} className="max-h-64 rounded-lg border border-white/10" />
+                <MediaPreview src={card.imageUrl} alt={card.title} className="max-h-64 rounded-lg border ring-1 ring-zinc-200" />
               </div>
             )}
           </CardContent>
@@ -261,7 +261,7 @@ export function PublishPage() {
           <CardContent className="pt-6">
             <p className="mb-4 text-amber-400">You haven't connected any platforms yet.</p>
             <Link to="/dashboard/connections">
-              <Button className="bg-gradient-to-r from-indigo-500 to-purple-500 border-0">Connect platforms →</Button>
+              <Button className="bg-gradient-to-r bg-orange-600 border-0">Connect platforms →</Button>
             </Link>
           </CardContent>
         </Card>
@@ -283,7 +283,7 @@ export function PublishPage() {
                   onClick={() => togglePlatform(conn)}
                 >
                   <Card
-                    className={`overflow-hidden border-white/10 bg-white/[0.03] backdrop-blur-xl transition-all ${
+                    className={`overflow-hidden ring-1 ring-zinc-200 bg-white shadow-sm transition-all ${
                       selected ? 'border-indigo-500/50 ring-2 ring-indigo-500/30' : ''
                     } ${selectable ? 'cursor-pointer hover:border-white/20' : 'cursor-not-allowed opacity-60'}`}
                   >
@@ -297,7 +297,7 @@ export function PublishPage() {
                             </Badge>
                           )}
                         </div>
-                        <p className="truncate text-xs text-white/40">
+                        <p className="truncate text-xs text-zinc-400">
                           {selectable ? `Connected as ${conn.platformUsername}` : `Token ${conn.status.toLowerCase()} — reconnect to publish`}
                         </p>
                       </div>
@@ -311,11 +311,11 @@ export function PublishPage() {
                       </motion.div>
                     </CardContent>
                     {!selectable && (
-                      <div className="border-t border-white/5 bg-red-500/5 px-6 py-2">
+                      <div className="border-t ring-1 ring-zinc-100 bg-red-500/5 px-6 py-2">
                         <Link
                           to="/dashboard/connections"
                           onClick={(e) => e.stopPropagation()}
-                          className="text-xs text-indigo-400 hover:text-indigo-300 hover:underline"
+                          className="text-xs text-orange-500 hover:text-orange-600 hover:underline"
                         >
                           Reconnect {platformName(conn.platform)} →
                         </Link>
@@ -335,7 +335,7 @@ export function PublishPage() {
           {selectedPlatforms.size > 0 && (
             <div className="space-y-4">
               <h3 className="font-semibold text-white">Per-platform options</h3>
-              <p className="text-xs text-white/40">
+              <p className="text-xs text-zinc-400">
                 Defaults are pre-filled from your PostCard — edit per platform. Empty fields fall back to the auto-formatted post.
               </p>
               {Array.from(selectedPlatforms).map((platform, i) => (
@@ -345,14 +345,14 @@ export function PublishPage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.3, delay: i * 0.05 }}
                 >
-                  <Card className="border-white/10 bg-white/[0.03] backdrop-blur-xl">
+                  <Card className="ring-1 ring-zinc-200 bg-white shadow-sm">
                     <CardContent className="space-y-4 pt-6">
                       <div className="flex items-center justify-between">
                         <h4 className="font-medium text-white">{platformName(platform)}</h4>
                         {previews[platform] && (
                           <span
                             className={`font-mono text-xs ${
-                              previews[platform].formatted.charCount > previews[platform].formatted.limit ? 'text-red-400' : 'text-white/40'
+                              previews[platform].formatted.charCount > previews[platform].formatted.limit ? 'text-red-400' : 'text-zinc-400'
                             }`}
                           >
                             {previews[platform].formatted.charCount}/{previews[platform].formatted.limit}
@@ -405,7 +405,7 @@ export function PublishPage() {
                 const val = e.target.value;
                 setScheduledAt(val ? new Date(val).toISOString() : '');
               }}
-              className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white [color-scheme:dark]"
+              className="rounded-lg border ring-1 ring-zinc-200 text-zinc-50 px-3 py-2 text-sm text-white [color-scheme:dark]"
               title="Schedule for later (leave empty to publish now)"
             />
             {scheduledAt && (
@@ -414,7 +414,7 @@ export function PublishPage() {
                 variant="ghost"
                 size="sm"
                 onClick={() => setScheduledAt('')}
-                className="text-white/40 hover:text-white"
+                className="text-zinc-400 hover:text-zinc-900"
               >
                 Clear (publish now)
               </Button>
@@ -423,7 +423,7 @@ export function PublishPage() {
               <>
                 <Button type="button" variant="ghost" size="sm"
                   onClick={() => setScheduledAt(new Date(Date.now() + 3600_000).toISOString())}
-                  className="text-white/40 hover:text-white">
+                  className="text-zinc-400 hover:text-zinc-900">
                   In 1 hour
                 </Button>
                 <Button type="button" variant="ghost" size="sm"
@@ -433,7 +433,7 @@ export function PublishPage() {
                     d.setHours(9, 0, 0, 0);
                     setScheduledAt(d.toISOString());
                   }}
-                  className="text-white/40 hover:text-white">
+                  className="text-zinc-400 hover:text-zinc-900">
                   Tomorrow 9:00
                 </Button>
               </>
@@ -446,7 +446,7 @@ export function PublishPage() {
               size="lg"
               onClick={handlePublish}
               disabled={loading || selectedPlatforms.size === 0 || hasBlockingErrors}
-              className="w-full bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 border-0 text-base"
+              className="w-full bg-gradient-to-r bg-orange-600 hover:bg-orange-700 border-0 text-base"
             >
               {loading ? (
                 <span className="flex items-center gap-2">
@@ -487,7 +487,7 @@ export function PublishPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
-            <Card className="border-white/10 bg-white/[0.03] backdrop-blur-xl">
+            <Card className="ring-1 ring-zinc-200 bg-white shadow-sm">
               <CardContent className="pt-6">
                 <h2 className="mb-4 text-lg font-semibold text-white">Publish Status</h2>
                 <div className="space-y-3">
@@ -499,7 +499,7 @@ export function PublishPage() {
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ duration: 0.3, delay: i * 0.1 }}
-                        className={`flex items-center justify-between rounded-xl border border-white/10 ${cfg.bg} p-4`}
+                        className={`flex items-center justify-between rounded-xl border ring-1 ring-zinc-200 ${cfg.bg} p-4`}
                       >
                         <div className="flex items-center gap-3">
                           <span
@@ -529,7 +529,7 @@ export function PublishPage() {
                               href={target.platformPostUrl}
                               target="_blank"
                               rel="noreferrer"
-                              className="text-sm text-indigo-400 hover:text-indigo-300 hover:underline"
+                              className="text-sm text-orange-500 hover:text-orange-600 hover:underline"
                             >
                               View post →
                             </motion.a>
@@ -538,7 +538,7 @@ export function PublishPage() {
                             <Button
                               size="sm"
                               variant="outline"
-                              className="border-white/10 bg-white/5 text-white/60 hover:bg-indigo-500/10 hover:text-indigo-400"
+                              className="ring-1 ring-zinc-200 text-zinc-50 text-zinc-600 hover:bg-orange-50 hover:text-orange-500"
                               onClick={async () => {
                                 try {
                                   await publishApi.retry(post.post.id, target.id);
@@ -562,7 +562,7 @@ export function PublishPage() {
                 ) && (
                   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }} className="mt-4">
                     <Link to="/dashboard/history">
-                      <Button variant="outline" size="sm" className="border-white/10 bg-white/5 text-white/60 hover:bg-white/10">
+                      <Button variant="outline" size="sm" className="ring-1 ring-zinc-200 text-zinc-50 text-zinc-600 hover:text-zinc-100">
                         View in History →
                       </Button>
                     </Link>
@@ -605,15 +605,15 @@ interface PerPlatformFieldsProps {
  */
 function PerPlatformFields({ platform, card, options, onChange }: PerPlatformFieldsProps) {
   const fieldCls =
-    'mt-1 border-white/10 bg-white/5 text-white placeholder:text-white/20 focus:border-indigo-500/50';
-  const labelCls = 'text-white/60';
+    'mt-1 ring-1 ring-zinc-200 text-zinc-50 text-zinc-900 placeholder:text-zinc-300 focus:ring-2 focus:ring-orange-500';
+  const labelCls = 'text-zinc-600';
 
   switch (platform) {
     case 'YOUTUBE':
       return (
         <div className="space-y-3">
           <div>
-            <Label className={labelCls}>Title <span className="text-white/30">(≤100)</span></Label>
+            <Label className={labelCls}>Title <span className="text-zinc-400">(≤100)</span></Label>
             <Input
               value={(options.title as string) ?? ''}
               onChange={(e) => onChange('title', e.target.value)}
@@ -623,7 +623,7 @@ function PerPlatformFields({ platform, card, options, onChange }: PerPlatformFie
             />
           </div>
           <div>
-            <Label className={labelCls}>Description <span className="text-white/30">(≤5000)</span></Label>
+            <Label className={labelCls}>Description <span className="text-zinc-400">(≤5000)</span></Label>
             <Textarea
               value={(options.description as string) ?? ''}
               onChange={(e) => onChange('description', e.target.value)}
@@ -635,7 +635,7 @@ function PerPlatformFields({ platform, card, options, onChange }: PerPlatformFie
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <Label className={labelCls}>Tags <span className="text-white/30">(comma-separated)</span></Label>
+              <Label className={labelCls}>Tags <span className="text-zinc-400">(comma-separated)</span></Label>
               <Input
                 value={(options.tags as string) ?? ''}
                 onChange={(e) => onChange('tags', e.target.value)}
@@ -671,12 +671,12 @@ function PerPlatformFields({ platform, card, options, onChange }: PerPlatformFie
                 <option value="private" className="bg-zinc-900">Private</option>
               </select>
             </div>
-            <label className="flex items-center gap-2 pt-6 text-white/60">
+            <label className="flex items-center gap-2 pt-6 text-zinc-600">
               <input
                 type="checkbox"
                 checked={(options.madeForKids as boolean) ?? false}
                 onChange={(e) => onChange('madeForKids', e.target.checked)}
-                className="h-4 w-4 rounded border-white/20 bg-white/5"
+                className="h-4 w-4 rounded border-white/20 text-zinc-50"
               />
               <span className="text-sm">Made for kids</span>
             </label>
@@ -687,7 +687,7 @@ function PerPlatformFields({ platform, card, options, onChange }: PerPlatformFie
     case 'INSTAGRAM':
       return (
         <div>
-          <Label className={labelCls}>Caption <span className="text-white/30">(≤2200)</span></Label>
+          <Label className={labelCls}>Caption <span className="text-zinc-400">(≤2200)</span></Label>
           <Textarea
             value={(options.caption as string) ?? ''}
             onChange={(e) => onChange('caption', e.target.value)}
@@ -699,202 +699,15 @@ function PerPlatformFields({ platform, card, options, onChange }: PerPlatformFie
         </div>
       );
 
-    case 'HASHNODE':
-      return (
-        <div className="space-y-3">
-          <div>
-            <Label className={labelCls}>Tags <span className="text-white/30">(comma-separated, ≤5)</span></Label>
-            <Input
-              value={(options.tags as string) ?? ''}
-              onChange={(e) => onChange('tags', e.target.value)}
-              placeholder={card.techStack.join(', ')}
-              className={fieldCls}
-            />
-          </div>
-          <div>
-            <Label className={labelCls}>Subtitle</Label>
-            <Input
-              value={(options.subtitle as string) ?? ''}
-              onChange={(e) => onChange('subtitle', e.target.value)}
-              maxLength={240}
-              placeholder="Optional article subtitle"
-              className={fieldCls}
-            />
-          </div>
-          <div>
-            <Label className={labelCls}>Cover image URL</Label>
-            <Input
-              value={(options.coverImage as string) ?? ''}
-              onChange={(e) => onChange('coverImage', e.target.value)}
-              placeholder={card.imageUrl ?? 'https://… (defaults to PostCard media)'}
-              className={fieldCls}
-            />
-          </div>
-          <div>
-            <Label className={labelCls}>Canonical URL</Label>
-            <Input
-              value={(options.canonicalUrl as string) ?? ''}
-              onChange={(e) => onChange('canonicalUrl', e.target.value)}
-              placeholder={card.repoUrl || card.liveUrl || 'https://… (for cross-posting)'}
-              className={fieldCls}
-            />
-          </div>
-        </div>
-      );
-
-    case 'DEVTO':
-      return (
-        <div className="space-y-3">
-          <div>
-            <Label className={labelCls}>Tags <span className="text-white/30">(comma-separated, ≤4)</span></Label>
-            <Input
-              value={(options.tags as string) ?? ''}
-              onChange={(e) => onChange('tags', e.target.value)}
-              placeholder={card.techStack.join(', ')}
-              className={fieldCls}
-            />
-          </div>
-          <div>
-            <Label className={labelCls}>Publish state</Label>
-            <select
-              value={(options.published as boolean) === false ? 'draft' : 'published'}
-              onChange={(e) => onChange('published', e.target.value === 'published')}
-              className={`${fieldCls} w-full rounded-md px-3 py-2 text-sm`}
-            >
-              <option value="published" className="bg-zinc-900">Published (live)</option>
-              <option value="draft" className="bg-zinc-900">Draft (unlisted)</option>
-            </select>
-          </div>
-          <div>
-            <Label className={labelCls}>Canonical URL</Label>
-            <Input
-              value={(options.canonicalUrl as string) ?? ''}
-              onChange={(e) => onChange('canonicalUrl', e.target.value)}
-              placeholder={card.repoUrl || card.liveUrl || 'https://… (for cross-posting)'}
-              className={fieldCls}
-            />
-          </div>
-        </div>
-      );
-
-    case 'BLUESKY':
-      return (
-        <div>
-          <Label className={labelCls}>Image alt text <span className="text-white/30">(accessibility)</span></Label>
-          <Input
-            value={(options.altText as string) ?? ''}
-            onChange={(e) => onChange('altText', e.target.value)}
-            maxLength={1000}
-            placeholder="Describe the attached image for screen readers"
-            className={fieldCls}
-          />
-        </div>
-      );
-
-    case 'LINKEDIN':
-      return (
-        <div className="space-y-3">
-          <div>
-            <Label className={labelCls}>Hashtags <span className="text-white/30">(comma-separated, ≤5)</span></Label>
-            <Input
-              value={(options.hashtags as string) ?? ''}
-              onChange={(e) => onChange('hashtags', e.target.value)}
-              placeholder={card.techStack.join(', ')}
-              className={fieldCls}
-            />
-          </div>
-          <div>
-            <Label className={labelCls}>Visibility</Label>
-            <select
-              value={(options.visibility as string) ?? 'PUBLIC'}
-              onChange={(e) => onChange('visibility', e.target.value)}
-              className={`${fieldCls} w-full rounded px-3 py-2`}
-            >
-              <option value="PUBLIC">Public — anyone on LinkedIn</option>
-              <option value="CONNECTIONS">Connections only</option>
-            </select>
-          </div>
-        </div>
-      );
-
-    case 'FACEBOOK':
-      return (
-        <div>
-          <Label className={labelCls}>Hashtags <span className="text-white/30">(comma-separated)</span></Label>
-          <Input
-            value={(options.hashtags as string) ?? ''}
-            onChange={(e) => onChange('hashtags', e.target.value)}
-            placeholder={card.techStack.join(', ')}
-            className={fieldCls}
-          />
-        </div>
-      );
-
-    case 'THREADS':
-      return (
-        <div>
-          <Label className={labelCls}>Caption <span className="text-white/30">(≤500 chars, overrides auto-formatted)</span></Label>
-          <Textarea
-            value={(options.caption as string) ?? ''}
-            onChange={(e) => onChange('caption', e.target.value)}
-            maxLength={500}
-            rows={3}
-            placeholder="Custom caption for Threads (empty = auto-formatted)"
-            className={fieldCls}
-          />
-        </div>
-      );
-
-    case 'DISCORD':
-      return (
-        <div className="space-y-3">
-          <div>
-            <Label className={labelCls}>Display name <span className="text-white/30">(webhook username override)</span></Label>
-            <Input
-              value={(options.username as string) ?? ''}
-              onChange={(e) => onChange('username', e.target.value)}
-              maxLength={80}
-              placeholder="NetAmplify"
-              className={fieldCls}
-            />
-          </div>
-        </div>
-      );
-
-    case 'TELEGRAM':
-      return (
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            id="tg-disable-notif"
-            checked={(options.disableNotification as boolean) ?? false}
-            onChange={(e) => onChange('disableNotification', e.target.checked)}
-            className="h-4 w-4 rounded border-white/20 bg-white/5"
-          />
-          <Label htmlFor="tg-disable-notif" className={labelCls}>Send silently <span className="text-white/30">(no notification sound)</span></Label>
-        </div>
-      );
-
     default:
-      // X (Twitter), TWITTER_COOKIE, Mastodon, WordPress — no per-platform
-      // options; the auto-formatted PostCard is used as-is.
       return (
-        <p className="text-xs text-white/30">
+        <p className="text-xs text-zinc-400">
           No per-platform options for {platformName(platform)} — the auto-formatted PostCard is used as-is.
         </p>
       );
   }
 }
 
-// ============================================================================
-// Helpers
-// ============================================================================
-
-/**
- * Pre-fill per-platform option defaults from the PostCard so the user has a
- * starting point to edit (rather than blank fields). Empty strings are fine —
- * the adapter falls back to its Format Engine default when a field is blank.
- */
 function defaultOptionsFor(platform: string, card: PostCard): Record<string, string | boolean> {
   switch (platform) {
     case 'YOUTUBE':
@@ -908,13 +721,6 @@ function defaultOptionsFor(platform: string, card: PostCard): Record<string, str
       };
     case 'INSTAGRAM':
       return { caption: '' };
-    case 'HASHNODE':
-      return {
-        tags: card.techStack.join(', '),
-        subtitle: '',
-        coverImage: card.imageUrl ?? '',
-        canonicalUrl: card.repoUrl || card.liveUrl || '',
-      };
     case 'DEVTO':
       return {
         tags: card.techStack.join(', '),
@@ -976,7 +782,6 @@ function sanitizeOptions(
 function platformName(platform: string): string {
   const names: Record<string, string> = {
     BLUESKY: 'Bluesky',
-    HASHNODE: 'Hashnode',
     TWITTER: 'X (Twitter)',
     TWITTER_COOKIE: 'X (Twitter)',
     LINKEDIN: 'LinkedIn',
@@ -1006,7 +811,6 @@ const PLATFORM_MEDIA_LIMITS: Record<string, { maxImages: number; maxVideos: numb
   DEVTO: { maxImages: 1, maxVideos: 0, mixedMedia: false },
   TELEGRAM: { maxImages: 1, maxVideos: 1, mixedMedia: false },
   BLUESKY: { maxImages: 4, maxVideos: 1, mixedMedia: false },
-  HASHNODE: { maxImages: 1, maxVideos: 0, mixedMedia: false },
   TWITTER: { maxImages: 4, maxVideos: 1, mixedMedia: false },
   LINKEDIN: { maxImages: 1, maxVideos: 0, mixedMedia: false },
   MASTODON: { maxImages: 4, maxVideos: 1, mixedMedia: false },
@@ -1157,7 +961,7 @@ function PublishValidation({
   }
 
   return (
-    <div className="space-y-2 rounded-lg border border-white/10 bg-white/[0.02] p-3">
+    <div className="space-y-2 rounded-lg border ring-1 ring-zinc-200 bg-zinc-50 p-3">
       <div className="flex items-center gap-3 text-sm">
         {errors.length > 0 && (
           <span className="flex items-center gap-1 text-red-400">
@@ -1181,7 +985,7 @@ function PublishValidation({
             }`}
           >
             <span className="font-medium">{pName(issue.platform)}:</span>
-            <span className="text-white/60">{issue.message}</span>
+            <span className="text-zinc-600">{issue.message}</span>
           </div>
         ))}
       </div>
