@@ -154,26 +154,30 @@ export class DevtoAdapter implements PlatformAdapter {
     }
 
     // Resolve the main image URL. Dev.to fetches the image from this URL —
-    // it MUST be an absolute URL (http/https). The upload controller stores
-    // relative URLs (/uploads/x.jpg) which Dev.to rejects.
-    // IMPORTANT: Dev.to main_image only accepts IMAGE URLs, not videos.
-    // If the PostCard media is a video (.mp4), skip main_image entirely —
-    // the article still publishes (markdown content + tags), just without a
-    // cover image. Dev.to does not support video embeds via the API.
+    // it MUST be a publicly-accessible HTTPS URL. Relative URLs are resolved
+    // via PUBLIC_APP_URL. Localhost URLs are SKIPPED (Dev.to can't fetch them).
+    // Videos are skipped (Dev.to only accepts image covers).
     let mainImage: string | undefined;
     if (formatted.options?.imageUrl) {
       const rawUrl = formatted.options.imageUrl as string;
       // Skip videos — Dev.to can't use them as cover images
       if (!isVideoMedia(rawUrl)) {
         const resolved = resolvePublicMediaUrl(rawUrl);
-        if (!resolved) {
-          throw new PublishError(
-            'VALIDATION',
-            `Dev.to main image URL "${rawUrl}" is relative and ` +
-              `PUBLIC_APP_URL is not set. Set PUBLIC_APP_URL in .env to an HTTPS URL.`,
-          );
+        if (resolved) {
+          // Skip localhost URLs — Dev.to's servers can't fetch from localhost.
+          // Also skip http:// (Dev.to requires HTTPS for image URLs).
+          if (
+            !resolved.includes('localhost') &&
+            !resolved.includes('127.0.0.1') &&
+            resolved.startsWith('https://')
+          ) {
+            mainImage = resolved;
+          }
+          // If the URL is localhost or http://, silently skip — the article
+          // publishes without a cover image (better than failing the whole post).
         }
-        mainImage = resolved;
+        // If resolvePublicMediaUrl returns null (PUBLIC_APP_URL not set),
+        // skip main_image — don't throw (the article can still publish text-only).
       }
     }
 

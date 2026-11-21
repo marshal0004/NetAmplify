@@ -401,26 +401,43 @@ export class XCookieAdapter implements PlatformAdapter {
         if (btn) btn.click();
       });
 
-      // Poll for confirmation — 30s (was 15s, too short for media posts)
+      // Poll for confirmation — 45s total. X's compose dialog behavior varies:
+      // sometimes the URL changes, sometimes the dialog closes but URL stays,
+      // sometimes a toast appears. Check ALL signals.
       let posted = false;
       let duplicateError = false;
-      for (let i = 0; i < 30; i++) {
+      for (let i = 0; i < 45; i++) {
         await page.waitForTimeout(1000);
         const state = await page.evaluate(() => {
           const url = window.location.href;
           const bodyText = document.body?.innerText || '';
+          // Editor element — if gone or empty, the compose dialog closed
           const editor = document.querySelector('[data-testid="tweetTextarea_0"]');
+          const editorExists = !!editor;
           const editorEmpty = editor ? editor.textContent?.trim() === '' : true;
-          const hasToast = bodyText.includes('Your post was sent') || bodyText.includes('Your Post was sent');
-          const hasDuplicateError = bodyText.includes('already said that');
-          return { url, hasToast, editorEmpty, hasDuplicateError };
+          // Toast variants — X changes the text periodically
+          const hasToast = bodyText.includes('Your post was sent') ||
+            bodyText.includes('Your Post was sent') ||
+            bodyText.includes('Your post was sent.') ||
+            bodyText.includes('posted') && bodyText.includes('sent');
+          // URL changed away from compose page
+          const urlChanged = !url.includes('/compose/post');
+          // Compose dialog gone (the textarea no longer exists on the page)
+          const dialogGone = !editorExists;
+          // Home feed elements appeared (timeline tweets)
+          const hasTimeline = !!document.querySelector('[data-testid="primaryColumn"] article');
+          // Duplicate detection
+          const hasDuplicateError = bodyText.includes('already said that') ||
+            bodyText.includes('Something went wrong');
+          return { url, hasToast, editorEmpty, editorExists, urlChanged, dialogGone, hasTimeline, hasDuplicateError };
         });
 
         if (state.hasDuplicateError) {
           duplicateError = true;
           break;
         }
-        if (state.hasToast || !state.url.includes('/compose/post') || state.editorEmpty) {
+        // Success = ANY of these signals (toast, URL change, dialog gone, editor empty, timeline appeared)
+        if (state.hasToast || state.urlChanged || state.dialogGone || (state.editorEmpty && !state.editorExists) || state.hasTimeline) {
           posted = true;
           break;
         }
@@ -440,7 +457,7 @@ export class XCookieAdapter implements PlatformAdapter {
         };
       }
 
-      throw new PublishError('NETWORK', 'Could not confirm tweet was posted after 30s');
+      throw new PublishError('NETWORK', 'Could not confirm tweet was posted after 45s');
     } catch (e) {
       if (e instanceof PublishError) throw e;
       throw new PublishError('NETWORK', `Playwright X publish failed: ${(e as Error)?.message || String(e)}`);
