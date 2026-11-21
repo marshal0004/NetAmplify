@@ -209,12 +209,28 @@ export class XCookieAdapter implements PlatformAdapter {
         throw new PublishError('AUTH', 'X session expired — cookies are invalid. Please reconnect.');
       }
 
-      // Find the tweet text editor
-      const editor = await page.$(
+      // Wait for the tweet text editor to appear (X's compose page loads
+      // asynchronously — the editor may not be ready immediately).
+      // 30s timeout for slow connections; was failing with immediate $() query.
+      let editor = await page.$(
         '[data-testid="tweetTextarea_0"], div[role="textbox"][data-testid="tweetTextarea"]',
       );
       if (!editor) {
-        throw new PublishError('NETWORK', 'Could not find tweet text editor on x.com/compose/post');
+        // Retry with explicit wait
+        try {
+          await page.waitForSelector(
+            '[data-testid="tweetTextarea_0"], div[role="textbox"][data-testid="tweetTextarea"]',
+            { timeout: 30000 },
+          );
+          editor = await page.$(
+            '[data-testid="tweetTextarea_0"], div[role="textbox"][data-testid="tweetTextarea"]',
+          );
+        } catch {
+          throw new PublishError('NETWORK', 'Could not find tweet text editor on x.com/compose/post after 30s wait');
+        }
+      }
+      if (!editor) {
+        throw new PublishError('NETWORK', 'Tweet text editor found but null after wait');
       }
 
       // Type the tweet text with realistic delays
@@ -385,10 +401,10 @@ export class XCookieAdapter implements PlatformAdapter {
         if (btn) btn.click();
       });
 
-      // Poll for confirmation
+      // Poll for confirmation — 30s (was 15s, too short for media posts)
       let posted = false;
       let duplicateError = false;
-      for (let i = 0; i < 15; i++) {
+      for (let i = 0; i < 30; i++) {
         await page.waitForTimeout(1000);
         const state = await page.evaluate(() => {
           const url = window.location.href;
@@ -424,7 +440,7 @@ export class XCookieAdapter implements PlatformAdapter {
         };
       }
 
-      throw new PublishError('NETWORK', 'Could not confirm tweet was posted after 15s');
+      throw new PublishError('NETWORK', 'Could not confirm tweet was posted after 30s');
     } catch (e) {
       if (e instanceof PublishError) throw e;
       throw new PublishError('NETWORK', `Playwright X publish failed: ${(e as Error)?.message || String(e)}`);

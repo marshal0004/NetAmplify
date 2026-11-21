@@ -22,7 +22,7 @@ import type {
 } from '../adapter.interface';
 import { PublishError } from '../adapter.interface';
 import type { Platform } from '@prisma/client';
-import { resolvePublicMediaUrl } from '../../services/uploads-dir';
+import { resolvePublicMediaUrl, isVideoMedia } from '../../services/uploads-dir';
 
 const DEVTO_API_BASE = 'https://dev.to/api';
 
@@ -154,21 +154,27 @@ export class DevtoAdapter implements PlatformAdapter {
     }
 
     // Resolve the main image URL. Dev.to fetches the image from this URL —
-    // it MUST be an absolute URL. The upload controller stores relative URLs
-    // (/uploads/x.jpg) which Dev.to rejects ("Main image is not a valid URL").
-    // resolvePublicMediaUrl converts relative → absolute via PUBLIC_APP_URL.
+    // it MUST be an absolute URL (http/https). The upload controller stores
+    // relative URLs (/uploads/x.jpg) which Dev.to rejects.
+    // IMPORTANT: Dev.to main_image only accepts IMAGE URLs, not videos.
+    // If the PostCard media is a video (.mp4), skip main_image entirely —
+    // the article still publishes (markdown content + tags), just without a
+    // cover image. Dev.to does not support video embeds via the API.
     let mainImage: string | undefined;
     if (formatted.options?.imageUrl) {
-      const resolved = resolvePublicMediaUrl(formatted.options.imageUrl as string);
-      if (!resolved) {
-        throw new PublishError(
-          'VALIDATION',
-          `Dev.to main image URL "${formatted.options.imageUrl}" is relative and ` +
-            `PUBLIC_APP_URL is not set. Set PUBLIC_APP_URL in .env to an HTTPS URL ` +
-            `(e.g. an ngrok tunnel) so Dev.to can fetch the cover image.`,
-        );
+      const rawUrl = formatted.options.imageUrl as string;
+      // Skip videos — Dev.to can't use them as cover images
+      if (!isVideoMedia(rawUrl)) {
+        const resolved = resolvePublicMediaUrl(rawUrl);
+        if (!resolved) {
+          throw new PublishError(
+            'VALIDATION',
+            `Dev.to main image URL "${rawUrl}" is relative and ` +
+              `PUBLIC_APP_URL is not set. Set PUBLIC_APP_URL in .env to an HTTPS URL.`,
+          );
+        }
+        mainImage = resolved;
       }
-      mainImage = resolved;
     }
 
     const payload: DevtoArticlePayload = {

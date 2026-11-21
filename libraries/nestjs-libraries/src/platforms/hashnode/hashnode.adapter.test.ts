@@ -316,9 +316,8 @@ describe('HashnodeAdapter', () => {
 
       const body = JSON.parse(fetchMock.mock.calls[0][1].body);
       // The relative URL is resolved to an absolute URL via PUBLIC_APP_URL
-      // coverImageURL is now nested under coverImageOptions (Hashnode API v2 field name)
-      expect(body.variables.input.coverImageOptions).toBeDefined();
-      expect(body.variables.input.coverImageOptions.coverImageURL).toBe('https://my-tunnel.ngrok-free.dev/uploads/photo.jpg');
+      // coverImage is a top-level string field (Hashnode API: "coverImage")
+      expect(body.variables.input.coverImage).toBe('https://my-tunnel.ngrok-free.dev/uploads/photo.jpg');
 
       process.env.PUBLIC_APP_URL = prevPublicAppUrl; // restore
     });

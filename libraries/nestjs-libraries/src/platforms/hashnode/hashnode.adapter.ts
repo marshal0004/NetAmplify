@@ -341,7 +341,7 @@ export class HashnodeAdapter implements PlatformAdapter {
         tags: tags.map((slug) => ({ slug, name: slug })),
         ...(subtitle ? { subtitle } : {}),
         ...(originalArticleURL ? { originalArticleURL } : {}),
-        ...(coverImage ? { coverImageOptions: { coverImageURL: coverImage } } : {}),
+        ...(coverImage ? { coverImage: coverImage } : {}),
       },
     };
 
