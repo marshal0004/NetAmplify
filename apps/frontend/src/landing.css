@@ -1,5 +1,5 @@
 
-:root {
+.pf {
   --bg:#ffffff;--bg2:#fafafa;--fg:#09090b;--fg2:#3f3f46;--mut:#71717a;--line:rgba(9,9,11,.08);--line2:rgba(9,9,11,.14);
   --card:#ffffff;--card2:#f4f4f5;--glass:rgba(255,255,255,.72);--shadow:0 1px 2px rgba(0,0,0,.04),0 8px 24px -8px rgba(0,0,0,.12);
   --o:#fb923c;--r:#e11d48;--grad:linear-gradient(135deg,#fb923c,#e11d48);--accent:#e8590c;--ok:#16a34a;--warn:#d97706;
@@ -8,14 +8,10 @@
   --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
   color-scheme:light;
 }
-@media (prefers-color-scheme:dark) { :root:not(.light) {
+@media (prefers-color-scheme:dark) { .pf:not(.light) {
   --bg:#09090b;--bg2:#0c0c0f;--fg:#fafafa;--fg2:#d4d4d8;--mut:#a1a1aa;--line:rgba(255,255,255,.08);--line2:rgba(255,255,255,.14);
   --card:#111114;--card2:#18181b;--glass:rgba(9,9,11,.66);--shadow:0 1px 0 rgba(255,255,255,.04) inset,0 12px 32px -12px rgba(0,0,0,.7);
   --accent:#fb923c;--ok:#4ade80;--warn:#fbbf24;--glow:rgba(249,115,22,.28);--blob1:rgba(251,146,60,.20);--blob2:rgba(225,29,72,.18);color-scheme:dark} }
-:root.dark {
-  --bg:#09090b;--bg2:#0c0c0f;--fg:#fafafa;--fg2:#d4d4d8;--mut:#a1a1aa;--line:rgba(255,255,255,.08);--line2:rgba(255,255,255,.14);
-  --card:#111114;--card2:#18181b;--glass:rgba(9,9,11,.66);--shadow:0 1px 0 rgba(255,255,255,.04) inset,0 12px 32px -12px rgba(0,0,0,.7);
-  --accent:#fb923c;--ok:#4ade80;--warn:#fbbf24;--glow:rgba(249,115,22,.28);--blob1:rgba(251,146,60,.20);--blob2:rgba(225,29,72,.18);color-scheme:dark}
 .pf.dark {
   --bg:#09090b;--bg2:#0c0c0f;--fg:#fafafa;--fg2:#d4d4d8;--mut:#a1a1aa;--line:rgba(255,255,255,.08);--line2:rgba(255,255,255,.14);
   --card:#111114;--card2:#18181b;--glass:rgba(9,9,11,.66);--shadow:0 1px 0 rgba(255,255,255,.04) inset,0 12px 32px -12px rgba(0,0,0,.7);
@@ -222,10 +218,8 @@ body { margin: 0; }
 .pf .tool svg {width:14px;height:14px;fill:#d97757}
 .pf .code {margin:0;font:12.5px/1.65 var(--mono);color:var(--fg2);background:var(--bg2);border:1px solid var(--line);border-radius:14px;padding:14px 16px;overflow:auto;white-space:pre}
 .pf .code .c1 {color:#e8590c}.pf .code .c2 {color:var(--mut)}.pf .code .c3 {color:#16a34a}
-:root.dark .code .c3 {color:#4ade80}
 .pf.dark {color:#4ade80}
-@media (prefers-color-scheme:dark) { :root:not(.light) .code .c3 {color:#4ade80}:root:not(.light) .code .c1 {color:#fb923c} }
-:root.dark .code .c1 {color:#fb923c}
+@media (prefers-color-scheme:dark) { .pf:not(.light) {color:#4ade80}.pf:not(.light) {color:#fb923c} }
 .pf.dark {color:#fb923c}
 
 
