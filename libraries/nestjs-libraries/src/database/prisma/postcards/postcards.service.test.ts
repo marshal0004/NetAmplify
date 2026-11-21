@@ -196,8 +196,8 @@ describe('PostCardService', () => {
   describe('preview', () => {
     it('returns formatted preview for each platform', async () => {
       const created = await service.create('user-1', validPostCardInput);
-      const preview = await service.preview('user-1', created.id, 'HASHNODE');
-      expect(preview.platform).toBe('HASHNODE');
+      const preview = await service.preview('user-1', created.id, 'DEVTO');
+      expect(preview.platform).toBe('DEVTO');
       expect(preview.formatted.title).toBe('My Project');
       expect(preview.formatted.body).toContain('A one-line summary');
       expect(preview.formatted.charCount).toBeGreaterThan(0);
@@ -206,7 +206,7 @@ describe('PostCardService', () => {
 
     it('throws NOT_FOUND when PostCard does not exist', async () => {
       await expect(
-        service.preview('user-1', 'nonexistent', 'HASHNODE')
+        service.preview('user-1', 'nonexistent', 'DEVTO')
       ).rejects.toThrow(ServiceError);
     });
   });

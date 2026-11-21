@@ -9,10 +9,10 @@
 //
 //   2. Every formatter now MERGES the incoming per-platform `options` with
 //      the PostCard-derived defaults (instead of replacing them). Previously
-//      the linkedin/x/devto/hashnode formatters built `options` from only
+//      the linkedin/x/devto formatters built `options` from only
 //      postCard.imageUrl + DROPPED the publish request's options — so the
 //      per-platform options panel had no effect. Now overrides (YouTube
-//      title/tags/privacy, Hashnode tags/subtitle, Instagram caption, DevTo
+//      title/tags/privacy, Instagram caption, DevTo
 //      tags/published, Bluesky altText) flow through to formatted.options +
 //      reach the adapters.
 //
@@ -123,13 +123,6 @@ describe('format-engine — formatters merge incoming per-platform options', () 
     expect(out.options?.imageUrl).toBe('/uploads/abc-123.jpg');
     expect(out.options?.canonicalUrl).toBe('https://github.com/user/repo');
     expect(out.options?.tags).toEqual(['custom1', 'custom2']);
-  });
-
-  it('Hashnode (hashnode formatter) keeps coverImage + canonicalUrl defaults + applies subtitle override', () => {
-    const out = formatForPlatform('HASHNODE', CARD, null, { subtitle: 'A subtitle' });
-    expect(out.options?.coverImage).toBe('/uploads/abc-123.jpg');
-    expect(out.options?.canonicalUrl).toBe('https://github.com/user/repo');
-    expect(out.options?.subtitle).toBe('A subtitle');
   });
 
   it('Bluesky (bluesky formatter) keeps imageUrl default + applies altText override', () => {

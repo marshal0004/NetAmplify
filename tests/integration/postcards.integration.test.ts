@@ -176,15 +176,15 @@ describe('Integration: PostCards', () => {
   });
 
   describe('GET /api/postcards/:id/preview', () => {
-    it('returns Format Engine output for HASHNODE', async () => {
+    it('returns Format Engine output for DEVTO', async () => {
       const card = await test.createPostCard(token, {
         title: 'My Project',
         description: 'A description',
       });
-      const res = await test.request.get(`/api/postcards/${card.id}/preview?platform=HASHNODE`)
+      const res = await test.request.get(`/api/postcards/${card.id}/preview?platform=DEVTO`)
         .set('Authorization', `Bearer ${token}`);
       expect(res.status).toBe(200);
-      expect(res.body.platform).toBe('HASHNODE');
+      expect(res.body.platform).toBe('DEVTO');
       expect(res.body.formatted.title).toBe('My Project');
       expect(res.body.formatted.body).toContain('A description');
       expect(res.body.formatted.charCount).toBeGreaterThan(0);
@@ -192,7 +192,7 @@ describe('Integration: PostCards', () => {
 
     it('returns 200 for each platform', async () => {
       const card = await test.createPostCard(token, {});
-      const platforms = ['TWITTER', 'LINKEDIN', 'DISCORD', 'DEVTO', 'HASHNODE', 'TELEGRAM', 'BLUESKY'];
+      const platforms = ['TWITTER', 'LINKEDIN', 'DISCORD', 'DEVTO', 'TELEGRAM', 'BLUESKY'];
       for (const p of platforms) {
         const res = await test.request.get(`/api/postcards/${card.id}/preview?platform=${p}`)
           .set('Authorization', `Bearer ${token}`);
@@ -210,7 +210,7 @@ describe('Integration: PostCards', () => {
     });
 
     it('returns 404 for non-existent PostCard', async () => {
-      const res = await test.request.get('/api/postcards/nonexistent/preview?platform=HASHNODE')
+      const res = await test.request.get('/api/postcards/nonexistent/preview?platform=DEVTO')
         .set('Authorization', `Bearer ${token}`);
       expect(res.status).toBe(404);
     });

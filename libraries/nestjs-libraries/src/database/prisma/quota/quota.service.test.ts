@@ -61,7 +61,7 @@ describe('QuotaService', () => {
 
   describe('wouldExceedBudget', () => {
     it('returns false for non-X platforms (no budget in MVP)', async () => {
-      expect(await quota.wouldExceedBudget('HASHNODE')).toBe(false);
+      expect(await quota.wouldExceedBudget('BLUESKY')).toBe(false);
       expect(await quota.wouldExceedBudget('LINKEDIN')).toBe(false);
       expect(await quota.wouldExceedBudget('DISCORD')).toBe(false);
     });

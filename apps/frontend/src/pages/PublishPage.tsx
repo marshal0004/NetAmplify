@@ -14,7 +14,7 @@
 //      click Amplify.
 //   3. After selecting platforms, render a PER-PLATFORM options panel
 //      (YouTube: title/tags/category/privacy/madeForKids/description;
-//      Hashnode: tags/subtitle/cover/canonical; Instagram: caption;
+//      Instagram: caption;
 //      DevTo: tags/published/canonical; Bluesky: altText). These options
 //      flow through the publish request → worker → Format Engine → adapter
 //      (each adapter honors its own option keys; see the adapter files).
@@ -597,7 +597,6 @@ interface PerPlatformFieldsProps {
  * adapter reads:
  *   - YouTube: title, description, tags, categoryId, privacyStatus, madeForKids
  *   - Instagram: caption
- *   - Hashnode: tags, subtitle, coverImage, canonicalUrl
  *   - DevTo: tags, published, canonicalUrl
  *   - Bluesky: altText
  *   - Threads/Facebook/LinkedIn/X/Discord/Telegram/Mastodon/WordPress: no

@@ -99,7 +99,7 @@ export class AdapterRegistry {
 
   /**
    * Returns true if the platform has required env vars set.
-   * For SIMPLE adapters (Discord, Dev.to, Hashnode, Telegram, Bluesky),
+   * For SIMPLE adapters (Discord, Dev.to, Telegram, Bluesky),
    * always true (user-pasted credentials). For OAUTH adapters (LinkedIn,
    * Facebook, Instagram) and the cookie X adapter, checks env / state.
    *

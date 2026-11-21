@@ -1,7 +1,7 @@
 // /home/z/my-project/netamplify-app/tests/integration/connections.integration.test.ts
 // NetAmplify — Integration tests for /api/connections/* endpoints.
 //
-// Connections to Dev.to/Discord/Telegram/Bluesky/Hashnode accept user-pasted
+// Connections to Dev.to/Discord/Telegram/Bluesky accept user-pasted
 // credentials + validate them via real platform API calls. Tests use
 // mocked adapters to simulate platform responses.
 
@@ -53,13 +53,6 @@ describe('Integration: Connections', () => {
             },
           },
         },
-        {
-          platform: 'HASHNODE',
-          validateResult: {
-            identity: { id: 'user-123', username: 'janedev' },
-            credentials: { pat: 'hashnode-pat-123', publicationId: 'pub-123' },
-          },
-        },
 
       ],
     });
@@ -77,15 +70,14 @@ describe('Integration: Connections', () => {
         .set('Authorization', `Bearer ${token}`);
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
-      // 11 registered adapters: 5 mocked below + 6 real (LinkedIn, X-cookie, Facebook, Instagram, YouTube, Threads)
-      expect(res.body.length).toBe(11);
+      // 10 registered adapters: 4 mocked below + 6 real (LinkedIn, X-cookie, Facebook, Instagram, YouTube, Threads)
+      expect(res.body.length).toBe(10);
       const platforms = res.body.map((c: { platform: string }) => c.platform);
       // SIMPLE platforms (mocked in this test)
       expect(platforms).toContain('DISCORD');
       expect(platforms).toContain('DEVTO');
       expect(platforms).toContain('TELEGRAM');
       expect(platforms).toContain('BLUESKY');
-      expect(platforms).toContain('HASHNODE');
       // OAuth / cookie platforms (real adapters, listed regardless of env state)
       expect(platforms).toContain('LINKEDIN');
       expect(platforms).toContain('TWITTER_COOKIE');
@@ -97,6 +89,7 @@ describe('Integration: Connections', () => {
       expect(platforms).not.toContain('MASTODON');
       expect(platforms).not.toContain('WORDPRESS');
       expect(platforms).not.toContain('TWITTER');
+      expect(platforms).not.toContain('HASHNODE');
     });
 
     it('returns 401 without JWT', async () => {
@@ -194,23 +187,6 @@ describe('Integration: Connections', () => {
       const res = await test.request.post('/api/connections/bluesky')
         .set('Authorization', `Bearer ${token}`)
         .send({ handle: 'jane.bsky.social', appPassword: 'no-dashes-here' });
-      expect(res.status).toBe(400);
-    });
-  });
-
-  describe('POST /api/connections/hashnode', () => {
-    it('returns 201 on valid PAT', async () => {
-      const res = await test.request.post('/api/connections/hashnode')
-        .set('Authorization', `Bearer ${token}`)
-        .send({ pat: 'hashnode-pat-test' });
-      expect(res.status).toBe(201);
-      expect(res.body.username).toBe('janedev');
-    });
-
-    it('returns 400 on missing PAT', async () => {
-      const res = await test.request.post('/api/connections/hashnode')
-        .set('Authorization', `Bearer ${token}`)
-        .send({});
       expect(res.status).toBe(400);
     });
   });

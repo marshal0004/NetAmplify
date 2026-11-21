@@ -137,7 +137,7 @@ export function Landing() {
             className="mx-auto mt-8 max-w-2xl text-lg md:text-xl text-zinc-600"
           >
             A student creates a Post Card once; NetAmplify formats it per-platform and
-            publishes to Discord, Dev.to, Telegram, Bluesky, Hashnode, and LinkedIn
+            publishes to Discord, Dev.to, Telegram, Bluesky, X, and LinkedIn
             using the user's own credentials. We never see your passwords.
           </motion.p>
 
@@ -230,7 +230,7 @@ export function Landing() {
         <div className="space-y-8">
           {[
             { step: '01', title: 'Create a Post Card', desc: 'Write your project title, summary, markdown description, and tech stack once. No copy-pasting between platforms.' },
-            { step: '02', title: 'Connect platforms', desc: 'OAuth login (X, LinkedIn, Instagram, YouTube) or paste a key (Dev.to, Discord, Telegram, Bluesky, Hashnode). Encrypted with AES-256-GCM.' },
+            { step: '02', title: 'Connect platforms', desc: 'OAuth login (X, LinkedIn, Instagram, YouTube) or paste a key (Dev.to, Discord, Telegram, Bluesky). Encrypted with AES-256-GCM.' },
             { step: '03', title: 'Amplify', desc: 'One click publishes to all connected platforms with per-platform formatting. Watch real-time status updates.' },
           ].map((s) => (
             <motion.div key={s.step} variants={itemVariants} className="flex items-start gap-6">

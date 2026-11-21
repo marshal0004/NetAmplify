@@ -37,7 +37,7 @@ datasource db {
 // ============================================================================
 
 /// NetAmplify supports 14 platforms per docs/01-PRD.md §4:
-///   Tier A (live): DISCORD, DEVTO, TELEGRAM, BLUESKY, HASHNODE, MASTODON, WORDPRESS
+///   Tier A (live): DISCORD, DEVTO, TELEGRAM, BLUESKY, TWITTER_COOKIE
 ///   Tier A (cookie variant): TWITTER_COOKIE (bypass paywall via session cookies)
 ///   Tier B (bonus OAuth): TWITTER (X), LINKEDIN, FACEBOOK, INSTAGRAM,
 ///                         YOUTUBE (Google Data API v3), THREADS (Meta Threads API)
@@ -61,7 +61,7 @@ enum Platform {
 /// How the platform credential was obtained. Drives the Connect Checklist UX.
 enum ConnectionType {
   OAUTH          /// X, LinkedIn (OAuth 2.0 + PKCE)
-  API_KEY        /// Dev.to, Hashnode, Mastodon (user-pasted)
+  API_KEY        /// Dev.to (user-pasted)
   WEBHOOK        /// Discord (user-pasted webhook URL)
   BOT_TOKEN      /// Telegram (user-pasted bot token + channel)
   APP_PASSWORD   /// Bluesky, WordPress (user-pasted app password)

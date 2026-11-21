@@ -11,8 +11,10 @@ import { UploadController } from './upload.controller';
 import { PlatformsController } from './platforms.controller';
 import { MediaController } from './media.controller';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { PlatformsModule } from '@netamplify/nestjs-libraries/platforms/platforms.module';
 
 @Module({
+  imports: [PlatformsModule],
   controllers: [UploadController, PlatformsController, MediaController],
   providers: [JwtAuthGuard],
 })

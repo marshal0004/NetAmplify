@@ -6,7 +6,6 @@
 //   LinkedIn: plain text ≤3000, line breaks preserved, ≤3 hashtags, link on own line.
 //   Discord: embed {title ≤256, description ≤4096, fields: tech stack, links}.
 //   Dev.to: markdown article (title + body), tags ≤4.
-//   Hashnode: markdown, publication optional.
 //   Telegram: HTML message ≤4096 with title link + tags.
 //   Bluesky: ≤300 chars (graphemes) + external link facet.
 //   Deterministic; truncation strategy = trim description, then summary,

@@ -119,7 +119,7 @@ export function readLocalUploadFile(url: string): Buffer | null {
  *
  * The upload controller stores RELATIVE URLs ("/uploads/<filename>") so media
  * renders on any origin in the browser. But platforms that FETCH the media
- * from their servers (Dev.to, Hashnode, Facebook, Instagram, Threads) need an
+ * from their servers (Dev.to, Facebook, Instagram, Threads) need an
  * ABSOLUTE URL — a relative URL like "/uploads/x.jpg" is not a valid URL they
  * can download from.
  *
@@ -131,7 +131,7 @@ export function readLocalUploadFile(url: string): Buffer | null {
  *     caller should throw a clear VALIDATION error telling the user to set
  *     PUBLIC_APP_URL).
  *
- * Used by: Dev.to (main_image), Hashnode (coverImageURL), Facebook (image
+ * Used by: Dev.to (main_image), Facebook (image
  * fallback for external URLs). Instagram + Threads use their own
  * rewriteLocalhostUrlForMeta (same logic, inline).
  */

@@ -35,7 +35,6 @@ import { xFormatter } from './x';
 import { linkedinFormatter } from './linkedin';
 import { discordFormatter } from './discord';
 import { devtoFormatter } from './devto';
-import { hashnodeFormatter } from './hashnode';
 import { telegramFormatter } from './telegram';
 import { blueskyFormatter } from './bluesky';
 import { mastodonFormatter } from './mastodon';
@@ -44,17 +43,22 @@ import { wordpressFormatter } from './wordpress';
 /**
  * Map of platform → formatter function. Pure functions, no DI.
  *
+ * `Partial` because removed platforms (HASHNODE, and the un-registered
+ * MASTODON/WORDPRESS/TWITTER-OAuth enum values retained for data compat)
+ * deliberately have NO formatter — they cannot be formatted, previewed,
+ * or published. `formatForPlatform` throws a clear error for any platform
+ * absent from this map.
+ *
  * TWITTER_COOKIE reuses the X (OAuth) formatter — both produce ≤280 char
  * title + markdown body submissions.
  */
-export const FORMATTERS: Record<Platform, Formatter> = {
+export const FORMATTERS: Partial<Record<Platform, Formatter>> = {
   TWITTER: xFormatter,
   LINKEDIN: linkedinFormatter,
   DISCORD: discordFormatter,
   DEVTO: devtoFormatter,
   TELEGRAM: telegramFormatter,
   BLUESKY: blueskyFormatter,
-  HASHNODE: hashnodeFormatter,
   MASTODON: mastodonFormatter,
   WORDPRESS: wordpressFormatter,
   TWITTER_COOKIE: xFormatter,
@@ -101,8 +105,8 @@ export function formatForAllPlatforms(
   postCard: FormatEnginePostCard,
   profile: FormatEngineProfile | null,
   optionsByPlatform: Partial<Record<Platform, FormatEngineOptions>> = {}
-): Record<Platform, FormatResult> {
-  const results = {} as Record<Platform, FormatResult>;
+): Partial<Record<Platform, FormatResult>> {
+  const results = {} as Partial<Record<Platform, FormatResult>>;
   for (const platform of Object.keys(FORMATTERS) as Platform[]) {
     const opts = optionsByPlatform[platform] || {};
     const formatted = formatForPlatform(platform, postCard, profile, opts);
@@ -133,7 +137,7 @@ export class FormatEngine {
     postCard: FormatEnginePostCard,
     profile: FormatEngineProfile | null,
     optionsByPlatform: Partial<Record<Platform, FormatEngineOptions>> = {}
-  ): Record<Platform, FormatResult> {
+  ): Partial<Record<Platform, FormatResult>> {
     return formatForAllPlatforms(postCard, profile, optionsByPlatform);
   }
 }

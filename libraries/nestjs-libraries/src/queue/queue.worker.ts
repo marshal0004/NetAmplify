@@ -255,7 +255,7 @@ export class PublishWorker implements OnModuleInit, OnModuleDestroy {
       // targetId, attempt number, errorClass, message. The original worker only
       // surfaced RATE/NETWORK failures (via the BullMQ `failed` event) and
       // silently returned for AUTH/VALIDATION/QUOTA — which is why the backend
-      // logs showed "no error" for YouTube/Hashnode failures (they were
+      // logs showed "no error" for YouTube/Bluesky failures (they were
       // AUTH/VALIDATION class, written only to the PostTarget.error DB column,
       // never to stdout). This single log line is the highest-leverage fix for
       // "I don't see so much error in backend".

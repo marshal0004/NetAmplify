@@ -18,6 +18,9 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createTestApp, type TestApp, type MockAdapterConfig } from '../helpers/test-app';
 import { PublishWorker } from '../../libraries/nestjs-libraries/src/queue/queue.worker';
 
+const TELEGRAM_BOT_TOKEN = '7812345678:AAH1234567890abcdefghijklmnopqrstuv';
+const TELEGRAM_CHANNEL = '@mychannel';
+
 const mockAdapters: MockAdapterConfig[] = [
   { platform: 'DISCORD',
     validateResult: { identity: { id: 'chan-123', username: '#showcase' }, credentials: { webhookUrl: 'https://discord.com/api/webhooks/123/abc' } },
@@ -25,11 +28,8 @@ const mockAdapters: MockAdapterConfig[] = [
   { platform: 'DEVTO',
     validateResult: { identity: { id: '1', username: 'janedev' }, credentials: { apiKey: 'mock' } },
     publishResult: { id: '99', url: 'https://dev.to/janedev/test-123' } },
-  { platform: 'HASHNODE',
-    validateResult: { identity: { id: 'u-1', username: 'janedev' }, credentials: { pat: 'mock', publicationId: 'pub-1' } },
-    publishResult: { id: 'p-1', url: 'https://janedev.hashnode.dev/test' } },
   { platform: 'TELEGRAM',
-    validateResult: { identity: { id: 'chan-1', username: 'My Channel' }, credentials: { botToken: '7812345678:AAH1234567890abcdefghijklmnopqrstuv', channel: '@mychannel' } },
+    validateResult: { identity: { id: 'chan-1', username: 'My Channel' }, credentials: { botToken: TELEGRAM_BOT_TOKEN, channel: TELEGRAM_CHANNEL, botUsername: 'testbot' } },
     publishResult: { id: '42', url: 'https://t.me/mychannel/42' } },
   { platform: 'BLUESKY',
     validateResult: { identity: { id: 'did:plc:abc', username: 'jane.bsky.social' }, credentials: { accessJwt: 'mock', refreshJwt: 'mock', did: 'did:plc:abc', handle: 'jane.bsky.social' } },
@@ -78,7 +78,7 @@ describe('E2E: Amplify flow (signup → connect → publish → SUCCESS)', () =>
     const postCardId = cardRes.body.id;
 
     // === 3. CONNECT PLATFORMS ===
-    // Connect 5 Tier A platforms (Discord, Dev.to, Telegram, Bluesky, Hashnode)
+    // Connect 4 Tier A platforms (Discord, Dev.to, Telegram, Bluesky)
     const discordRes = await test.request.post('/api/connections/discord')
       .set('Authorization', `Bearer ${token}`)
       .send({ webhookUrl: 'https://discord.com/api/webhooks/123/abc' });
@@ -92,8 +92,8 @@ describe('E2E: Amplify flow (signup → connect → publish → SUCCESS)', () =>
     const telegramRes = await test.request.post('/api/connections/telegram')
       .set('Authorization', `Bearer ${token}`)
       .send({
-        botToken: '7812345678:AAH1234567890abcdefghijklmnopqrstuv',
-        channel: '@mychannel',
+        botToken: TELEGRAM_BOT_TOKEN,
+        channel: TELEGRAM_CHANNEL,
       });
     expect(telegramRes.status).toBe(201);
 
@@ -102,17 +102,12 @@ describe('E2E: Amplify flow (signup → connect → publish → SUCCESS)', () =>
       .send({ handle: 'jane.bsky.social', appPassword: 'abcd-efgh-ijkl-mnop' });
     expect(blueskyRes.status).toBe(201);
 
-    const hashnodeRes = await test.request.post('/api/connections/hashnode')
-      .set('Authorization', `Bearer ${token}`)
-      .send({ pat: 'mock-hashnode-pat' });
-    expect(hashnodeRes.status).toBe(201);
-
-    // Verify all 5 connections exist
+    // Verify all 4 connections exist
     const listRes = await test.request.get('/api/connections')
       .set('Authorization', `Bearer ${token}`);
     expect(listRes.status).toBe(200);
     const connected = listRes.body.filter((c: { platformUsername: string | null }) => c.platformUsername !== null);
-    expect(connected.length).toBe(5);
+    expect(connected.length).toBe(4);
 
     // === 4. PUBLISH (AMPLIFY) ===
     const publishRes = await test.request.post(`/api/postcards/${postCardId}/publish`)
@@ -123,7 +118,6 @@ describe('E2E: Amplify flow (signup → connect → publish → SUCCESS)', () =>
           { platform: 'DEVTO' },
           { platform: 'TELEGRAM' },
           { platform: 'BLUESKY' },
-          { platform: 'HASHNODE' },
         ],
         requestId: `e2e-${Date.now()}`,
       });
@@ -131,13 +125,13 @@ describe('E2E: Amplify flow (signup → connect → publish → SUCCESS)', () =>
     expect(publishRes.body.post.id).toBeTruthy();
     const postId = publishRes.body.post.id;
     const targetIds = publishRes.body.post.targets.map((t: { id: string }) => t.id);
-    expect(targetIds.length).toBe(5);
+    expect(targetIds.length).toBe(4);
 
     // Verify all targets are QUEUED (worker hasn't run yet)
     expect(publishRes.body.post.targets.every((t: { status: string }) => t.status === 'QUEUED')).toBe(true);
 
-    // Verify 5 jobs were enqueued
-    expect(test.queue._jobs.length).toBe(5);
+    // Verify 4 jobs were enqueued
+    expect(test.queue._jobs.length).toBe(4);
 
     // === 5. SIMULATE WORKER PROCESSING EACH JOB ===
     for (const job of test.queue._jobs) {
@@ -153,7 +147,7 @@ describe('E2E: Amplify flow (signup → connect → publish → SUCCESS)', () =>
     const pollRes = await test.request.get(`/api/posts/${postId}`)
       .set('Authorization', `Bearer ${token}`);
     expect(pollRes.status).toBe(200);
-    expect(pollRes.body.post.targets.length).toBe(5);
+    expect(pollRes.body.post.targets.length).toBe(4);
 
     // === 7. ASSERT ALL TARGETS REACHED SUCCESS ===
     const statuses = pollRes.body.post.targets.map((t: { status: string }) => t.status);
@@ -167,7 +161,7 @@ describe('E2E: Amplify flow (signup → connect → publish → SUCCESS)', () =>
   });
 
   it('partial success: one platform fails, others succeed', async () => {
-    // Override HASHNODE to throw an AUTH error
+    // Override TELEGRAM to throw an AUTH error
     const auth = await test.signupAndLogin();
     const token = auth.accessToken;
     const card = await test.createPostCard(token, {});
@@ -175,17 +169,17 @@ describe('E2E: Amplify flow (signup → connect → publish → SUCCESS)', () =>
     // Connect 3 platforms
     await test.request.post('/api/connections/discord').set('Authorization', `Bearer ${token}`).send({ webhookUrl: 'https://discord.com/api/webhooks/123/abc' });
     await test.request.post('/api/connections/devto').set('Authorization', `Bearer ${token}`).send({ apiKey: 'mock' });
-    await test.request.post('/api/connections/hashnode').set('Authorization', `Bearer ${token}`).send({ pat: 'mock' });
+    await test.request.post('/api/connections/telegram').set('Authorization', `Bearer ${token}`).send({ botToken: TELEGRAM_BOT_TOKEN, channel: TELEGRAM_CHANNEL });
 
-    // Override the HASHNODE mock adapter to throw AUTH error
+    // Override the TELEGRAM mock adapter to throw AUTH error
     const registry = test.app.get(AdapterRegistry) as unknown as { adapters: Map<string, { publish: (c: unknown, f: unknown) => Promise<unknown> }> };
-    const originalHashnode = registry.adapters.get('HASHNODE');
-    if (originalHashnode) {
-      const originalPublish = originalHashnode.publish;
+    const originalTelegram = registry.adapters.get('TELEGRAM');
+    if (originalTelegram) {
+      const originalPublish = originalTelegram.publish;
       // Replace publish with a failing one
-      (originalHashnode as { publish: (c: unknown, f: unknown) => Promise<unknown> }).publish = async () => {
+      (originalTelegram as { publish: (c: unknown, f: unknown) => Promise<unknown> }).publish = async () => {
         const { PublishError } = await import('../../libraries/nestjs-libraries/src/platforms/adapter.interface');
-        throw new PublishError('AUTH', 'Hashnode token revoked');
+        throw new PublishError('AUTH', 'Telegram bot token revoked');
       };
     }
 
@@ -196,7 +190,7 @@ describe('E2E: Amplify flow (signup → connect → publish → SUCCESS)', () =>
         platforms: [
           { platform: 'DISCORD' },
           { platform: 'DEVTO' },
-          { platform: 'HASHNODE' },
+          { platform: 'TELEGRAM' },
         ],
         requestId: `partial-${Date.now()}`,
       });
@@ -218,7 +212,7 @@ describe('E2E: Amplify flow (signup → connect → publish → SUCCESS)', () =>
     expect(pollRes.status).toBe(200);
 
     const statuses = pollRes.body.post.targets.map((t: { status: string }) => t.status);
-    // Discord + Dev.to should be SUCCESS; Hashnode should be FAILED
+    // Discord + Dev.to should be SUCCESS; Telegram should be FAILED
     const successCount = statuses.filter((s: string) => s === 'SUCCESS').length;
     const failedCount = statuses.filter((s: string) => s === 'FAILED').length;
     expect(successCount).toBe(2);
@@ -227,7 +221,7 @@ describe('E2E: Amplify flow (signup → connect → publish → SUCCESS)', () =>
     // The FAILED target should have an error message
     const failedTarget = pollRes.body.post.targets.find((t: { status: string }) => t.status === 'FAILED');
     expect(failedTarget).toBeDefined();
-    expect(failedTarget.error).toContain('Hashnode');
+    expect(failedTarget.error).toContain('Telegram');
   });
 
   it('retry a failed target after partial success', async () => {
@@ -235,17 +229,17 @@ describe('E2E: Amplify flow (signup → connect → publish → SUCCESS)', () =>
     const token = auth.accessToken;
     const card = await test.createPostCard(token, {});
 
-    // Connect Discord + Hashnode
+    // Connect Discord + Telegram
     await test.request.post('/api/connections/discord').set('Authorization', `Bearer ${token}`).send({ webhookUrl: 'https://discord.com/api/webhooks/123/abc' });
-    await test.request.post('/api/connections/hashnode').set('Authorization', `Bearer ${token}`).send({ pat: 'mock' });
+    await test.request.post('/api/connections/telegram').set('Authorization', `Bearer ${token}`).send({ botToken: TELEGRAM_BOT_TOKEN, channel: TELEGRAM_CHANNEL });
 
-    // Override Hashnode to fail
+    // Override Telegram to fail
     const registry = test.app.get(AdapterRegistry) as unknown as { adapters: Map<string, { publish: (c: unknown, f: unknown) => Promise<unknown> }> };
-    const hashnodeAdapter = registry.adapters.get('HASHNODE');
-    if (hashnodeAdapter) {
-      (hashnodeAdapter as { publish: (c: unknown, f: unknown) => Promise<unknown> }).publish = async () => {
+    const telegramAdapter = registry.adapters.get('TELEGRAM');
+    if (telegramAdapter) {
+      (telegramAdapter as { publish: (c: unknown, f: unknown) => Promise<unknown> }).publish = async () => {
         const { PublishError } = await import('../../libraries/nestjs-libraries/src/platforms/adapter.interface');
-        throw new PublishError('AUTH', 'Hashnode revoked');
+        throw new PublishError('AUTH', 'Telegram revoked');
       };
     }
 
@@ -253,12 +247,12 @@ describe('E2E: Amplify flow (signup → connect → publish → SUCCESS)', () =>
     const publishRes = await test.request.post(`/api/postcards/${card.id}/publish`)
       .set('Authorization', `Bearer ${token}`)
       .send({
-        platforms: [{ platform: 'DISCORD' }, { platform: 'HASHNODE' }],
+        platforms: [{ platform: 'DISCORD' }, { platform: 'TELEGRAM' }],
         requestId: `retry-${Date.now()}`,
       });
     expect(publishRes.status).toBe(201);
     const postId = publishRes.body.post.id;
-    const hashnodeTargetId = publishRes.body.post.targets.find((t: { platform: string }) => t.platform === 'HASHNODE')?.id;
+    const telegramTargetId = publishRes.body.post.targets.find((t: { platform: string }) => t.platform === 'TELEGRAM')?.id;
 
     // Run worker
     for (const job of test.queue._jobs) {
@@ -269,28 +263,28 @@ describe('E2E: Amplify flow (signup → connect → publish → SUCCESS)', () =>
       } as never);
     }
 
-    // Verify Hashnode is FAILED
+    // Verify Telegram is FAILED
     let pollRes = await test.request.get(`/api/posts/${postId}`)
       .set('Authorization', `Bearer ${token}`);
-    const hashnodeStatus = pollRes.body.post.targets.find((t: { platform: string }) => t.platform === 'HASHNODE').status;
-    expect(hashnodeStatus).toBe('FAILED');
+    const telegramStatus = pollRes.body.post.targets.find((t: { platform: string }) => t.platform === 'TELEGRAM').status;
+    expect(telegramStatus).toBe('FAILED');
 
-    // Now "fix" Hashnode (replace publish to succeed)
-    if (hashnodeAdapter) {
-      (hashnodeAdapter as { publish: (c: unknown, f: unknown) => Promise<unknown> }).publish = async () => {
-        return { id: 'p-fixed', url: 'https://janedev.hashnode.dev/test' };
+    // Now "fix" Telegram (replace publish to succeed)
+    if (telegramAdapter) {
+      (telegramAdapter as { publish: (c: unknown, f: unknown) => Promise<unknown> }).publish = async () => {
+        return { id: 't-fixed', url: 'https://t.me/mychannel/42' };
       };
     }
 
     // Also reset the Connection's status to ACTIVE (mock's markRevoked was called)
     // — manually set the connection status back to ACTIVE
     await test.prisma.connection.update({
-      where: { userId_platform: { userId: auth.userId, platform: 'HASHNODE' } },
+      where: { userId_platform: { userId: auth.userId, platform: 'TELEGRAM' } },
       data: { status: 'ACTIVE' },
     });
 
     // Retry the failed target
-    const retryRes = await test.request.post(`/api/posts/${postId}/targets/${hashnodeTargetId}/retry`)
+    const retryRes = await test.request.post(`/api/posts/${postId}/targets/${telegramTargetId}/retry`)
       .set('Authorization', `Bearer ${token}`);
     expect(retryRes.status).toBe(200);
 
@@ -307,10 +301,10 @@ describe('E2E: Amplify flow (signup → connect → publish → SUCCESS)', () =>
       }
     }
 
-    // Verify Hashnode is now SUCCESS
+    // Verify Telegram is now SUCCESS
     pollRes = await test.request.get(`/api/posts/${postId}`)
       .set('Authorization', `Bearer ${token}`);
-    const finalHashnodeStatus = pollRes.body.post.targets.find((t: { platform: string }) => t.platform === 'HASHNODE').status;
-    expect(finalHashnodeStatus).toBe('SUCCESS');
+    const finalTelegramStatus = pollRes.body.post.targets.find((t: { platform: string }) => t.platform === 'TELEGRAM').status;
+    expect(finalTelegramStatus).toBe('SUCCESS');
   });
 });

@@ -1,7 +1,7 @@
 // /home/z/my-project/netamplify-app/libraries/nestjs-libraries/src/integrations/integration.manager.ts
 // NetAmplify — IntegrationManager (Phase 1 minimal).
 //
-// bluesky, hashnode) have been moved to `_phase4-pending-providers/` because
+// bluesky) have been moved to `_phase4-pending-providers/` because
 // they reference postiz's deep internal types (Temporal activity, full
 // SocialProvider interface with ~30 fields). Phase 4 will rewrite them per
 // the NetAmplify adapter contract defined in

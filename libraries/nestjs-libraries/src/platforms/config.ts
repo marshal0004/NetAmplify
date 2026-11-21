@@ -188,7 +188,7 @@ export const PLATFORM_CONFIG: Record<Platform, PlatformConfig> = {
   },
   HASHNODE: {
     platform: 'HASHNODE',
-    name: 'Hashnode (removed)',
+    name: 'Hashnode (retained for data compat)',
     charLimit: 100000,
     rateLimitPerMinute: null,
     markdownSupported: true,

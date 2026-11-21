@@ -11,7 +11,6 @@
 //   POST /api/connections/discord    { webhookUrl } → 201 { channelName }
 //   POST /api/connections/telegram   { botToken, channel } → 201
 //   POST /api/connections/bluesky    { handle, appPassword } → 201
-//   POST /api/connections/hashnode   { pat } → 201
 //   DELETE /api/connections/:platform → 204
 
 import { Injectable, Inject } from '@nestjs/common';
@@ -175,7 +174,7 @@ export class ConnectionsService {
 
   /**
    * Validate + save a SIMPLE credential connection (Discord, Dev.to,
-   * Hashnode, Telegram, Bluesky).
+   * Telegram, Bluesky).
    */
   async saveSimpleConnection(
     userId: string,
@@ -380,7 +379,7 @@ export class ConnectionsService {
 
 /**
  * Tier A = live in MVP (instant setup): Discord, Dev.to, Telegram,
- *   Bluesky, Hashnode, TWITTER_COOKIE
+ *   Bluesky, TWITTER_COOKIE
  * Tier B = bonus attempts (work if creds configured):
  *   LinkedIn (OAuth), Facebook (OAuth), Instagram (OAuth),
  *   YouTube (Google OAuth), Threads (Meta OAuth)
@@ -421,7 +420,7 @@ function connectionTypeFor(
     case 'TWITTER_COOKIE':
       return 'COOKIE';
     default:
-      // Removed platforms (HASHNODE, MASTODON, WORDPRESS) still exist in the
+      // Removed platforms (HASHNODE, MASTODON, WORDPRESS) are retained in the
       // Prisma enum for data compat but have no credential type. Throw a clear error.
       throw new Error(`Unknown or removed platform: ${platform}`);
   }

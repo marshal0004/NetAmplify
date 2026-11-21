@@ -1,13 +1,13 @@
 // /home/z/my-project/netamplify-app/libraries/nestjs-libraries/src/platforms/adapter.interface.ts
 // NetAmplify — Platform adapter contract.
 //
-// Bluesky, Hashnode) implements this interface. Per docs/03-ARCHITECTURE.md
+// Bluesky) implements this interface. Per docs/03-ARCHITECTURE.md
 // "Adapter Contracts":
 //
 //     getAuthUrl(pkce, state), exchangeCode(code, pkce), getIdentity(creds),
 //     publish(creds, formatted), refresh?(creds)
 //
-//   Simple connector adapter (Dev.to, Hashnode, Discord, Telegram, Bluesky):
+//   Simple connector adapter (Dev.to, Discord, Telegram, Bluesky):
 //     validateCredentials(input), publish(creds, formatted)
 //
 // All adapters register in `lib/platforms/registry.ts`.

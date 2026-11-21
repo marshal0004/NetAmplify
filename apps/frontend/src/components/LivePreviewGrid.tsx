@@ -11,8 +11,8 @@
 //      "now" timestamp.
 //   2. The PostCard's media (image via <img>, video via <video>) — rendered
 //      ABOVE the text for visual-first platforms (Instagram, Facebook, X,
-//      Bluesky, Threads) and BELOW the title for blog platforms (Hashnode,
-//      Dev.to, LinkedIn).
+//      Bluesky, Threads) and BELOW the title for blog platforms (Dev.to,
+//      LinkedIn).
 //   3. The Format Engine's formatted text (title/body/url/hashtags) with
 //      CHAR-LIMIT OVERFLOW HIGHLIGHTING: text beyond the platform's char
 //      limit is shown in red <span className="text-red-400"> so the user

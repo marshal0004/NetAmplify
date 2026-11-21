@@ -4,7 +4,6 @@
 // Per docs/05-API-SPEC.md:
 //   GET    /api/connections               → list (NEVER returns credentials)
 //   POST   /api/connections/devto          { apiKey }       → 201 { username }
-//   POST   /api/connections/hashnode       { pat }          → 201 { username }
 //   POST   /api/connections/discord       { webhookUrl }   → 201 { channelName }
 //   POST   /api/connections/telegram      { botToken, channel } → 201 { channelTitle }
 //   POST   /api/connections/bluesky       { handle, appPassword } → 201 { did }
@@ -80,11 +79,6 @@ export class ConnectionsController {
     } catch (e) {
       throw errorMapper(e);
     }
-  }
-
-  /**
-   * POST /api/connections/hashnode  { pat }
-   */
   }
 
   /**

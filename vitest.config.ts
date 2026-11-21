@@ -18,6 +18,12 @@ export default defineConfig({
       '@netamplify/plugins': path.resolve(__dirname, 'libraries/plugins/src'),
     },
   },
+  // NetAmplify has no PostCSS config of its own, but Vite searches up the
+  // directory tree and would pick up a parent project's incompatible PostCSS
+  // config (e.g. a Tailwind v4 setup). These are pure node-environment TS
+  // unit tests with no CSS, so disable PostCSS loading entirely to keep the
+  // test runner hermetic against the surrounding workspace.
+  css: { postcss: false },
   test: {
     environment: 'node',
     include: [
