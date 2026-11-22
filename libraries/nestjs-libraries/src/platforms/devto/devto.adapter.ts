@@ -181,10 +181,27 @@ export class DevtoAdapter implements PlatformAdapter {
       }
     }
 
+    // Sanitize the body_markdown's cover_image frontmatter line.
+    // The formatter writes `cover_image: ${postCard.imageUrl}` (a RELATIVE URL
+    // like /uploads/abc.jpg). Dev.to parses the body frontmatter and tries to
+    // fetch that URL as the cover — if it's not a public HTTPS URL, Dev.to
+    // returns 422 "Main image is not a valid URL" (even if the main_image API
+    // field is omitted). Sync the body's cover_image with the resolved
+    // mainImage (a public URL), or remove the line entirely if the URL isn't
+    // publicly reachable, so Dev.to never sees an invalid cover URL.
+    let body = formatted.body;
+    if (/^cover_image:.*$/m.test(body)) {
+      if (mainImage) {
+        body = body.replace(/^(cover_image:).*$/m, `$1 ${mainImage}`);
+      } else {
+        body = body.replace(/^cover_image:.*\n?/m, '');
+      }
+    }
+
     const payload: DevtoArticlePayload = {
       article: {
         title: formatted.title,
-        body_markdown: formatted.body,
+        body_markdown: body,
         tags,
         published, // MVP default: publish immediately (panel can set draft=false)
         ...(mainImage ? { main_image: mainImage } : {}),
