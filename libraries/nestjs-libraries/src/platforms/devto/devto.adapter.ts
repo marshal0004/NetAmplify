@@ -22,7 +22,7 @@ import type {
 } from '../adapter.interface';
 import { PublishError } from '../adapter.interface';
 import type { Platform } from '@prisma/client';
-import { resolvePublicMediaUrl, isVideoMedia } from '../../services/uploads-dir';
+import { resolvePublicMediaUrl, isVideoMedia, ensurePublicMediaUrl } from '../../services/uploads-dir';
 
 const DEVTO_API_BASE = 'https://dev.to/api';
 
@@ -153,15 +153,33 @@ export class DevtoAdapter implements PlatformAdapter {
       }
     }
 
-    // Resolve the main image URL. Dev.to fetches the image from this URL —
-    // it MUST be a publicly-accessible HTTPS URL. Relative URLs are resolved
-    // via PUBLIC_APP_URL. Localhost URLs are SKIPPED (Dev.to can't fetch them).
-    // Videos are skipped (Dev.to only accepts image covers).
+    // Resolve the media URL.
+    //
+    // - IMAGE: sent as `main_image` (Dev.to's cover image field). Dev.to
+    //   fetches it server-side, so it MUST be a public HTTPS URL. Relative /
+    //   localhost URLs are skipped (article publishes without a cover).
+    //
+    // - VIDEO: Dev.to does NOT accept videos as `main_image`/`cover_image`
+    //   (422 "Main image is not a valid URL"). But Forem's body_markdown
+    //   sanitizer DOES allow the <video> + <source> HTML tags (confirmed in
+    //   forem/forem app/services/markdown_processor.rb →
+    //   AllowedTags::RENDERED_MARKDOWN_SCRUBBER, which includes `video` and
+    //   `source` with attributes src/controls/preload/poster/width/height).
+    //   So a video is embedded inline in the body as a playable <video>
+    //   element, using a public URL resolved via ensurePublicMediaUrl
+    //   (catbox.moe fallback when the local /uploads/ file isn't publicly
+    //   reachable — no ngrok/cloudflared needed).
     let mainImage: string | undefined;
+    let videoEmbed: string | undefined;
     if (formatted.options?.imageUrl) {
       const rawUrl = formatted.options.imageUrl as string;
-      // Skip videos — Dev.to can't use them as cover images
-      if (!isVideoMedia(rawUrl)) {
+      if (isVideoMedia(rawUrl)) {
+        // Resolve a public URL for the video, then embed it inline.
+        // ensurePublicMediaUrl uploads local files to catbox.moe when the
+        // URL isn't publicly reachable, so Dev.to can always fetch it.
+        const publicVideoUrl = await ensurePublicMediaUrl(rawUrl);
+        videoEmbed = `\n\n<video controls preload="metadata" src="${publicVideoUrl}"></video>\n`;
+      } else {
         const resolved = resolvePublicMediaUrl(rawUrl);
         if (resolved) {
           // Skip localhost URLs — Dev.to's servers can't fetch from localhost.
@@ -189,6 +207,10 @@ export class DevtoAdapter implements PlatformAdapter {
     // field is omitted). Sync the body's cover_image with the resolved
     // mainImage (a public URL), or remove the line entirely if the URL isn't
     // publicly reachable, so Dev.to never sees an invalid cover URL.
+    //
+    // For videos, there is NO mainImage (Dev.to rejects video covers) — the
+    // cover_image frontmatter line is always removed, and the video is
+    // embedded inline in the body instead (see videoEmbed above).
     let body = formatted.body;
     if (/^cover_image:.*$/m.test(body)) {
       if (mainImage) {
@@ -196,6 +218,10 @@ export class DevtoAdapter implements PlatformAdapter {
       } else {
         body = body.replace(/^cover_image:.*\n?/m, '');
       }
+    }
+    // Append the video embed to the body (after the frontmatter/cover block).
+    if (videoEmbed) {
+      body = body + videoEmbed;
     }
 
     const payload: DevtoArticlePayload = {
