@@ -9,74 +9,72 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 export function Login() {
-  const { login } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const from = (location.state as { from?: { pathname: string } })?.from?.pathname ?? '/dashboard';
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+ const { login } = useAuth();
+ const navigate = useNavigate();
+ const location = useLocation();
+ const from = (location.state as { from?: { pathname: string } })?.from?.pathname ?? '/dashboard';
+ const [email, setEmail] = useState('');
+ const [password, setPassword] = useState('');
+ const [error, setError] = useState<string | null>(null);
+ const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
-    try {
-      await login(email, password);
-      navigate(from, { replace: true });
-    } catch (err) {
-      setError(getErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  }
+ async function handleSubmit(e: React.FormEvent) {
+ e.preventDefault();
+ setError(null);
+ setLoading(true);
+ try {
+ await login(email, password);
+ navigate(from, { replace: true });
+ } catch (err) {
+ setError(getErrorMessage(err));
+ } finally {
+ setLoading(false);
+ }
+ }
 
-  return (
-    <div className="relative flex min-h-screen items-center justify-center bg-[#0a0a0f] text-white">
-      <div className="fixed inset-0 z-0">
-        <div className="absolute top-1/4 left-1/4 w-[400px] h-[400px] bg-indigo-600/20 rounded-full blur-[120px]" />
-        <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-purple-600/20 rounded-full blur-[120px]" />
-      </div>
+ return (
+ <div className="relative flex min-h-screen items-center justify-center bg-background px-4 text-foreground">
+ <div className="fixed inset-0 z-0 overflow-hidden" aria-hidden="true">
+ <div className="absolute top-1/4 left-1/4 h-[400px] w-[400px] rounded-full bg-primary/10 blur-[120px]" />
+ <div className="absolute bottom-1/4 right-1/4 h-[400px] w-[400px] rounded-full bg-primary/5 blur-[120px]" />
+ </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="relative z-10 w-full max-w-md"
-      >
-        <Card className="ring-1 ring-zinc-200 bg-white shadow-sm">
-          <CardHeader>
-            <div className="mb-2 flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br bg-orange-600 text-sm font-bold">N</div>
-              <span className="text-lg font-bold bg-gradient-to-r text-orange-500 bg-clip-text text-transparent">NetAmplify</span>
-            </div>
-            <CardTitle className="text-white">Log in</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email" className="text-zinc-600">Email</Label>
-                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="you@example.com" autoComplete="email"
-                  className="ring-1 ring-zinc-200 text-zinc-50 text-zinc-900 placeholder:text-zinc-300 focus:ring-2 focus:ring-orange-500" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password" className="text-zinc-600">Password</Label>
-                <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password"
-                  className="ring-1 ring-zinc-200 text-zinc-50 text-zinc-900 placeholder:text-zinc-300 focus:ring-2 focus:ring-orange-500" />
-              </div>
-              {error && <p className="text-sm text-red-400">{error}</p>}
-              <Button type="submit" disabled={loading} className="w-full bg-gradient-to-r bg-orange-600 hover:bg-orange-700 border-0">
-                {loading ? 'Logging in…' : 'Log in'}
-              </Button>
-            </form>
-            <div className="mt-4 flex justify-between text-sm text-zinc-400">
-              <Link to="/signup" className="hover:text-zinc-800">Need an account?</Link>
-              <Link to="/reset" className="hover:text-zinc-800">Forgot password?</Link>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
-    </div>
-  );
+ <motion.div
+ initial={{ opacity: 0, y: 24 }}
+ animate={{ opacity: 1, y: 0 }}
+ transition={{ duration: 0.4 }}
+ className="relative z-10 w-full max-w-md"
+ >
+ <Card className="border-border shadow-2xl">
+ <CardHeader>
+ <div className="mb-2 flex items-center gap-2.5">
+ <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">N</div>
+ <span className="text-lg font-bold text-foreground">NetAmplify</span>
+ </div>
+ <CardTitle className="text-foreground">Log in</CardTitle>
+ </CardHeader>
+ <CardContent>
+ <form onSubmit={handleSubmit} className="space-y-4">
+ <div className="space-y-2">
+ <Label htmlFor="email" className="text-foreground">Email</Label>
+ <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="you@example.com" autoComplete="email" />
+ </div>
+ <div className="space-y-2">
+ <Label htmlFor="password" className="text-foreground">Password</Label>
+ <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" />
+ </div>
+ {error && <p className="text-sm text-destructive">{error}</p>}
+ <Button type="submit" disabled={loading} className="w-full">
+ {loading ? 'Logging in…' : 'Log in'}
+ </Button>
+ </form>
+ <div className="mt-4 flex justify-between text-sm">
+ <Link to="/signup" className="text-muted-foreground transition-colors hover:text-foreground">Need an account?</Link>
+ <Link to="/reset" className="text-muted-foreground transition-colors hover:text-foreground">Forgot password?</Link>
+ </div>
+ </CardContent>
+ </Card>
+ </motion.div>
+ </div>
+ );
 }

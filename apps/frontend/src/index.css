@@ -2,9 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
-/* NetAmplify design system — matches postflare's professional UI.
-   Light theme with orange brand color (not the old dark+purple AI look).
-   Based on postflare's design tokens: zinc neutrals + orange brand. */
+/* NetAmplify design system — dark theme (postiz-inspired) + light theme.
+   Dark values ported from postiz's colors.scss dark palette
+   (#0e0e0e bg, #1a1919 card, #252525 border, #8c8c8c muted text), mapped to
+   the shadcn/Tailwind HSL variable system. Brand stays orange (NetAmplify). */
 
 @layer base {
   :root {
@@ -35,6 +36,35 @@
     --ring: 24.6 95% 53.1%;           /* orange-600 */
     --radius: 0.5rem;
   }
+
+  /* Dark theme — ported from postiz colors.scss (dark palette).
+     #0e0e0e bg, #1a1919 card, #252525 border, #8c8c8c muted text. */
+  .dark {
+    --background: 0 0% 5.5%;          /* #0e0e0e — postiz --color-primary */
+    --foreground: 0 0% 100%;          /* white — postiz --color-text */
+    --card: 0 2% 10%;                 /* #1a1919 — postiz --new-bgColorInner */
+    --card-foreground: 0 0% 100%;
+    --popover: 0 2% 10%;              /* #1a1919 */
+    --popover-foreground: 0 0% 100%;
+
+    --primary: 24.6 95% 53.1%;        /* orange-600 (NetAmplify brand) */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 0 1% 19%;            /* #313030 — postiz --new-btn-simple */
+    --secondary-foreground: 0 0% 100%;
+    --muted: 0 1% 19%;                /* #313030 */
+    --muted-foreground: 0 0% 55%;     /* #8c8c8c — postiz --color-gray */
+    --accent: 0 1% 19%;               /* #313030 */
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 0 0% 14.5%;             /* #252525 — postiz --new-border */
+    --input: 0 2% 11.5%;              /* #1e1d1d — postiz --new-table-header */
+    --ring: 24.6 95% 53.1%;           /* orange-600 */
+    --radius: 0.5rem;
+  }
 }
 
 @layer base {
@@ -53,15 +83,17 @@
   to { transform: rotate(360deg); }
 }
 
-/* Status chips — light theme colors */
-.chip-queued    { @apply bg-zinc-100 text-zinc-600; }
-.chip-publishing { @apply bg-sky-100 text-sky-700 animate-pulse; }
-.chip-success   { @apply bg-emerald-100 text-emerald-700; }
-.chip-failed    { @apply bg-red-100 text-red-700; }
-.chip-skipped   { @apply bg-zinc-100 text-zinc-500; }
+/* Status chips — adapt to theme via Tailwind dark: variants */
+.chip-queued    { @apply bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300; }
+.chip-publishing { @apply bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300 animate-pulse; }
+.chip-success   { @apply bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300; }
+.chip-failed    { @apply bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300; }
+.chip-skipped   { @apply bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400; }
 
-/* Scrollbar — light theme */
-::-webkit-scrollbar { width: 6px; }
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.2); }
+.dark ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); }
+.dark ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }

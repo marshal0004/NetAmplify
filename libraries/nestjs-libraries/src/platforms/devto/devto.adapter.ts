@@ -212,6 +212,37 @@ export class DevtoAdapter implements PlatformAdapter {
     }
     if (resp.status === 422) {
       const text = await resp.text();
+      // Dev.to's servers fetch the main_image URL. If they can't (ngrok-free
+      // "Visit Site" interstitial, 404, private network, non-image response),
+      // Dev.to returns 422 "Main image is not a valid URL". Rather than fail
+      // the whole article, retry WITHOUT main_image — the article publishes
+      // text-only (no cover), which is better than a failed post.
+      if (mainImage && /Main image is not a valid URL/i.test(text)) {
+        const { main_image: _drop, ...articleWithoutImage } = payload.article;
+        const retryResp = await fetch(`${DEVTO_API_BASE}/articles`, {
+          method: 'POST',
+          headers: {
+            'api-key': creds.apiKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ article: articleWithoutImage }),
+        });
+        if (retryResp.ok) {
+          const retryData = (await retryResp.json()) as {
+            id: number; url: string; slug?: string; path?: string;
+          };
+          return {
+            id: String(retryData.id),
+            url: retryData.url ||
+              `https://dev.to${retryData.path || `/${retryData.slug}`}`,
+          };
+        }
+        const retryText = await retryResp.text();
+        throw new PublishError(
+          'VALIDATION',
+          `Dev.to rejected article (text-only retry after image fetch failed): ${retryText}`
+        );
+      }
       throw new PublishError('VALIDATION', `Dev.to rejected article: ${text}`);
     }
     if (!resp.ok) {

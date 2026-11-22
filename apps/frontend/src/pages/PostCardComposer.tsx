@@ -2,15 +2,15 @@
 // NetAmplify — PostCard composer (create OR edit).
 //
 // Postflare-grade composer features:
-//   - Media Library grid (reusable uploaded media — no re-upload needed)
-//   - Markdown preview (react-markdown + remark-gfm, was naive pre-wrap)
-//   - Edit mode (accepts :id via useParams → loads the PostCard → PATCH on save)
-//   - Drag-and-drop OR click-to-browse upload (unchanged)
-//   - Live char counters per PostCard field (unchanged)
+// - Media Library grid (reusable uploaded media — no re-upload needed)
+// - Markdown preview (react-markdown + remark-gfm, was naive pre-wrap)
+// - Edit mode (accepts :id via useParams → loads the PostCard → PATCH on save)
+// - Drag-and-drop OR click-to-browse upload (unchanged)
+// - Live char counters per PostCard field (unchanged)
 //
 // Routing:
-//   /dashboard/postcards/new        → create mode (no :id param)
-//   /dashboard/postcards/:id/edit   → edit mode (loads + PATCHes the PostCard)
+// /dashboard/postcards/new → create mode (no :id param)
+// /dashboard/postcards/:id/edit → edit mode (loads + PATCHes the PostCard)
 
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -28,296 +28,296 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
 export function PostCardComposer() {
-  const navigate = useNavigate();
-  const { id: editId } = useParams<{ id: string }>();
-  const isEditMode = Boolean(editId);
-  const queryClient = useQueryClient();
+ const navigate = useNavigate();
+ const { id: editId } = useParams<{ id: string }>();
+ const isEditMode = Boolean(editId);
+ const queryClient = useQueryClient();
 
-  const [title, setTitle] = useState('');
-  const [summary, setSummary] = useState('');
-  const [description, setDescription] = useState('');
-  const [techStack, setTechStack] = useState<string[]>([]);
-  const [techInput, setTechInput] = useState('');
-  // Repository URL + Live URL were removed from the UI — users can include
-  // links directly in their content/body text. The backend still accepts
-  // these fields (optional), but they're always undefined now.
-  const [imageUrl, setImageUrl] = useState('');
-  const [uploading, setUploading] = useState(false);
-  const [imagePreview, setImagePreview] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  // showPreview state removed — Tiptap is WYSIWYG (always shows rendered output)
-  const [showMediaLibrary, setShowMediaLibrary] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [formError, setFormError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+ const [title, setTitle] = useState('');
+ const [summary, setSummary] = useState('');
+ const [description, setDescription] = useState('');
+ const [techStack, setTechStack] = useState<string[]>([]);
+ const [techInput, setTechInput] = useState('');
+ // Repository URL + Live URL were removed from the UI — users can include
+ // links directly in their content/body text. The backend still accepts
+ // these fields (optional), but they're always undefined now.
+ const [imageUrl, setImageUrl] = useState('');
+ const [uploading, setUploading] = useState(false);
+ const [imagePreview, setImagePreview] = useState('');
+ const fileInputRef = useRef<HTMLInputElement>(null);
+ // showPreview state removed — Tiptap is WYSIWYG (always shows rendered output)
+ const [showMediaLibrary, setShowMediaLibrary] = useState(false);
+ const [errors, setErrors] = useState<Record<string, string>>({});
+ const [formError, setFormError] = useState<string | null>(null);
+ const [loading, setLoading] = useState(false);
 
-  // Edit mode: load the existing PostCard + populate the form once.
-  const { data: existingCard } = useQuery({
-    queryKey: ['postcard', editId],
-    queryFn: () => postcardApi.get(editId!),
-    enabled: !!editId,
-  });
+ // Edit mode: load the existing PostCard + populate the form once.
+ const { data: existingCard } = useQuery({
+ queryKey: ['postcard', editId],
+ queryFn: () => postcardApi.get(editId!),
+ enabled: !!editId,
+ });
 
-  const populatedRef = useRef(false);
-  useEffect(() => {
-    if (existingCard && !populatedRef.current) {
-      setTitle(existingCard.title);
-      setSummary(existingCard.summary);
-      setDescription(existingCard.description);
-      setTechStack(existingCard.techStack);
-      // repoUrl + liveUrl are no longer in the UI — users type links in content
-      setImageUrl(existingCard.imageUrl ?? '');
-      setImagePreview(existingCard.imageUrl ?? '');
-      populatedRef.current = true;
-    }
-  }, [existingCard]);
+ const populatedRef = useRef(false);
+ useEffect(() => {
+ if (existingCard && !populatedRef.current) {
+ setTitle(existingCard.title);
+ setSummary(existingCard.summary);
+ setDescription(existingCard.description);
+ setTechStack(existingCard.techStack);
+ // repoUrl + liveUrl are no longer in the UI — users type links in content
+ setImageUrl(existingCard.imageUrl ?? '');
+ setImagePreview(existingCard.imageUrl ?? '');
+ populatedRef.current = true;
+ }
+ }, [existingCard]);
 
-  function addTechTag() {
-    const tag = techInput.trim().toLowerCase();
-    if (tag && !techStack.includes(tag) && techStack.length < 10) {
-      setTechStack([...techStack, tag]);
-      setTechInput('');
-    }
-  }
+ function addTechTag() {
+ const tag = techInput.trim().toLowerCase();
+ if (tag && !techStack.includes(tag) && techStack.length < 10) {
+ setTechStack([...techStack, tag]);
+ setTechInput('');
+ }
+ }
 
-  async function handleFileUpload(file: File) {
-    setUploading(true);
-    setFormError(null);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
+ async function handleFileUpload(file: File) {
+ setUploading(true);
+ setFormError(null);
+ try {
+ const formData = new FormData();
+ formData.append('file', file);
 
-      const jwtToken = localStorage.getItem('netamplify_token');
-      if (!jwtToken) {
-        window.dispatchEvent(new CustomEvent('netamplify:unauthorized'));
-        setFormError('You must be logged in to NetAmplify. Please log in and try again.');
-        return;
-      }
-      const resp = await fetch('/api/upload', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${jwtToken}` },
-        body: formData,
-      });
+ const jwtToken = localStorage.getItem('netamplify_token');
+ if (!jwtToken) {
+ window.dispatchEvent(new CustomEvent('netamplify:unauthorized'));
+ setFormError('You must be logged in to NetAmplify. Please log in and try again.');
+ return;
+ }
+ const resp = await fetch('/api/upload', {
+ method: 'POST',
+ headers: { Authorization: `Bearer ${jwtToken}` },
+ body: formData,
+ });
 
-      if (!resp.ok) {
-        const errText = await resp.text();
-        throw new Error(`Upload failed: ${errText}`);
-      }
+ if (!resp.ok) {
+ const errText = await resp.text();
+ throw new Error(`Upload failed: ${errText}`);
+ }
 
-      const data = (await resp.json()) as { url: string; filename: string; mimeType: string };
-      setImageUrl(data.url);
-      setImagePreview(data.url);
-      // Invalidate the media library so the new upload appears in the grid.
-      queryClient.invalidateQueries({ queryKey: ['media-library'] });
-    } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Upload failed');
-    } finally {
-      setUploading(false);
-    }
-  }
+ const data = (await resp.json()) as { url: string; filename: string; mimeType: string };
+ setImageUrl(data.url);
+ setImagePreview(data.url);
+ // Invalidate the media library so the new upload appears in the grid.
+ queryClient.invalidateQueries({ queryKey: ['media-library'] });
+ } catch (err) {
+ setFormError(err instanceof Error ? err.message : 'Upload failed');
+ } finally {
+ setUploading(false);
+ }
+ }
 
-  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (file) handleFileUpload(file);
-  }
+ function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+ const file = e.target.files?.[0];
+ if (file) handleFileUpload(file);
+ }
 
-  function handleDrop(e: React.DragEvent) {
-    e.preventDefault();
-    const file = e.dataTransfer.files?.[0];
-    if (file) handleFileUpload(file);
-  }
+ function handleDrop(e: React.DragEvent) {
+ e.preventDefault();
+ const file = e.dataTransfer.files?.[0];
+ if (file) handleFileUpload(file);
+ }
 
-  function pickFromLibrary(url: string) {
-    setImageUrl(url);
-    setImagePreview(url);
-    setShowMediaLibrary(false);
-  }
+ function pickFromLibrary(url: string) {
+ setImageUrl(url);
+ setImagePreview(url);
+ setShowMediaLibrary(false);
+ }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setErrors({});
-    setFormError(null);
-    setLoading(true);
-    try {
-      const payload = {
-        title,
-        summary,
-        description,
-        techStack,
-        // repoUrl + liveUrl removed from UI — users include links in content
-        repoUrl: undefined,
-        liveUrl: undefined,
-        imageUrl: imageUrl || undefined,
-      };
-      const card = isEditMode
-        ? await postcardApi.update(editId!, payload)
-        : await postcardApi.create(payload);
-      navigate(`/dashboard/postcards/${card.id}`);
-    } catch (err) {
-      setErrors(getFieldErrors(err));
-      setFormError(getErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  }
+ async function handleSubmit(e: React.FormEvent) {
+ e.preventDefault();
+ setErrors({});
+ setFormError(null);
+ setLoading(true);
+ try {
+ const payload = {
+ title,
+ summary,
+ description,
+ techStack,
+ // repoUrl + liveUrl removed from UI — users include links in content
+ repoUrl: undefined,
+ liveUrl: undefined,
+ imageUrl: imageUrl || undefined,
+ };
+ const card = isEditMode
+ ? await postcardApi.update(editId!, payload)
+ : await postcardApi.create(payload);
+ navigate(`/dashboard/postcards/${card.id}`);
+ } catch (err) {
+ setErrors(getFieldErrors(err));
+ setFormError(getErrorMessage(err));
+ } finally {
+ setLoading(false);
+ }
+ }
 
-  return (
-    <div className="max-w-3xl space-y-6">
-      <motion.h1
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="text-3xl font-bold text-white"
-      >
-        {isEditMode ? 'Edit Post Card' : 'New Post Card'}
-      </motion.h1>
+ return (
+ <div className="max-w-3xl space-y-6">
+ <motion.h1
+ initial={{ opacity: 0, y: 20 }}
+ animate={{ opacity: 1, y: 0 }}
+ transition={{ duration: 0.5 }}
+ className="text-3xl font-bold text-white"
+ >
+ {isEditMode ? 'Edit Post Card' : 'New Post Card'}
+ </motion.h1>
 
-      {formError && (
-        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
-          {formError}
-        </div>
-      )}
+ {formError && (
+ <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-destructive">
+ {formError}
+ </div>
+ )}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Basics */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }}>
-          <Card className="ring-1 ring-zinc-200 bg-white shadow-sm">
-            <CardHeader><CardTitle className="text-white">Basics</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="title" className="text-zinc-600">Title <span className="text-red-500">*</span></Label>
-                <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} required maxLength={120} placeholder="My Awesome Project"
-                  className="mt-1 ring-1 ring-zinc-200 text-zinc-50 text-zinc-900 placeholder:text-zinc-300 focus:ring-2 focus:ring-orange-500" />
-                <p className="mt-1 text-xs text-zinc-400">{title.length}/120</p>
-                {errors.title && <p className="text-xs text-red-400">{errors.title}</p>}
-              </div>
-              <div>
-                <Label htmlFor="summary" className="text-zinc-600">Summary <span className="text-red-500">*</span></Label>
-                <Input id="summary" value={summary} onChange={(e) => setSummary(e.target.value)} required maxLength={200} placeholder="A one-line summary"
-                  className="mt-1 ring-1 ring-zinc-200 text-zinc-50 text-zinc-900 placeholder:text-zinc-300 focus:ring-2 focus:ring-orange-500" />
-                <p className="mt-1 text-xs text-zinc-400">{summary.length}/200</p>
-                {errors.summary && <p className="text-xs text-red-400">{errors.summary}</p>}
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+ <form onSubmit={handleSubmit} className="space-y-6">
+ {/* Basics */}
+ <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }}>
+ <Card className="shadow-sm">
+ <CardHeader><CardTitle className="text-foreground">Basics</CardTitle></CardHeader>
+ <CardContent className="space-y-4">
+ <div>
+ <Label htmlFor="title" className="text-foreground">Title <span className="text-red-500">*</span></Label>
+ <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} required maxLength={120} placeholder="My Awesome Project"
+ className="mt-1" />
+ <p className="mt-1 text-xs text-muted-foreground">{title.length}/120</p>
+ {errors.title && <p className="text-xs text-destructive">{errors.title}</p>}
+ </div>
+ <div>
+ <Label htmlFor="summary" className="text-foreground">Summary <span className="text-red-500">*</span></Label>
+ <Input id="summary" value={summary} onChange={(e) => setSummary(e.target.value)} required maxLength={200} placeholder="A one-line summary"
+ className="mt-1" />
+ <p className="mt-1 text-xs text-muted-foreground">{summary.length}/200</p>
+ {errors.summary && <p className="text-xs text-destructive">{errors.summary}</p>}
+ </div>
+ </CardContent>
+ </Card>
+ </motion.div>
 
-        {/* Story — Rich Text Editor (Tiptap) */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.15 }}>
-          <Card className="ring-1 ring-zinc-200 bg-white shadow-sm">
-            <CardHeader><CardTitle className="text-white">Story</CardTitle></CardHeader>
-            <CardContent>
-              <RichTextEditor
-                value={description}
-                onChange={setDescription}
-                maxLength={5000}
-                placeholder="Describe your project. Use the toolbar for formatting — bold, headings, lists, links, code blocks."
-              />
-              {errors.description && <p className="mt-1 text-xs text-red-400">{errors.description}</p>}
-            </CardContent>
-          </Card>
-        </motion.div>
+ {/* Story — Rich Text Editor (Tiptap) */}
+ <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.15 }}>
+ <Card className="shadow-sm">
+ <CardHeader><CardTitle className="text-foreground">Story</CardTitle></CardHeader>
+ <CardContent>
+ <RichTextEditor
+ value={description}
+ onChange={setDescription}
+ maxLength={5000}
+ placeholder="Describe your project. Use the toolbar for formatting — bold, headings, lists, links, code blocks."
+ />
+ {errors.description && <p className="mt-1 text-xs text-destructive">{errors.description}</p>}
+ </CardContent>
+ </Card>
+ </motion.div>
 
-        {/* Tech Stack */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.2 }}>
-          <Card className="ring-1 ring-zinc-200 bg-white shadow-sm">
-            <CardHeader><CardTitle className="text-white">Tech Stack</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex gap-2">
-                <Input value={techInput} onChange={(e) => setTechInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTechTag(); } }}
-                  placeholder="Add a technology (press Enter)"
-                  className="flex-1 ring-1 ring-zinc-200 text-zinc-50 text-zinc-900 placeholder:text-zinc-300 focus:ring-2 focus:ring-orange-500" />
-                <Button type="button" variant="outline" onClick={addTechTag} className="ring-1 ring-zinc-200 text-zinc-50 text-zinc-600 hover:text-zinc-100">Add</Button>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {techStack.map((tag) => (
-                  <Badge key={tag} variant="secondary" className="cursor-pointer bg-orange-50 font-mono text-orange-600"
-                    onClick={() => setTechStack(techStack.filter((t) => t !== tag))}>
-                    {tag} ✕
-                  </Badge>
-                ))}
-                {techStack.length === 0 && <p className="text-sm text-zinc-400">No tags yet. Add at least one.</p>}
-              </div>
-              <p className="text-xs text-zinc-400">{techStack.length}/10 tags</p>
-              {errors.techStack && <p className="text-xs text-red-400">{errors.techStack}</p>}
-            </CardContent>
-          </Card>
-        </motion.div>
+ {/* Tech Stack */}
+ <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.2 }}>
+ <Card className="shadow-sm">
+ <CardHeader><CardTitle className="text-foreground">Tech Stack</CardTitle></CardHeader>
+ <CardContent className="space-y-3">
+ <div className="flex gap-2">
+ <Input value={techInput} onChange={(e) => setTechInput(e.target.value)}
+ onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTechTag(); } }}
+ placeholder="Add a technology (press Enter)"
+ className="flex-1" />
+ <Button type="button" variant="outline" onClick={addTechTag} className="text-muted-foreground hover:text-foreground">Add</Button>
+ </div>
+ <div className="flex flex-wrap gap-2">
+ {techStack.map((tag) => (
+ <Badge key={tag} variant="secondary" className="cursor-pointer bg-orange-50 font-mono text-orange-600"
+ onClick={() => setTechStack(techStack.filter((t) => t !== tag))}>
+ {tag} ✕
+ </Badge>
+ ))}
+ {techStack.length === 0 && <p className="text-sm text-muted-foreground">No tags yet. Add at least one.</p>}
+ </div>
+ <p className="text-xs text-muted-foreground">{techStack.length}/10 tags</p>
+ {errors.techStack && <p className="text-xs text-destructive">{errors.techStack}</p>}
+ </CardContent>
+ </Card>
+ </motion.div>
 
-        {/* Media */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.25 }}>
-          <Card className="ring-1 ring-zinc-200 bg-white shadow-sm">
-            <CardHeader><CardTitle className="text-white">Media</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <div className="flex items-center justify-between">
-                  <Label className="text-zinc-600">Image / Video <span className="text-zinc-400">(required for Instagram/Threads, recommended for all)</span></Label>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setShowMediaLibrary(!showMediaLibrary)} className="text-zinc-500 hover:text-zinc-900">
-                    {showMediaLibrary ? 'Hide library' : 'Pick from library'}
-                  </Button>
-                </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/gif,image/webp,video/mp4"
-                  onChange={handleFileSelect}
-                  className="hidden"
-                />
-                {showMediaLibrary && (
-                  <div className="mt-2">
-                    <MediaLibrary
-                      onSelect={pickFromLibrary}
-                      selectedUrl={imageUrl}
-                      onUploadNew={() => fileInputRef.current?.click()}
-                    />
-                  </div>
-                )}
-                {imagePreview ? (
-                  <div className="mt-2 relative">
-                    <MediaPreview src={imagePreview} alt="Preview" className="max-h-48 rounded-lg border ring-1 ring-zinc-200" />
-                    <button
-                      type="button"
-                      onClick={() => { setImageUrl(''); setImagePreview(''); }}
-                      className="absolute top-2 right-2 bg-red-500/80 hover:bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ) : (
-                  !showMediaLibrary && (
-                    <div
-                      onClick={() => !uploading && fileInputRef.current?.click()}
-                      onDrop={handleDrop}
-                      onDragOver={(e) => e.preventDefault()}
-                      className="mt-2 border-2 border-dashed ring-1 ring-zinc-200 rounded-lg p-8 text-center cursor-pointer hover:border-indigo-500/50 transition-colors"
-                    >
-                      {uploading ? (
-                        <p className="text-zinc-400">Uploading…</p>
-                      ) : (
-                        <>
-                          <p className="text-zinc-400">Drag &amp; drop an image or video here</p>
-                          <p className="text-zinc-300 text-sm mt-1">or click to browse — or pick from your Media Library</p>
-                          <p className="text-zinc-300 text-xs mt-2">JPG, PNG, GIF, WebP, MP4 — max 50MB</p>
-                        </>
-                      )}
-                    </div>
-                  )
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+ {/* Media */}
+ <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.25 }}>
+ <Card className="shadow-sm">
+ <CardHeader><CardTitle className="text-foreground">Media</CardTitle></CardHeader>
+ <CardContent className="space-y-4">
+ <div>
+ <div className="flex items-center justify-between">
+ <Label className="text-foreground">Image / Video <span className="text-muted-foreground">(required for Instagram/Threads, recommended for all)</span></Label>
+ <Button type="button" variant="ghost" size="sm" onClick={() => setShowMediaLibrary(!showMediaLibrary)} className="text-muted-foreground hover:text-foreground">
+ {showMediaLibrary ? 'Hide library' : 'Pick from library'}
+ </Button>
+ </div>
+ <input
+ ref={fileInputRef}
+ type="file"
+ accept="image/jpeg,image/png,image/gif,image/webp,video/mp4"
+ onChange={handleFileSelect}
+ className="hidden"
+ />
+ {showMediaLibrary && (
+ <div className="mt-2">
+ <MediaLibrary
+ onSelect={pickFromLibrary}
+ selectedUrl={imageUrl}
+ onUploadNew={() => fileInputRef.current?.click()}
+ />
+ </div>
+ )}
+ {imagePreview ? (
+ <div className="mt-2 relative">
+ <MediaPreview src={imagePreview} alt="Preview" className="max-h-48 rounded-lg border ring-1 ring-zinc-200" />
+ <button
+ type="button"
+ onClick={() => { setImageUrl(''); setImagePreview(''); }}
+ className="absolute top-2 right-2 bg-red-500/80 hover:bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm"
+ >
+ ×
+ </button>
+ </div>
+ ) : (
+ !showMediaLibrary && (
+ <div
+ onClick={() => !uploading && fileInputRef.current?.click()}
+ onDrop={handleDrop}
+ onDragOver={(e) => e.preventDefault()}
+ className="mt-2 border-2 border-dashed border-border rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 transition-colors"
+ >
+ {uploading ? (
+ <p className="text-muted-foreground">Uploading…</p>
+ ) : (
+ <>
+ <p className="text-muted-foreground">Drag &amp; drop an image or video here</p>
+ <p className="text-muted-foreground text-sm mt-1">or click to browse — or pick from your Media Library</p>
+ <p className="text-muted-foreground text-xs mt-2">JPG, PNG, GIF, WebP, MP4 — max 50MB</p>
+ </>
+ )}
+ </div>
+ )
+ )}
+ </div>
+ </CardContent>
+ </Card>
+ </motion.div>
 
-        <div className="flex gap-3">
-          <Button type="submit" disabled={loading} className="bg-gradient-to-r bg-orange-600 hover:bg-orange-700 border-0">
-            {loading ? (isEditMode ? 'Saving…' : 'Creating…') : (isEditMode ? 'Save Changes' : 'Create Post Card')}
-          </Button>
-          <Button type="button" variant="outline" onClick={() => navigate(-1)} className="ring-1 ring-zinc-200 text-zinc-50 text-zinc-600 hover:text-zinc-100">
-            Cancel
-          </Button>
-        </div>
-      </form>
-    </div>
-  );
+ <div className="flex gap-3">
+ <Button type="submit" disabled={loading} className="">
+ {loading ? (isEditMode ? 'Saving…' : 'Creating…') : (isEditMode ? 'Save Changes' : 'Create Post Card')}
+ </Button>
+ <Button type="button" variant="outline" onClick={() => navigate(-1)} className="text-muted-foreground hover:text-foreground">
+ Cancel
+ </Button>
+ </div>
+ </form>
+ </div>
+ );
 }
