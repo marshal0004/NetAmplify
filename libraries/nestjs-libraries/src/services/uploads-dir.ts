@@ -15,6 +15,7 @@
 
 import { join, resolve } from 'path';
 import { existsSync } from 'fs';
+import { PublishError } from '../platforms/adapter.interface';
 
 /**
  * Absolute path to the uploads directory.
@@ -149,4 +150,35 @@ export function resolvePublicMediaUrl(url: string): string | null {
   } catch {
     return null;
   }
+}
+
+export async function uploadToCatbox(buffer: Buffer, filename: string): Promise<string> {
+  const form = new FormData();
+  form.append('reqtype', 'fileupload');
+  form.append('fileToUpload', new Blob([new Uint8Array(buffer)]), filename);
+  const resp = await fetch('https://catbox.moe/user/api.php', { method: 'POST', body: form });
+  if (!resp.ok) {
+    throw new PublishError('NETWORK', `Failed to upload media to catbox.moe (HTTP ${resp.status})`);
+  }
+  const url = (await resp.text()).trim();
+  if (!url.startsWith('https://')) {
+    throw new PublishError('NETWORK', `catbox.moe returned an unexpected response: ${url}`);
+  }
+  return url;
+}
+
+export async function ensurePublicMediaUrl(url: string): Promise<string> {
+  if (!url) throw new PublishError('VALIDATION', 'No media URL provided.');
+  if (url.startsWith('https://') && !url.includes('localhost') && !url.includes('127.0.0.1') && !url.includes('ngrok-free')) {
+    return url;
+  }
+  const localPath = resolveLocalUploadPath(url);
+  if (!localPath) {
+    const resolved = resolvePublicMediaUrl(url);
+    if (resolved && resolved.startsWith('https://') && !resolved.includes('ngrok-free')) return resolved;
+    throw new PublishError('VALIDATION', `Media URL "${url}" is not publicly reachable and not a local file.`);
+  }
+  const buffer = readLocalUploadFile(url);
+  if (!buffer) throw new PublishError('VALIDATION', `Media file not found on disk for URL "${url}".`);
+  return uploadToCatbox(buffer, localPath.split('/').pop() || 'media');
 }

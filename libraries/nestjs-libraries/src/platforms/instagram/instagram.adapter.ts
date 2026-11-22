@@ -48,7 +48,7 @@ import type {
 } from '../adapter.interface';
 import { PublishError } from '../adapter.interface';
 import type { Platform } from '@prisma/client';
-import { isVideoMedia } from '../../services/uploads-dir';
+import { isVideoMedia, ensurePublicMediaUrl } from '../../services/uploads-dir';
 
 // Instagram's own OAuth endpoints (NOT Facebook's). The authorize endpoint
 // is www.instagram.com/oauth/authorize (aligned with postflare's
@@ -513,7 +513,7 @@ export class InstagramAdapter implements PlatformAdapter {
     // bytes directly). Rewrite localhost → PUBLIC_APP_URL (ngrok HTTPS).
     // If PUBLIC_APP_URL is unset, throw a clear error — IG publishing cannot
     // work without a publicly-fetchable URL.
-    const mediaUrl = rewriteLocalhostUrlForMeta(rawMediaUrl);
+    const mediaUrl = await ensurePublicMediaUrl(rawMediaUrl);
 
     // Build caption.
     //

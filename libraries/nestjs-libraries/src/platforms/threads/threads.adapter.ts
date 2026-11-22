@@ -53,7 +53,7 @@ import type { Platform } from '@prisma/client';
 // Reuse the Meta-family localhost-rewriter already exported by the Instagram
 // adapter (Meta's servers must be able to fetch image URLs over the public
 // internet — same constraint for Threads as for Instagram + Facebook).
-import { rewriteLocalhostUrlForMeta } from '../instagram/instagram.adapter';
+import { ensurePublicMediaUrl } from '../../services/uploads-dir';
 
 // Threads OAuth endpoints (Meta family — distinct from Instagram's
 // api.instagram.com host, but the same Graph API publish shape).
@@ -444,7 +444,7 @@ export class ThreadsAdapter implements PlatformAdapter {
     if (isImagePost) {
       // Meta must be able to fetch the image publicly — rewrite localhost.
       createBody.set('media_type', 'IMAGE');
-      createBody.set('image_url', rewriteLocalhostUrlForMeta(rawImageUrl as string));
+      createBody.set('image_url', await ensurePublicMediaUrl(rawImageUrl as string));
       createBody.set('text', caption);
     } else {
       createBody.set('media_type', 'TEXT');
